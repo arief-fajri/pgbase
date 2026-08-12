@@ -1,0 +1,38 @@
+version: '3.8'
+services:
+  pgbase:
+    build: .
+    ports:
+      - "8090:8090"
+    environment:
+      - PB_POSTGRES_HOST=postgres
+      - PB_POSTGRES_PORT=5432
+      - PB_POSTGRES_USER=pgbase
+      - PB_POSTGRES_PASSWORD=secret
+      - PB_POSTGRES_DBNAME=pgbase
+      - PB_POSTGRES_SSLMODE=disable
+    volumes:
+      - pb_data:/pb_data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: pgbase
+      POSTGRES_USER: pgbase
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pgbase"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pb_data:
+  postgres_data:

@@ -1,0 +1,36 @@
+package migrations
+
+import (
+	"github.com/arief-fajri/pgbase/core"
+)
+
+func init() {
+	core.SystemMigrations.Add(&core.Migration{
+		Up: func(txApp core.App) error {
+			_, execErr := txApp.AuxDB().NewQuery(`
+				CREATE TABLE IF NOT EXISTS _logs (
+					id      TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(gen_random_bytes(7)))) NOT NULL,
+					level   INTEGER DEFAULT 0 NOT NULL,
+					message TEXT DEFAULT '' NOT NULL,
+					data    JSONB DEFAULT '{}'::jsonb NOT NULL,
+					created TIMESTAMPTZ DEFAULT NOW() NOT NULL
+				);
+
+				CREATE INDEX IF NOT EXISTS idx_logs_level ON _logs (level);
+				CREATE INDEX IF NOT EXISTS idx_logs_created ON _logs (created);
+				CREATE INDEX IF NOT EXISTS idx_logs_created_hour ON _logs (to_char(created, 'YYYY-MM-DD HH24:00:00'));
+			`).Execute()
+
+			return execErr
+		},
+		Down: func(txApp core.App) error {
+			_, err := txApp.AuxDB().DropTable("_logs").Execute()
+			return err
+		},
+		ReapplyCondition: func(txApp core.App, runner *core.MigrationsRunner, fileName string) (bool, error) {
+			// reapply only if the _logs table doesn't exist
+			exists := txApp.AuxHasTable("_logs")
+			return !exists, nil
+		},
+	})
+}
