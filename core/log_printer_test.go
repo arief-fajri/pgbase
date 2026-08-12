@@ -2,11 +2,9 @@ package core
 
 import (
 	"context"
-	"database/sql"
 	"log/slog"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/arief-fajri/pgbase/tools/list"
 	"github.com/arief-fajri/pgbase/tools/logger"

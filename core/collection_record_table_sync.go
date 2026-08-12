@@ -219,42 +219,42 @@ func normalizeSingleVsMultipleFieldChanges(app App, newCollection *Collection, o
 
 			if !isOldMultiple && isNewMultiple {
 				// single -> multiple (convert to array)
-				copyQuery = txApp.DB().NewQuery(fmt.Sprintf(
-					`UPDATE {{%s}} set [[%s]] = (
-							CASE
-								WHEN COALESCE([[%s]]::text, '') = ''
-								THEN '[]'::jsonb
-								ELSE (
-									CASE
-										WHEN [[%s]]::text LIKE '[' || '%%'
-										THEN [[%s]]::jsonb
-										ELSE jsonb_build_array([[%s]]::text)
-									END
-								)
-							END
-						)::text`,
-					newCollection.Name,
-					originalName,
-					oldTempName,
-					oldTempName,
-					oldTempName,
-					oldTempName,
-				))
+			copyQuery = txApp.DB().NewQuery(fmt.Sprintf(
+				`UPDATE "%s" set "%s" = (
+						CASE
+							WHEN COALESCE("%s"::text, '') = ''
+							THEN '[]'::jsonb
+							ELSE (
+								CASE
+									WHEN "%s"::text LIKE '[' || '%%'
+									THEN "%s"::jsonb
+									ELSE jsonb_build_array("%s"::text)
+								END
+							)
+						END
+					)::text`,
+				newCollection.Name,
+				originalName,
+				oldTempName,
+				oldTempName,
+				oldTempName,
+				oldTempName,
+			))
 			} else {
 				// multiple -> single (keep only the last element)
 				//
 				// note: for file fields the actual file objects are not
 				// deleted allowing additional custom handling via migration
 			copyQuery = txApp.DB().NewQuery(fmt.Sprintf(
-				`UPDATE {{%s}} set [[%s]] = (
+				`UPDATE "%s" set "%s" = (
 					CASE
-						WHEN COALESCE([[%s]]::text, '[]') = '[]'
+						WHEN COALESCE("%s"::text, '[]') = '[]'
 						THEN ''
 						ELSE (
 							CASE
-								WHEN jsonb_typeof([[%s]]::jsonb) = 'array'
-								THEN COALESCE([[%s]]::jsonb->>(jsonb_array_length([[%s]]::jsonb)-1), '')
-								ELSE [[%s]]::text
+								WHEN jsonb_typeof("%s"::jsonb) = 'array'
+								THEN COALESCE("%s"::jsonb->>(jsonb_array_length("%s"::jsonb)-1), '')
+								ELSE "%s"::text
 							END
 						)
 					END
@@ -309,7 +309,7 @@ func dropCollectionIndexes(app App, collection *Collection) error {
 				return fmt.Errorf("failed to dop index - missing index name: %s", raw)
 			}
 
-			_, err := txApp.DB().NewQuery(fmt.Sprintf("DROP INDEX IF EXISTS [[%s]]", parsed.IndexName)).Execute()
+			_, err := txApp.DB().NewQuery(fmt.Sprintf("DROP INDEX IF EXISTS \"%s\"", parsed.IndexName)).Execute()
 			if err != nil {
 				return err
 			}

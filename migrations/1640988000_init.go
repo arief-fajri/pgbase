@@ -28,6 +28,13 @@ func Register(
 
 func init() {
 	core.SystemMigrations.Register(func(txApp core.App) error {
+		// ensure pgcrypto extension for gen_random_bytes
+		if _, err := txApp.DB().NewQuery(
+			"CREATE EXTENSION IF NOT EXISTS pgcrypto",
+		).Execute(); err != nil {
+			return fmt.Errorf("pgcrypto extension error: %w", err)
+		}
+
 		if err := createParamsTable(txApp); err != nil {
 			return fmt.Errorf("_params exec error: %w", err)
 		}
@@ -35,24 +42,24 @@ func init() {
 		// -----------------------------------------------------------
 
 		_, execerr := txApp.DB().NewQuery(`
-			CREATE TABLE IF NOT EXISTS _collections (
-				id         TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(gen_random_bytes(7)))) NOT NULL,
-				system     BOOLEAN DEFAULT FALSE NOT NULL,
-				type       TEXT DEFAULT 'base' NOT NULL,
-				name       TEXT UNIQUE NOT NULL,
-				fields     JSONB DEFAULT '[]'::jsonb NOT NULL,
-				indexes    JSONB DEFAULT '[]'::jsonb NOT NULL,
-				listRule   TEXT DEFAULT NULL,
-				viewRule   TEXT DEFAULT NULL,
-				createRule TEXT DEFAULT NULL,
-				updateRule TEXT DEFAULT NULL,
-				deleteRule TEXT DEFAULT NULL,
-				options    JSONB DEFAULT '{}'::jsonb NOT NULL,
-				created    TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-				updated    TIMESTAMPTZ DEFAULT NOW() NOT NULL
+			CREATE TABLE IF NOT EXISTS "_collections" (
+				"id"         TEXT PRIMARY KEY DEFAULT ('r'||lower(encode(gen_random_bytes(7), 'hex'))) NOT NULL,
+				"system"     BOOLEAN DEFAULT FALSE NOT NULL,
+				"type"       TEXT DEFAULT 'base' NOT NULL,
+				"name"       TEXT UNIQUE NOT NULL,
+				"fields"     JSONB DEFAULT '[]'::jsonb NOT NULL,
+				"indexes"    JSONB DEFAULT '[]'::jsonb NOT NULL,
+				"listRule"   TEXT DEFAULT NULL,
+				"viewRule"   TEXT DEFAULT NULL,
+				"createRule" TEXT DEFAULT NULL,
+				"updateRule" TEXT DEFAULT NULL,
+				"deleteRule" TEXT DEFAULT NULL,
+				"options"    JSONB DEFAULT '{}'::jsonb NOT NULL,
+				"created"    TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+				"updated"    TIMESTAMPTZ DEFAULT NOW() NOT NULL
 			);
 
-			CREATE INDEX IF NOT EXISTS idx__collections_type ON _collections (type);
+			CREATE INDEX IF NOT EXISTS idx__collections_type ON "_collections" ("type");
 		`).Execute()
 		if execerr != nil {
 			return fmt.Errorf("_collections exec error: %w", execerr)
@@ -106,11 +113,11 @@ func init() {
 
 func createParamsTable(txApp core.App) error {
 	_, execErr := txApp.DB().NewQuery(`
-		CREATE TABLE IF NOT EXISTS _params (
-			id      TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(gen_random_bytes(7)))) NOT NULL,
-			value   JSONB DEFAULT NULL,
-			created TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-			updated TIMESTAMPTZ DEFAULT NOW() NOT NULL
+		CREATE TABLE IF NOT EXISTS "_params" (
+			"id"      TEXT PRIMARY KEY DEFAULT ('r'||lower(encode(gen_random_bytes(7), 'hex'))) NOT NULL,
+			"value"   JSONB DEFAULT NULL,
+			"created" TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+			"updated" TIMESTAMPTZ DEFAULT NOW() NOT NULL
 		);
 	`).Execute()
 

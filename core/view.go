@@ -23,7 +23,7 @@ import (
 // "dangerousViewName" argument must come only from trusted input!
 func (app *BaseApp) DeleteView(dangerousViewName string) error {
 	_, err := app.DB().NewQuery(fmt.Sprintf(
-		"DROP VIEW IF EXISTS {{%s}}",
+		"DROP VIEW IF EXISTS \"%s\"",
 		dangerousViewName,
 	)).Execute()
 
@@ -51,7 +51,7 @@ func (app *BaseApp) SaveView(dangerousViewName string, dangerousSelectQuery stri
 		//
 		// note: the query is wrapped in a secondary SELECT as a rudimentary
 		// measure to discourage multiple inline sql statements execution
-		viewQuery := fmt.Sprintf("CREATE VIEW {{%s}} AS SELECT * FROM (%s)", dangerousViewName, dangerousSelectQuery)
+		viewQuery := fmt.Sprintf(`CREATE VIEW "%s" AS SELECT * FROM (%s)`, dangerousViewName, dangerousSelectQuery)
 		_, err = txApp.DB().NewQuery(viewQuery).Execute()
 		if err != nil {
 			return err

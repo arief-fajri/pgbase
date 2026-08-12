@@ -67,11 +67,12 @@ func buildDSN(config DBConfig) string {
 		sslmode = "disable"
 	}
 
-	return fmt.Sprintf(
+	dsn := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		config.Host, config.Port, config.User, config.Password,
 		config.DBName, sslmode,
 	)
+	return dsn
 }
 
 func getEnvOrDefault(key, defaultVal string) string {
