@@ -78,11 +78,8 @@ func (app *BaseApp) modelQuery(db dbx.Builder, m Model) *dbx.SelectQuery {
 	tableName := m.TableName()
 
 	return db.
-		Select("{{" + tableName + "}}.*").
-		From(tableName).
-		WithBuildHook(func(query *dbx.Query) {
-			query.WithExecHook(execLockRetry(app.config.QueryTimeout, defaultMaxLockRetries))
-		})
+		Select(tableName + ".*").
+		From(tableName)
 }
 
 // Delete deletes the specified model from the regular app database.

@@ -9,7 +9,7 @@ func init() {
 		Up: func(txApp core.App) error {
 			_, execErr := txApp.AuxDB().NewQuery(`
 				CREATE TABLE IF NOT EXISTS _logs (
-					id      TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(gen_random_bytes(7)))) NOT NULL,
+					id      TEXT PRIMARY KEY DEFAULT ('r'||lower(encode(gen_random_bytes(7), 'hex'))) NOT NULL,
 					level   INTEGER DEFAULT 0 NOT NULL,
 					message TEXT DEFAULT '' NOT NULL,
 					data    JSONB DEFAULT '{}'::jsonb NOT NULL,
@@ -18,7 +18,6 @@ func init() {
 
 				CREATE INDEX IF NOT EXISTS idx_logs_level ON _logs (level);
 				CREATE INDEX IF NOT EXISTS idx_logs_created ON _logs (created);
-				CREATE INDEX IF NOT EXISTS idx_logs_created_hour ON _logs (to_char(created, 'YYYY-MM-DD HH24:00:00'));
 			`).Execute()
 
 			return execErr

@@ -249,7 +249,7 @@ func (r *MigrationsRunner) initMigrationsTable() error {
 	}
 
 	rawQuery := fmt.Sprintf(
-		"CREATE TABLE IF NOT EXISTS {{%s}} (file VARCHAR(255) PRIMARY KEY NOT NULL, applied INTEGER NOT NULL)",
+		`CREATE TABLE IF NOT EXISTS "%s" (file VARCHAR(255) PRIMARY KEY NOT NULL, applied BIGINT NOT NULL)`,
 		r.tableName,
 	)
 
@@ -277,7 +277,7 @@ func (r *MigrationsRunner) isMigrationApplied(txApp App, file string) bool {
 func (r *MigrationsRunner) saveAppliedMigration(txApp App, file string) error {
 	_, err := txApp.DB().Insert(r.tableName, dbx.Params{
 		"file":    file,
-		"applied": time.Now().UnixMicro(),
+		"applied": time.Now().Unix(),
 	}).Execute()
 
 	return err

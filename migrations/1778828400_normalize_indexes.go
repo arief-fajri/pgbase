@@ -67,6 +67,11 @@ func init() {
 
 		missingIndexesLoop:
 			for _, missing := range missingParsedIndexes {
+				// skip primary key indexes (PostgreSQL requires ALTER TABLE DROP CONSTRAINT)
+				if strings.HasSuffix(missing.IndexName, "_pkey") {
+					continue missingIndexesLoop
+				}
+
 				missingSQL := missing.Build()
 
 				// it shouldn't be possible but for just in case if there is an edge case the regex doesn't cover

@@ -112,10 +112,10 @@ func migrateSuperusers(txApp core.App, oldSettings *oldSettingsModel) error {
 	}
 
 	// copy old admins records into the new one
-	_, err = txApp.DB().NewQuery(`
-		INSERT INTO {{` + core.CollectionNameSuperusers + `}} ([[id]], [[verified]], [[email]], [[password]], [[tokenKey]],  [[created]], [[updated]])
-		SELECT [[id]], true, [[email]], [[passwordHash]], [[tokenKey]], [[created]], [[updated]] FROM {{_admins}};
-	`).Execute()
+	_, err = txApp.DB().NewQuery(fmt.Sprintf(`
+		INSERT INTO "%s" ("id", "verified", "email", "password", "tokenKey", "created", "updated")
+		SELECT "id", true, "email", "passwordHash", "tokenKey", "created", "updated" FROM "_admins";
+	`, core.CollectionNameSuperusers)).Execute()
 	if err != nil {
 		return err
 	}
@@ -260,10 +260,10 @@ func migrateExternalAuths(txApp core.App) error {
 	}
 
 	// copy old externalAuths records into the new one
-	_, err = txApp.DB().NewQuery(`
-		INSERT INTO {{` + core.CollectionNameExternalAuths + `}} ([[id]], [[collectionRef]], [[recordRef]], [[provider]], [[providerId]], [[created]], [[updated]])
-		SELECT [[id]], [[collectionId]], [[recordId]], [[provider]], [[providerId]], [[created]], [[updated]] FROM {{_externalAuths_old}};
-	`).Execute()
+	_, err = txApp.DB().NewQuery(fmt.Sprintf(`
+		INSERT INTO "%s" ("id", "collectionRef", "recordRef", "provider", "providerId", "created", "updated")
+		SELECT "id", "collectionId", "recordId", "provider", "providerId", "created", "updated" FROM "_externalAuths_old";
+	`, core.CollectionNameExternalAuths)).Execute()
 	if err != nil {
 		return err
 	}

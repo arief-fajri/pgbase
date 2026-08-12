@@ -87,7 +87,7 @@ func (d *PgSQLDialect) HasTableQuery() string {
 }
 
 func (d *PgSQLDialect) GenerateIDExpression() string {
-	return "DEFAULT ('r' || lower(hex(gen_random_bytes(7))))"
+	return "DEFAULT ('r' || lower(encode(gen_random_bytes(7), 'hex')))"
 }
 
 func (d *PgSQLDialect) Strftime(column, format string) string {
