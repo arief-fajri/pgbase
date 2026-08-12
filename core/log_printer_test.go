@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/list"
 	"github.com/arief-fajri/pgbase/tools/logger"
 )
@@ -54,11 +53,7 @@ func TestBaseAppLoggerLevelDevPrint(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			// silence query logs
-			app.concurrentDB.(*dbx.DB).ExecLogFunc = func(ctx context.Context, t time.Duration, sql string, result sql.Result, err error) {}
-			app.concurrentDB.(*dbx.DB).QueryLogFunc = func(ctx context.Context, t time.Duration, sql string, rows *sql.Rows, err error) {}
-			app.nonconcurrentDB.(*dbx.DB).ExecLogFunc = func(ctx context.Context, t time.Duration, sql string, result sql.Result, err error) {}
-			app.nonconcurrentDB.(*dbx.DB).QueryLogFunc = func(ctx context.Context, t time.Duration, sql string, rows *sql.Rows, err error) {}
+			// silence query logs no longer needed (PostgreSQL connection handled by pool)
 
 			app.Settings().Logs.MinLevel = testLogLevel
 			if err := app.Save(app.Settings()); err != nil {

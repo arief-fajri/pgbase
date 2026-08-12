@@ -9,7 +9,12 @@ import (
 func TestJSONEach(t *testing.T) {
 	result := dbutils.JSONEach("a.b")
 
-	expected := "json_each(CASE WHEN iif(json_valid([[a.b]]), json_type([[a.b]])='array', FALSE) THEN [[a.b]] ELSE json_array([[a.b]]) END)"
+	expected := `jsonb_array_elements(
+			CASE WHEN jsonb_typeof([[a.b]]) = 'array'
+			THEN [[a.b]]::jsonb
+			ELSE jsonb_build_array([[a.b]]::text)
+			END
+		)`
 
 	if result != expected {
 		t.Fatalf("Expected\n%v\ngot\n%v", expected, result)
@@ -19,7 +24,15 @@ func TestJSONEach(t *testing.T) {
 func TestJSONArrayLength(t *testing.T) {
 	result := dbutils.JSONArrayLength("a.b")
 
-	expected := "json_array_length(CASE WHEN iif(json_valid([[a.b]]), json_type([[a.b]])='array', FALSE) THEN [[a.b]] ELSE (CASE WHEN [[a.b]] = '' OR [[a.b]] IS NULL THEN json_array() ELSE json_array([[a.b]]) END) END)"
+	expected := `jsonb_array_length(
+			CASE WHEN jsonb_typeof([[a.b]]) = 'array'
+			THEN [[a.b]]::jsonb
+			ELSE CASE WHEN [[a.b]] = '' OR [[a.b]] IS NULL
+				 THEN '[]'::jsonb
+				 ELSE jsonb_build_array([[a.b]])
+			END
+			END
+		)`
 
 	if result != expected {
 		t.Fatalf("Expected\n%v\ngot\n%v", expected, result)
@@ -37,19 +50,28 @@ func TestJSONExtract(t *testing.T) {
 			"empty path",
 			"a.b",
 			"",
-			"(CASE WHEN json_valid([[a.b]]) THEN JSON_EXTRACT([[a.b]], '$') ELSE JSON_EXTRACT(json_object('pb', [[a.b]]), '$.pb') END)",
+			`(CASE WHEN [[a.b]] IS NOT NULL AND jsonb_typeof([[a.b]]::jsonb) IS NOT NULL
+		 THEN [[a.b]]::jsonb #>> ''
+		 ELSE (jsonb_build_object('pb', [[a.b]]::text)) #>> '.pb'
+		 END)`,
 		},
 		{
 			"starting with array index",
 			"a.b",
 			"[1].a[2]",
-			"(CASE WHEN json_valid([[a.b]]) THEN JSON_EXTRACT([[a.b]], '$[1].a[2]') ELSE JSON_EXTRACT(json_object('pb', [[a.b]]), '$.pb[1].a[2]') END)",
+			`(CASE WHEN [[a.b]] IS NOT NULL AND jsonb_typeof([[a.b]]::jsonb) IS NOT NULL
+		 THEN [[a.b]]::jsonb #>> '[1].a[2]'
+		 ELSE (jsonb_build_object('pb', [[a.b]]::text)) #>> '.pb[1].a[2]'
+		 END)`,
 		},
 		{
 			"starting with key",
 			"a.b",
 			"a.b[2].c",
-			"(CASE WHEN json_valid([[a.b]]) THEN JSON_EXTRACT([[a.b]], '$.a.b[2].c') ELSE JSON_EXTRACT(json_object('pb', [[a.b]]), '$.pb.a.b[2].c') END)",
+			`(CASE WHEN [[a.b]] IS NOT NULL AND jsonb_typeof([[a.b]]::jsonb) IS NOT NULL
+		 THEN [[a.b]]::jsonb #>> '.a.b[2].c'
+		 ELSE (jsonb_build_object('pb', [[a.b]]::text)) #>> '.pb.a.b[2].c'
+		 END)`,
 		},
 	}
 
