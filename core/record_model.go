@@ -1450,7 +1450,7 @@ func onRecordSaveExecute(e *RecordEvent) error {
 		}
 		for _, collection := range authCollections {
 			if e.Record.Collection().Id == collection.Id {
-				continue // skip current collection (sqlite will do the check for us)
+				continue // skip current collection (unique constraint handles this)
 			}
 			record, _ := e.App.FindRecordById(collection, e.Record.Id)
 			if record != nil {
