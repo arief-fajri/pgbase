@@ -19,9 +19,6 @@ Step-by-step guide to run PG-BASE in local environment.
 ## 1. Clone & Install Dependencies
 
 ```bash
-git clone git@github.com-personal:arief-fajri/pgbase.git
-cd pgbase
-
 # Go dependencies
 go mod download
 
