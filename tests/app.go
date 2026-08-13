@@ -33,6 +33,10 @@ type TestApp struct {
 //
 // After this call, the app instance shouldn't be used anymore.
 func (t *TestApp) Cleanup() {
+	if t == nil || t.BaseApp == nil {
+		return
+	}
+
 	event := new(core.TerminateEvent)
 	event.App = t
 
