@@ -348,7 +348,7 @@ func (app *BaseApp) registerCollectionHooks() {
 }
 
 // @todo experiment eventually replacing the rules *string with a struct?
-// @todo consider changing the Indexes field to a "getter" for the sqlite_master table?
+	// @todo consider changing the Indexes field to a "getter" for the pg_indexes view?
 type baseCollection struct {
 	BaseModel
 
