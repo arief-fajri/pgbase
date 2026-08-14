@@ -19,7 +19,7 @@ var TokenFunctions = map[string]func(
 	// The accepted arguments at the moment could be either a plain number or a column identifier (including NULL).
 	// If the column identifier cannot be resolved and converted to a numeric value, it resolves to NULL.
 	//
-	// Similar to the built-in SQLite functions, geoDistance doesn't apply
+	// geoDistance doesn't apply
 	// a "match-all" constraints in case there are multiple relation fields arguments.
 	// Or in other words, if a collection has "orgs" multiple relation field pointing to "orgs" collection that has "office" as "geoPoint" field,
 	// then the filter: `geoDistance(orgs.office.lon, orgs.office.lat, 1, 2) < 200`
@@ -60,20 +60,19 @@ var TokenFunctions = map[string]func(
 	// strftime(format, [timeValue, modifier1, modifier2, ...]) returns
 	// a date string formatted according to the specified format argument.
 	//
-	// It is similar to the builtin SQLite strftime function (https://sqlite.org/lang_datefunc.html)
+	// It is a date formatting function (similar to strftime but uses PostgreSQL's to_char internally)
 	// with the main difference that NULL results will be normalized for
 	// consistency with the non-nullable PocketBase "text" and "date" fields.
 	//
 	// The function accepts 1, 2 or 3+ arguments.
 	//
 	// (1) The first (format) argument must be always a formatting string
-	// with valid substitutions as listed in https://sqlite.org/lang_datefunc.html.
+	// with valid substitutions as listed in https://www.postgresql.org/docs/current/functions-formatting.html.
 	//
-	// (2) The second (time-value) argument is optional and must be either a date string, number or collection field identifier
-	// that matches one of the formats listed in https://sqlite.org/lang_datefunc.html#time_values.
+	// (2) The second (time-value) argument is optional and must be either a date string, number or collection field identifier.
 	//
 	// (3+) The remaining (modifiers) optional arguments are expected to be
-	// string literals matching the listed modifiers in https://sqlite.org/lang_datefunc.html#modifiers.
+	// string literals representing date/time modifiers (e.g. '+1 days', '-2 months').
 	//
 	// A multi-match constraint will be also applied in case the time-value
 	// is an identifier as a result of a multi-value relation field.

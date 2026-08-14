@@ -69,7 +69,7 @@ func TestRecordAuthRefresh(t *testing.T) {
 				`"email":"test@example.com"`, // the owner can always view their email address
 				`"expand":`,
 				`"rel":`,
-				`"id":"llvuca81nly1qls"`,
+				`"id":"k7l9m3n4o5p6q7r"`,
 			},
 			NotExpectedContent: []string{
 				`"missing":`,

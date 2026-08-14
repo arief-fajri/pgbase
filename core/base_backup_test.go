@@ -125,13 +125,8 @@ func verifyBackupContent(app core.App, path string) error {
 
 	expectedRootEntries := []string{
 		"storage",
-		"data.db",
-		"data.db-shm",
-		"data.db-wal",
-		"auxiliary.db",
-		"auxiliary.db-shm",
-		"auxiliary.db-wal",
 		".gitignore",
+		".gitkeep",
 	}
 
 	entries, err := os.ReadDir(dir)
@@ -139,14 +134,22 @@ func verifyBackupContent(app core.App, path string) error {
 		return err
 	}
 
-	if len(entries) != len(expectedRootEntries) {
-		names := getEntryNames(entries)
-		return fmt.Errorf("Expected %d backup files, got %d: \n%v", len(expectedRootEntries), len(entries), names)
-	}
-
 	for _, entry := range entries {
 		if !list.ExistInSliceWithRegex(entry.Name(), expectedRootEntries) {
 			return fmt.Errorf("Didn't expect %q entry", entry.Name())
+		}
+	}
+
+	for _, expected := range expectedRootEntries {
+		found := false
+		for _, name := range getEntryNames(entries) {
+			if list.ExistInSliceWithRegex(name, []string{expected}) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("Expected entry matching %q not found in backup", expected)
 		}
 	}
 

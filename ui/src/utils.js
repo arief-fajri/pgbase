@@ -1744,12 +1744,12 @@ const utils = {
         }
 
         if (indexParts.schemaName) {
-            result += `\`${indexParts.schemaName}\`.`;
+            result += `"${indexParts.schemaName}".`;
         }
 
-        result += `\`${indexParts.indexName || "idx_" + app.utils.randomString(10)}\` `;
+        result += `"${indexParts.indexName || "idx_" + app.utils.randomString(10)}" `;
 
-        result += `ON \`${indexParts.tableName}\` (`;
+        result += `ON "${indexParts.tableName}" (`;
 
         const nonEmptyCols = indexParts.columns.filter((col) => !!col?.name);
 
@@ -1766,11 +1766,7 @@ const utils = {
                     item += col.name;
                 } else {
                     // regular identifier
-                    item += "`" + col.name + "`";
-                }
-
-                if (col.collate) {
-                    item += " COLLATE " + col.collate;
+                    item += '"' + col.name + '"';
                 }
 
                 if (col.sort) {

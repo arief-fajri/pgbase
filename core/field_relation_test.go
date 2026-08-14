@@ -37,7 +37,7 @@ func TestRelationFieldColumnType(t *testing.T) {
 		{
 			"multiple",
 			&core.RelationField{MaxSelect: 2},
-			"JSON DEFAULT '[]' NOT NULL",
+			"JSONB DEFAULT '[]'::jsonb NOT NULL",
 		},
 	}
 
@@ -401,7 +401,7 @@ func TestRelationFieldValidateSettings(t *testing.T) {
 				return &core.RelationField{
 					Id:           "test",
 					Name:         "test",
-					CollectionId: "v9gwnfh02gjq1q0",
+					CollectionId: "view1_id",
 				}
 			},
 			[]string{"collectionId"},
@@ -413,7 +413,7 @@ func TestRelationFieldValidateSettings(t *testing.T) {
 				return &core.RelationField{
 					Id:           "test",
 					Name:         "test",
-					CollectionId: "v9gwnfh02gjq1q0",
+					CollectionId: "view1_id",
 				}
 			},
 			[]string{},

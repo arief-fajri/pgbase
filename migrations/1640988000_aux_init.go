@@ -13,11 +13,14 @@ func init() {
 					level   INTEGER DEFAULT 0 NOT NULL,
 					message TEXT DEFAULT '' NOT NULL,
 					data    JSONB DEFAULT '{}'::jsonb NOT NULL,
-					created TIMESTAMPTZ DEFAULT NOW() NOT NULL
+					created TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+					updated TIMESTAMPTZ DEFAULT NOW() NOT NULL
 				);
 
 				CREATE INDEX IF NOT EXISTS idx_logs_level ON _logs (level);
 				CREATE INDEX IF NOT EXISTS idx_logs_created ON _logs (created);
+
+				ALTER TABLE _logs ADD COLUMN IF NOT EXISTS updated TIMESTAMPTZ DEFAULT NOW() NOT NULL;
 			`).Execute()
 
 			return execErr

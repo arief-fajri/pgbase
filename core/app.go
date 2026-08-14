@@ -1,4 +1,4 @@
-// Package core is the backbone of PocketBase.
+// Package core is the backbone of PG-Base.
 //
 // It defines the main PocketBase App interface and its base implementation.
 package core
@@ -146,17 +146,16 @@ type App interface {
 	// DB methods
 	// ---------------------------------------------------------------
 
-	// DB returns the default app data.db builder instance.
+	// DB returns the default app database builder instance.
 	//
-	// To minimize SQLITE_BUSY errors, it automatically routes the
-	// SELECT queries to the underlying concurrent db pool and everything else
-	// to the nonconcurrent one.
+	// It automatically routes the SELECT queries to the underlying
+	// concurrent db pool and everything else to the nonconcurrent one.
 	//
 	// For more finer control over the used connections pools you can
 	// call directly ConcurrentDB() or NonconcurrentDB().
 	DB() dbx.Builder
 
-	// ConcurrentDB returns the concurrent app data.db builder instance.
+	// ConcurrentDB returns the concurrent app database builder instance.
 	//
 	// This method is used mainly internally for executing db read
 	// operations in a concurrent/non-blocking manner.
@@ -167,13 +166,13 @@ type App interface {
 	// In a transaction the ConcurrentDB() and NonconcurrentDB() refer to the same *dbx.TX instance.
 	ConcurrentDB() dbx.Builder
 
-	// NonconcurrentDB returns the nonconcurrent app data.db builder instance.
+	// NonconcurrentDB returns the nonconcurrent app database builder instance.
 	//
 	// The returned db instance is limited only to a single open connection,
 	// meaning that it can process only 1 db operation at a time (other queries queue up).
 	//
 	// This method is used mainly internally and in the tests to execute write
-	// (save/delete) db operations as it helps with minimizing the SQLITE_BUSY errors.
+	// (save/delete) db operations.
 	//
 	// Most users should use simply DB() as it will automatically
 	// route the query execution to ConcurrentDB() or NonconcurrentDB().
@@ -183,9 +182,8 @@ type App interface {
 
 	// AuxDB returns the app auxiliary.db builder instance.
 	//
-	// To minimize SQLITE_BUSY errors, it automatically routes the
-	// SELECT queries to the underlying concurrent db pool and everything else
-	// to the nonconcurrent one.
+	// It automatically routes the SELECT queries to the underlying
+	// concurrent db pool and everything else to the nonconcurrent one.
 	//
 	// For more finer control over the used connections pools you can
 	// call directly AuxConcurrentDB() or AuxNonconcurrentDB().
@@ -208,7 +206,7 @@ type App interface {
 	// meaning that it can process only 1 db operation at a time (other queries queue up).
 	//
 	// This method is used mainly internally and in the tests to execute write
-	// (save/delete) db operations as it helps with minimizing the SQLITE_BUSY errors.
+	// (save/delete) db operations.
 	//
 	// Most users should use simply AuxDB() as it will automatically
 	// route the query execution to AuxConcurrentDB() or AuxNonconcurrentDB().
@@ -217,7 +215,7 @@ type App interface {
 	AuxNonconcurrentDB() dbx.Builder
 
 	// HasTable checks if a table (or view) with the provided name exists (case insensitive).
-	// in the data.db.
+	// in the database.
 	HasTable(tableName string) bool
 
 	// AuxHasTable checks if a table (or view) with the provided name exists (case insensitive)
@@ -227,7 +225,7 @@ type App interface {
 	// TableColumns returns all column names of a single table by its name.
 	TableColumns(tableName string) ([]string, error)
 
-	// TableInfo returns the "table_info" pragma result for the specified table.
+	// TableInfo returns the column info result for the specified table.
 	TableInfo(tableName string) ([]*TableInfoRow, error)
 
 	// TableIndexes returns a name grouped map with all non empty index of the specified table.
@@ -279,15 +277,21 @@ type App interface {
 	// FindRecordByViewFile returns the original Record of the provided view collection file.
 	FindRecordByViewFile(viewCollectionModelOrIdentifier any, fileFieldName string, filename string) (*Record, error)
 
-	// Vacuum executes VACUUM on the data.db in order to reclaim unused data db disk space.
+	// Vacuum executes VACUUM to reclaim unused database disk space.
 	Vacuum() error
 
-	// AuxVacuum executes VACUUM on the auxiliary.db in order to reclaim unused auxiliary db disk space.
+	// AuxVacuum executes VACUUM on the auxiliary database to reclaim unused disk space.
 	AuxVacuum() error
+
+	// Analyze updates the query planner statistics on the main database.
+	Analyze() error
+
+	// AuxAnalyze updates the query planner statistics on the auxiliary database.
+	AuxAnalyze() error
 
 	// ---------------------------------------------------------------
 
-	// ModelQuery creates a new preconfigured select data.db query with preset
+	// ModelQuery creates a new preconfigured select query with preset
 	// SELECT, FROM and other common fields based on the provided model.
 	ModelQuery(model Model) *dbx.SelectQuery
 

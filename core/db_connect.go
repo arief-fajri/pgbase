@@ -17,6 +17,7 @@ type DBConfig struct {
 	Password     string
 	DBName       string
 	SSLMode      string
+	Schema       string
 	MaxOpenConns int
 	MaxIdleConns int
 }
@@ -72,6 +73,9 @@ func buildDSN(config DBConfig) string {
 		config.Host, config.Port, config.User, config.Password,
 		config.DBName, sslmode,
 	)
+	if config.Schema != "" {
+		dsn += " search_path=" + config.Schema + ",public"
+	}
 	return dsn
 }
 

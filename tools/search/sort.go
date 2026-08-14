@@ -40,7 +40,11 @@ func (s *SortField) BuildExpr(fieldResolver FieldResolver) (string, error) {
 		return "", fmt.Errorf("invalid sort field %q", s.Name)
 	}
 
-	return fmt.Sprintf("%s %s", result.Identifier, s.Direction), nil
+	nullsOrder := "LAST"
+	if s.Direction == SortDesc {
+		nullsOrder = "FIRST"
+	}
+	return fmt.Sprintf("%s %s NULLS %s", result.Identifier, s.Direction, nullsOrder), nil
 }
 
 // ParseSortFromString parses the provided string expression

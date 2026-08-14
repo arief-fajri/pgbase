@@ -39,7 +39,7 @@ func (app *BaseApp) LogsStats(expr dbx.Expression) ([]*LogsStatsItem, error) {
 	result := []*LogsStatsItem{}
 
 	query := app.LogQuery().
-		Select("count(id) as total", "strftime('%Y-%m-%d %H:00:00', created) as date").
+		Select("count(id) as total", "to_char(created, 'YYYY-MM-DD HH24:00:00') as date").
 		GroupBy("date")
 
 	if expr != nil {

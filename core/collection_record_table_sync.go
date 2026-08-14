@@ -142,10 +142,9 @@ func (app *BaseApp) SyncRecordTableSchema(newCollection *Collection, oldCollecti
 		return txErr
 	}
 
-	// run optimize
-	_, optimizeErr := app.NonconcurrentDB().NewQuery(dbutils.DefaultDialect.OptimizeQuery()).Execute()
-	if optimizeErr != nil {
-		app.Logger().Warn("Failed to run PRAGMA optimize after record table sync", slog.String("error", optimizeErr.Error()))
+	// run analyze to update query planner statistics
+	if analyzeErr := app.Analyze(); analyzeErr != nil {
+		app.Logger().Warn("Failed to run ANALYZE after record table sync", slog.String("error", analyzeErr.Error()))
 	}
 
 	return nil
@@ -181,7 +180,7 @@ func normalizeSingleVsMultipleFieldChanges(app App, newCollection *Collection, o
 			// -------------------------------------------------------
 
 			// temporary drop all views to prevent reference errors during the columns renaming
-			// (this is used as an "alternative" to the writable_schema PRAGMA)
+			// (this is used to ensure concurrent table sync safety)
 			views := []struct {
 				Name string `db:"name"`
 				SQL  string `db:"sql"`

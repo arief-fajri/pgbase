@@ -81,7 +81,7 @@ func TestSQLRun(t *testing.T) {
 			ExpectedContent: []string{
 				`"data":{}`,
 				`Raw error:`,
-				`SQL logic error`,
+				`ERROR`,
 			},
 			ExpectedEvents: map[string]int{"*": 0},
 		},
@@ -189,7 +189,7 @@ func TestSQLRun(t *testing.T) {
 			ExpectedContent: []string{
 				`"data":{}`,
 				`Raw error:`,
-				`SQL logic error`,
+				`ERROR`,
 			},
 			ExpectedEvents: map[string]int{"*": 0},
 		},

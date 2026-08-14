@@ -106,7 +106,7 @@ func (f *AutodateField) SetHidden(hidden bool) {
 
 // ColumnType implements [Field.ColumnType] interface method.
 func (f *AutodateField) ColumnType(app App) string {
-	return "TEXT DEFAULT '' NOT NULL"
+	return "TIMESTAMPTZ DEFAULT NOW() NOT NULL"
 }
 
 // PrepareValue implements [Field.PrepareValue] interface method.

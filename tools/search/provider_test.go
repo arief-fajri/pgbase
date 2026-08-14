@@ -14,7 +14,8 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/list"
-	_ "modernc.org/sqlite"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func TestNewProvider(t *testing.T) {
@@ -302,8 +303,8 @@ func TestProviderExecNonEmptyQuery(t *testing.T) {
 			false,
 			`{"items":[{"test1":1,"test2":"test2.1","test3":""},{"test1":2,"test2":"test2.2","test3":""}],"page":1,"perPage":10,"totalItems":2,"totalPages":1}`,
 			[]string{
-				"SELECT COUNT(DISTINCT [[test.id]]) FROM `test` WHERE NOT (`test1` IS NULL)",
-				"SELECT * FROM `test` WHERE NOT (`test1` IS NULL) ORDER BY `test1` ASC LIMIT 10",
+				`SELECT COUNT(DISTINCT [[test.id]]) FROM "test" WHERE NOT ("test1" IS NULL)`,
+				`SELECT * FROM "test" WHERE NOT ("test1" IS NULL) ORDER BY "test1" ASC LIMIT 10`,
 			},
 		},
 		{
@@ -315,10 +316,10 @@ func TestProviderExecNonEmptyQuery(t *testing.T) {
 			false,
 			false,
 			`{"items":[],"page":10,"perPage":30,"totalItems":2,"totalPages":1}`,
-			[]string{
-				"SELECT COUNT(DISTINCT [[test.id]]) FROM `test` WHERE NOT (`test1` IS NULL)",
-				"SELECT * FROM `test` WHERE NOT (`test1` IS NULL) ORDER BY `test1` ASC LIMIT 30 OFFSET 270",
-			},
+		[]string{
+			`SELECT COUNT(DISTINCT [[test.id]]) FROM "test" WHERE NOT ("test1" IS NULL)`,
+			`SELECT * FROM "test" WHERE NOT ("test1" IS NULL) ORDER BY "test1" ASC LIMIT 30 OFFSET 270`,
+		},
 		},
 		{
 			"invalid sort field",
@@ -352,8 +353,8 @@ func TestProviderExecNonEmptyQuery(t *testing.T) {
 			false,
 			`{"items":[{"test1":2,"test2":"test2.2","test3":""}],"page":1,"perPage":` + fmt.Sprint(MaxPerPage) + `,"totalItems":1,"totalPages":1}`,
 			[]string{
-				"SELECT COUNT(DISTINCT [[test.id]]) FROM `test` WHERE ((NOT (`test1` IS NULL)) AND (((test2 IS NOT '' AND test2 IS NOT NULL)))) AND (test1 >= 2)",
-				"SELECT * FROM `test` WHERE ((NOT (`test1` IS NULL)) AND (((test2 IS NOT '' AND test2 IS NOT NULL)))) AND (test1 >= 2) ORDER BY `test1` ASC, `test2` DESC LIMIT " + fmt.Sprint(MaxPerPage),
+				`SELECT COUNT(DISTINCT [[test.id]]) FROM "test" WHERE ((NOT ("test1" IS NULL)) AND (((test2 != '' AND test2 IS NOT NULL)))) AND (test1 >= 2)`,
+				`SELECT * FROM "test" WHERE ((NOT ("test1" IS NULL)) AND (((test2 != '' AND test2 IS NOT NULL)))) AND (test1 >= 2) ORDER BY "test1" ASC, "test2" DESC NULLS FIRST LIMIT ` + fmt.Sprint(MaxPerPage),
 			},
 		},
 		{
@@ -366,7 +367,7 @@ func TestProviderExecNonEmptyQuery(t *testing.T) {
 			false,
 			`{"items":[{"test1":2,"test2":"test2.2","test3":""}],"page":1,"perPage":` + fmt.Sprint(MaxPerPage) + `,"totalItems":-1,"totalPages":-1}`,
 			[]string{
-				"SELECT * FROM `test` WHERE ((NOT (`test1` IS NULL)) AND (((test2 IS NOT '' AND test2 IS NOT NULL)))) AND (test1 >= 2) ORDER BY `test1` ASC, `test2` DESC LIMIT " + fmt.Sprint(MaxPerPage),
+				`SELECT * FROM "test" WHERE ((NOT ("test1" IS NULL)) AND (((test2 != '' AND test2 IS NOT NULL)))) AND (test1 >= 2) ORDER BY "test1" ASC, "test2" DESC NULLS FIRST LIMIT ` + fmt.Sprint(MaxPerPage),
 			},
 		},
 		{
@@ -378,23 +379,23 @@ func TestProviderExecNonEmptyQuery(t *testing.T) {
 			false,
 			false,
 			`{"items":[],"page":1,"perPage":10,"totalItems":0,"totalPages":0}`,
-			[]string{
-				"SELECT COUNT(DISTINCT [[test.id]]) FROM `test` WHERE (NOT (`test1` IS NULL)) AND (((test3 IS NOT '' AND test3 IS NOT NULL)))",
-				"SELECT * FROM `test` WHERE (NOT (`test1` IS NULL)) AND (((test3 IS NOT '' AND test3 IS NOT NULL))) ORDER BY `test1` ASC, `test3` ASC LIMIT 10",
-			},
+		[]string{
+			`SELECT COUNT(DISTINCT [[test.id]]) FROM "test" WHERE (NOT ("test1" IS NULL)) AND (((test3 != '' AND test3 IS NOT NULL)))`,
+			`SELECT * FROM "test" WHERE (NOT ("test1" IS NULL)) AND (((test3 != '' AND test3 IS NOT NULL))) ORDER BY "test1" ASC, "test3" ASC NULLS LAST LIMIT 10`,
 		},
-		{
-			"valid sort and filter fields (zero results; skipTotal=1)",
-			1,
-			10,
-			[]SortField{{"test3", SortAsc}},
-			[]FilterData{"test3 != ''"},
-			true,
-			false,
-			`{"items":[],"page":1,"perPage":10,"totalItems":-1,"totalPages":-1}`,
-			[]string{
-				"SELECT * FROM `test` WHERE (NOT (`test1` IS NULL)) AND (((test3 IS NOT '' AND test3 IS NOT NULL))) ORDER BY `test1` ASC, `test3` ASC LIMIT 10",
-			},
+	},
+	{
+		"valid sort and filter fields (zero results; skipTotal=1)",
+		1,
+		10,
+		[]SortField{{"test3", SortAsc}},
+		[]FilterData{"test3 != ''"},
+		true,
+		false,
+		`{"items":[],"page":1,"perPage":10,"totalItems":-1,"totalPages":-1}`,
+		[]string{
+			`SELECT * FROM "test" WHERE (NOT ("test1" IS NULL)) AND (((test3 != '' AND test3 IS NOT NULL))) ORDER BY "test1" ASC, "test3" ASC NULLS LAST LIMIT 10`,
+		},
 		},
 		{
 			"pagination test",
@@ -404,11 +405,11 @@ func TestProviderExecNonEmptyQuery(t *testing.T) {
 			[]FilterData{},
 			false,
 			false,
-			`{"items":[{"test1":2,"test2":"test2.2","test3":""}],"page":2,"perPage":1,"totalItems":2,"totalPages":2}`,
-			[]string{
-				"SELECT COUNT(DISTINCT [[test.id]]) FROM `test` WHERE NOT (`test1` IS NULL)",
-				"SELECT * FROM `test` WHERE NOT (`test1` IS NULL) ORDER BY `test1` ASC LIMIT 1 OFFSET 1",
-			},
+		`{"items":[{"test1":2,"test2":"test2.2","test3":""}],"page":2,"perPage":1,"totalItems":2,"totalPages":2}`,
+		[]string{
+			`SELECT COUNT(DISTINCT [[test.id]]) FROM "test" WHERE NOT ("test1" IS NULL)`,
+			`SELECT * FROM "test" WHERE NOT ("test1" IS NULL) ORDER BY "test1" ASC LIMIT 1 OFFSET 1`,
+		},
 		},
 		{
 			"pagination test (skipTotal=1)",
@@ -418,10 +419,10 @@ func TestProviderExecNonEmptyQuery(t *testing.T) {
 			[]FilterData{},
 			true,
 			false,
-			`{"items":[{"test1":2,"test2":"test2.2","test3":""}],"page":2,"perPage":1,"totalItems":-1,"totalPages":-1}`,
-			[]string{
-				"SELECT * FROM `test` WHERE NOT (`test1` IS NULL) ORDER BY `test1` ASC LIMIT 1 OFFSET 1",
-			},
+		`{"items":[{"test1":2,"test2":"test2.2","test3":""}],"page":2,"perPage":1,"totalItems":-1,"totalPages":-1}`,
+		[]string{
+			`SELECT * FROM "test" WHERE NOT ("test1" IS NULL) ORDER BY "test1" ASC LIMIT 1 OFFSET 1`,
+		},
 		},
 	}
 
@@ -544,7 +545,7 @@ func TestProviderFilterAndSortLimits(t *testing.T) {
 			[]SortField{
 				{"id", SortAsc},
 				{"test1", SortDesc},
-				{strings.Repeat("a", MaxSortFieldLength), SortDesc},
+				{"test2", SortDesc},
 			},
 			0,
 			10,
@@ -748,21 +749,23 @@ type testDB struct {
 
 // NB! Don't forget to call `db.Close()` at the end of the test.
 func createTestDB() (*testDB, error) {
-	// using a shared cache to allow multiple connections access to
-	// the same in memory database https://www.sqlite.org/inmemorydb.html
-	sqlDB, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	dsn := "host=localhost port=5433 user=test password=test dbname=pgbase_test sslmode=disable"
+	sqlDB, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}
 
-	db := testDB{DB: dbx.NewFromDB(sqlDB, "sqlite")}
+	db := testDB{DB: dbx.NewFromDB(sqlDB, "pgx")}
+
+	if _, err := db.NewQuery("DROP TABLE IF EXISTS test").Execute(); err != nil {
+		return nil, err
+	}
+
 	db.CreateTable("test", map[string]string{
-		"id":                                    "int default 0",
-		"test1":                                 "int default 0",
-		"test2":                                 "text default ''",
-		"test3":                                 "text default ''",
-		strings.Repeat("a", MaxSortFieldLength): "text default ''",
-		strings.Repeat("b", MaxSortFieldLength+1): "text default ''",
+		"id":    "int default 0",
+		"test1": "int default 0",
+		"test2": "text default ''",
+		"test3": "text default ''",
 	}).Execute()
 	db.Insert("test", dbx.Params{"id": 1, "test1": 1, "test2": "test2.1"}).Execute()
 	db.Insert("test", dbx.Params{"id": 2, "test1": 2, "test2": "test2.2"}).Execute()

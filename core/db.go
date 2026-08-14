@@ -62,7 +62,7 @@ func crc32Checksum(str string) string {
 	return strconv.FormatInt(int64(crc32.ChecksumIEEE([]byte(str))), 10)
 }
 
-// ModelQuery creates a new preconfigured select data.db query with preset
+// ModelQuery creates a new preconfigured select query with preset
 // SELECT, FROM and other common fields based on the provided model.
 func (app *BaseApp) ModelQuery(m Model) *dbx.SelectQuery {
 	return app.modelQuery(app.ConcurrentDB(), m)
@@ -126,13 +126,12 @@ func (app *BaseApp) delete(ctx context.Context, model Model, isForAuxDB bool) er
 				db = e.App.NonconcurrentDB()
 			}
 
-			return baseLockRetry(func(attempt int) error {
-				_, err := db.Delete(e.Model.TableName(), dbx.HashExp{
-					idColumn: pk,
-				}).WithContext(e.Context).Execute()
-
+			if _, err := db.Delete(e.Model.TableName(), dbx.HashExp{
+				idColumn: pk,
+			}).WithContext(e.Context).Execute(); err != nil {
 				return err
-			}, defaultMaxLockRetries)
+			}
+			return nil
 		})
 	})
 	if deleteErr != nil {
@@ -292,29 +291,27 @@ func (app *BaseApp) create(ctx context.Context, model Model, withValidations boo
 				db = e.App.NonconcurrentDB()
 			}
 
-			dbErr := baseLockRetry(func(attempt int) error {
-				if m, ok := e.Model.(DBExporter); ok {
-					data, err := m.DBExport(e.App)
-					if err != nil {
-						return err
-					}
-
-					// manually add the id to the data if missing
-					if _, ok := data[idColumn]; !ok {
-						data[idColumn] = e.Model.PK()
-					}
-
-					if cast.ToString(data[idColumn]) == "" {
-						return errors.New("empty primary key is not allowed when using the DBExporter interface")
-					}
-
-					_, err = db.Insert(e.Model.TableName(), data).WithContext(e.Context).Execute()
-
-					return err
+			var dbErr error
+			if m, ok := e.Model.(DBExporter); ok {
+				var data map[string]any
+				data, dbErr = m.DBExport(e.App)
+				if dbErr != nil {
+					return dbErr
 				}
 
-				return db.Model(e.Model).WithContext(e.Context).Insert()
-			}, defaultMaxLockRetries)
+				// manually add the id to the data if missing
+				if _, ok := data[idColumn]; !ok {
+					data[idColumn] = e.Model.PK()
+				}
+
+				if cast.ToString(data[idColumn]) == "" {
+					return errors.New("empty primary key is not allowed when using the DBExporter interface")
+				}
+
+				_, dbErr = db.Insert(e.Model.TableName(), data).WithContext(e.Context).Execute()
+			} else {
+				dbErr = db.Model(e.Model).WithContext(e.Context).Insert()
+			}
 			if dbErr != nil {
 				return dbErr
 			}
@@ -387,27 +384,28 @@ func (app *BaseApp) update(ctx context.Context, model Model, withValidations boo
 				db = e.App.NonconcurrentDB()
 			}
 
-			return baseLockRetry(func(attempt int) error {
-				if m, ok := e.Model.(DBExporter); ok {
-					data, err := m.DBExport(e.App)
-					if err != nil {
-						return err
-					}
-
-					// note: for now disallow primary key change for consistency with dbx.ModelQuery.Update()
-					if data[idColumn] != e.Model.LastSavedPK() {
-						return errors.New("primary key change is not allowed")
-					}
-
-					_, err = db.Update(e.Model.TableName(), data, dbx.HashExp{
-						idColumn: e.Model.LastSavedPK(),
-					}).WithContext(e.Context).Execute()
-
-					return err
+			if m, ok := e.Model.(DBExporter); ok {
+				data, exportErr := m.DBExport(e.App)
+				if exportErr != nil {
+					return exportErr
 				}
 
-				return db.Model(e.Model).WithContext(e.Context).Update()
-			}, defaultMaxLockRetries)
+				// note: for now disallow primary key change for consistency with dbx.ModelQuery.Update()
+				if data[idColumn] != e.Model.LastSavedPK() {
+					return errors.New("primary key change is not allowed")
+				}
+
+				if _, updateErr := db.Update(e.Model.TableName(), data, dbx.HashExp{
+					idColumn: e.Model.LastSavedPK(),
+				}).WithContext(e.Context).Execute(); updateErr != nil {
+					return updateErr
+				}
+			} else {
+				if dbErr := db.Model(e.Model).WithContext(e.Context).Update(); dbErr != nil {
+					return dbErr
+				}
+			}
+			return nil
 		})
 	})
 	if saveErr != nil {

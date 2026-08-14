@@ -56,7 +56,7 @@ func NormalizeUniqueIndexError(err error, tableOrAlias string, fieldNames []stri
 
 	msg := strings.ToLower(err.Error())
 
-	// check for unique constraint failure
+	// check for unique constraint failure (SQLite format)
 	if strings.Contains(msg, "unique constraint failed") {
 		// note: extra space to unify multi-columns lookup
 		msg = strings.ReplaceAll(strings.TrimSpace(msg), ",", " ") + " "
@@ -67,6 +67,28 @@ func NormalizeUniqueIndexError(err error, tableOrAlias string, fieldNames []stri
 			// note: extra spaces to exclude table name with suffix matching the current one
 			// 		 OR other fields starting with the current field name
 			if strings.Contains(msg, strings.ToLower(" "+tableOrAlias+"."+name+" ")) {
+				normalizedErrs[name] = validation.NewError("validation_not_unique", "Value must be unique")
+			}
+		}
+
+		if len(normalizedErrs) > 0 {
+			return normalizedErrs
+		}
+	}
+
+	// check for unique constraint failure (PostgreSQL format)
+	// e.g. "duplicate key value violates unique constraint "users_email_idx""
+	if strings.Contains(msg, "duplicate key value violates unique constraint") {
+		normalizedErrs := validation.Errors{}
+		lowerTable := strings.ToLower(tableOrAlias)
+
+		for _, name := range fieldNames {
+			lowerName := strings.ToLower(name)
+			// match constraint patterns: table_field_idx, idx_field_table, _field_
+			if strings.Contains(msg, `"`+lowerTable+`_`+lowerName+`"`) ||
+				strings.Contains(msg, `"`+lowerName+`_`+lowerTable+`"`) ||
+				strings.Contains(msg, `"idx_`+lowerName+`_`+lowerTable+`"`) ||
+				strings.Contains(msg, `"idx_`+lowerTable+`_`+lowerName+`"`) {
 				normalizedErrs[name] = validation.NewError("validation_not_unique", "Value must be unique")
 			}
 		}

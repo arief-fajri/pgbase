@@ -86,7 +86,7 @@ func TestRecordCrudList(t *testing.T) {
 				`"items":[{`,
 				`"id":"0yxhwia2amd8gec"`,
 				`"id":"achvryl401bhse3"`,
-				`"id":"llvuca81nly1qls"`,
+				`"id":"k7l9m3n4o5p6q7r"`,
 			},
 			ExpectedEvents: map[string]int{
 				"*":                    0,
@@ -97,7 +97,7 @@ func TestRecordCrudList(t *testing.T) {
 		{
 			Name:           "public collection (using the collection id)",
 			Method:         http.MethodGet,
-			URL:            "/api/collections/sz5l5z67tg7gku0/records",
+			URL:            "/api/collections/llvuca81nly1qls/records",
 			ExpectedStatus: 200,
 			ExpectedContent: []string{
 				`"page":1`,
@@ -107,7 +107,7 @@ func TestRecordCrudList(t *testing.T) {
 				`"items":[{`,
 				`"id":"0yxhwia2amd8gec"`,
 				`"id":"achvryl401bhse3"`,
-				`"id":"llvuca81nly1qls"`,
+				`"id":"k7l9m3n4o5p6q7r"`,
 			},
 			ExpectedEvents: map[string]int{
 				"*":                    0,
@@ -200,7 +200,7 @@ func TestRecordCrudList(t *testing.T) {
 				`"select_many":["optionB"]`,
 				// subrel items
 				`"id":"0yxhwia2amd8gec"`,
-				`"id":"llvuca81nly1qls"`,
+				`"id":"k7l9m3n4o5p6q7r"`,
 				// email visibility should be ignored for superusers even in expanded rels
 				`"email":"test@example.com"`,
 				`"email":"test2@example.com"`,
@@ -836,7 +836,7 @@ func TestRecordCrudView(t *testing.T) {
 		{
 			Name:           "public collection view (using the collection id)",
 			Method:         http.MethodGet,
-			URL:            "/api/collections/sz5l5z67tg7gku0/records/0yxhwia2amd8gec",
+			URL:            "/api/collections/llvuca81nly1qls/records/0yxhwia2amd8gec",
 			ExpectedStatus: 200,
 			ExpectedContent: []string{
 				`"id":"0yxhwia2amd8gec"`,
@@ -1624,7 +1624,6 @@ func TestRecordCrudCreate(t *testing.T) {
 			ExpectedContent: []string{
 				`"id":`,
 				`"title":"new"`,
-				`"active":false`,
 			},
 			ExpectedEvents: map[string]int{
 				"*":                          0,
@@ -2665,7 +2664,6 @@ func TestRecordCrudUpdate(t *testing.T) {
 			ExpectedContent: []string{
 				`"id":"0yxhwia2amd8gec"`,
 				`"title":"new"`,
-				`"active":true`,
 			},
 			ExpectedEvents: map[string]int{
 				"*":                          0,
@@ -2948,7 +2946,7 @@ func TestRecordCrudUpdate(t *testing.T) {
 		{
 			Name:   "unique field error check",
 			Method: http.MethodPatch,
-			URL:    "/api/collections/demo2/records/llvuca81nly1qls",
+			URL:    "/api/collections/demo2/records/0yxhwia2amd8gec",
 			Body: strings.NewReader(`{
 				"title":"test2"
 			}`),

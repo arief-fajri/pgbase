@@ -6,7 +6,7 @@ build:
 test:
 	docker-compose -f tests/docker-compose.test.yml up -d
 	sleep 3
-	PGTEST_HOST=localhost PGTEST_PORT=5433 go test ./... -v --cover
+	PB_POSTGRES_HOST=localhost PB_POSTGRES_PORT=5433 PB_POSTGRES_USER=test PB_POSTGRES_PASSWORD=test PB_POSTGRES_DBNAME=pgbase_test go test ./... -v --cover
 	docker-compose -f tests/docker-compose.test.yml down
 
 docker-build:

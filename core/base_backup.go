@@ -237,10 +237,10 @@ func (app *BaseApp) RestoreBackup(ctx context.Context, name string) error {
 			}
 		}
 
-		// ensure that at least a database file exists
-		extractedDB := filepath.Join(extractedDataDir, "data.db")
-		if _, err := os.Stat(extractedDB); err != nil {
-			return fmt.Errorf("data.db file is missing or invalid: %w", err)
+		// ensure that the extracted backup has content (storage dir, etc.)
+		entries, readErr := os.ReadDir(extractedDataDir)
+		if readErr != nil || len(entries) == 0 {
+			return fmt.Errorf("the backup archive is empty or invalid: %w", readErr)
 		}
 
 		oldTempDataDir := filepath.Join(localTempDir, "old_pb_data_"+security.PseudorandomString(8))

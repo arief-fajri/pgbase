@@ -10,9 +10,15 @@ import (
 )
 
 func TestSuperuserUpsertCommand(t *testing.T) {
-	t.Parallel()
+	// Note: no t.Parallel() to avoid shared DB state conflicts
 
-	app, _ := tests.NewTestApp()
+	app, err := tests.NewTestApp()
+
+	if err != nil {
+
+		t.Fatal(err)
+
+	}
 	defer app.Cleanup()
 
 	scenarios := []struct {
@@ -93,9 +99,15 @@ func TestSuperuserUpsertCommand(t *testing.T) {
 }
 
 func TestSuperuserCreateCommand(t *testing.T) {
-	t.Parallel()
+	// Note: no t.Parallel() to avoid shared DB state conflicts
 
-	app, _ := tests.NewTestApp()
+	app, err := tests.NewTestApp()
+
+	if err != nil {
+
+		t.Fatal(err)
+
+	}
 	defer app.Cleanup()
 
 	scenarios := []struct {
@@ -176,7 +188,10 @@ func TestSuperuserCreateCommand(t *testing.T) {
 }
 
 func TestSuperuserUpdateCommand(t *testing.T) {
-	app, _ := tests.NewTestApp()
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer app.Cleanup()
 
 	scenarios := []struct {
@@ -257,7 +272,10 @@ func TestSuperuserUpdateCommand(t *testing.T) {
 }
 
 func TestSuperuserDeleteCommand(t *testing.T) {
-	app, _ := tests.NewTestApp()
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer app.Cleanup()
 
 	scenarios := []struct {
@@ -311,7 +329,10 @@ func TestSuperuserDeleteCommand(t *testing.T) {
 }
 
 func TestSuperuserOTPCommand(t *testing.T) {
-	app, _ := tests.NewTestApp()
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer app.Cleanup()
 
 	superusersCollection, err := app.FindCollectionByNameOrId(core.CollectionNameSuperusers)
@@ -404,7 +425,10 @@ func TestSuperuserOTPCommand(t *testing.T) {
 }
 
 func TestSuperuserIPsCommand(t *testing.T) {
-	app, _ := tests.NewTestApp()
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer app.Cleanup()
 
 	scenarios := []struct {

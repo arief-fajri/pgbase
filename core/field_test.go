@@ -213,13 +213,13 @@ func testDefaultFieldNameValidation(t *testing.T, fieldType string) {
 			true,
 		},
 		{
-			"system reserved - _rowid_",
+			"_rowid_ (allowed as field name, no longer a reserved SQLite keyword)",
 			func() core.Field {
 				f := core.Fields[fieldType]()
 				f.SetName("_rowid_")
 				return f
 			},
-			true,
+			false,
 		},
 		{
 			"system reserved - expand",

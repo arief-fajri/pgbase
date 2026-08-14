@@ -25,9 +25,9 @@ func TestSortFieldBuildExpr(t *testing.T) {
 		// null field
 		{search.SortField{"null", search.SortAsc}, true, ""},
 		// allowed field - asc
-		{search.SortField{"test1", search.SortAsc}, false, "[[test1]] ASC"},
+		{search.SortField{"test1", search.SortAsc}, false, "[[test1]] ASC NULLS LAST"},
 		// allowed field - desc
-		{search.SortField{"test1", search.SortDesc}, false, "[[test1]] DESC"},
+		{search.SortField{"test1", search.SortDesc}, false, "[[test1]] DESC NULLS FIRST"},
 		// special @random field (ignore direction)
 		{search.SortField{"@random", search.SortDesc}, false, "RANDOM()"},
 		// special _rowid_ field

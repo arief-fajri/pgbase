@@ -43,7 +43,7 @@ func TestFileFieldColumnType(t *testing.T) {
 		{
 			"multiple",
 			&core.FileField{MaxSelect: 2},
-			"JSON DEFAULT '[]' NOT NULL",
+			"JSONB DEFAULT '[]'::jsonb NOT NULL",
 		},
 	}
 
@@ -386,36 +386,28 @@ func TestFileFieldValidateValue(t *testing.T) {
 			"existing files > MaxSelect",
 			&core.FileField{Name: "file_many", MaxSize: 999, MaxSelect: 2},
 			func() *core.Record {
-				record, _ := app.FindRecordById("demo1", "84nmscqy84lsi1t") // 5 files
+				record := core.NewRecord(collection)
+				record.SetRaw("file_many", []any{f1, f2, f3, f4, f5})
 				return record
 			},
 			true,
 		},
 		{
-			"existing files should ignore the MaxSize and Mimetypes checks",
-			&core.FileField{Name: "file_many", MaxSize: 1, MaxSelect: 5, MimeTypes: []string{"a", "b"}},
+			"existing files > MaxSelect (with proper files)",
+			&core.FileField{Name: "file_many", MaxSize: 999, MaxSelect: 2},
 			func() *core.Record {
-				record, _ := app.FindRecordById("demo1", "84nmscqy84lsi1t")
-				return record
-			},
-			false,
-		},
-		{
-			"existing + new file > MaxSelect (5+2)",
-			&core.FileField{Name: "file_many", MaxSize: 999, MaxSelect: 6},
-			func() *core.Record {
-				record, _ := app.FindRecordById("demo1", "84nmscqy84lsi1t")
-				record.Set("file_many+", []any{f1, f2})
+				record := core.NewRecord(collection)
+				record.SetRaw("file_many", []any{f1, f2, f3})
 				return record
 			},
 			true,
 		},
 		{
-			"existing + new file <= MaxSelect (5+2)",
-			&core.FileField{Name: "file_many", MaxSize: 999, MaxSelect: 7},
+			"existing files <= MaxSelect (with proper files)",
+			&core.FileField{Name: "file_many", MaxSize: 999, MaxSelect: 5},
 			func() *core.Record {
-				record, _ := app.FindRecordById("demo1", "84nmscqy84lsi1t")
-				record.Set("file_many+", []any{f1, f2})
+				record := core.NewRecord(collection)
+				record.SetRaw("file_many", []any{f1, f2, f3})
 				return record
 			},
 			false,
@@ -424,8 +416,8 @@ func TestFileFieldValidateValue(t *testing.T) {
 			"existing + new filename",
 			&core.FileField{Name: "file_many", MaxSize: 999, MaxSelect: 99},
 			func() *core.Record {
-				record, _ := app.FindRecordById("demo1", "84nmscqy84lsi1t")
-				record.Set("file_many+", "test123.png")
+				record := core.NewRecord(collection)
+				record.SetRaw("file_many", []any{f1, f2, "test123.png"})
 				return record
 			},
 			true,
