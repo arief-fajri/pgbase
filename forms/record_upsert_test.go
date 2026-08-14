@@ -438,7 +438,6 @@ func TestRecordUpsertDrySubmitUpdateSuccess(t *testing.T) {
 }
 
 func TestRecordUpsertSubmitValidations(t *testing.T) {
-	t.Parallel()
 
 	app, _ := tests.NewTestApp()
 	defer app.Cleanup()
@@ -448,7 +447,7 @@ func TestRecordUpsertSubmitValidations(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	demo2Rec, err := app.FindRecordById(demo2Col, "llvuca81nly1qls")
+	demo2Rec, err := app.FindRecordById(demo2Col, "0yxhwia2amd8gec")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -911,6 +910,7 @@ func TestRecordUpsertPasswordsSync(t *testing.T) {
 
 		form := forms.NewRecordUpsert(testApp, record)
 
+		record.Set("email", "test_new1@example.com")
 		record.SetPassword("1234567890")
 
 		err := form.Submit()
@@ -924,6 +924,7 @@ func TestRecordUpsertPasswordsSync(t *testing.T) {
 
 		form := forms.NewRecordUpsert(testApp, record)
 
+		record.Set("email", "test_new2@example.com")
 		record.SetRandomPassword()
 
 		err := form.Submit()

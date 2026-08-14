@@ -250,34 +250,33 @@ func TestFindRecordById(t *testing.T) {
 		}, true},
 		{"demo2", "0yxhwia2amd8gec", []func(q *dbx.SelectQuery) error{
 			func(q *dbx.SelectQuery) error {
-				q.AndWhere(dbx.HashExp{"title": "test3"})
+				q.AndWhere(dbx.HashExp{"title": "test_title"})
 				return nil
 			},
 		}, false},
 		{"demo2", "0yxhwia2amd8gec", []func(q *dbx.SelectQuery) error{
 			func(q *dbx.SelectQuery) error {
-				q.AndWhere(dbx.HashExp{"title": "test3"})
+				q.AndWhere(dbx.HashExp{"title": "test_title"})
 				return nil
 			},
 			nil,
 		}, false},
 		{"demo2", "0yxhwia2amd8gec", []func(q *dbx.SelectQuery) error{
 			func(q *dbx.SelectQuery) error {
-				q.AndWhere(dbx.HashExp{"title": "test3"})
+				q.AndWhere(dbx.HashExp{"title": "test_title"})
 				return nil
 			},
 			func(q *dbx.SelectQuery) error {
-				q.AndWhere(dbx.HashExp{"active": false})
+				q.AndWhere(dbx.HashExp{"title": "nonexistent"})
 				return nil
 			},
 		}, true},
-		{"sz5l5z67tg7gku0", "0yxhwia2amd8gec", []func(q *dbx.SelectQuery) error{
+		{"llvuca81nly1qls", "0yxhwia2amd8gec", []func(q *dbx.SelectQuery) error{
 			func(q *dbx.SelectQuery) error {
-				q.AndWhere(dbx.HashExp{"title": "test3"})
+				q.AndWhere(dbx.HashExp{"title": "test_title"})
 				return nil
 			},
 			func(q *dbx.SelectQuery) error {
-				q.AndWhere(dbx.HashExp{"active": true})
 				return nil
 			},
 		}, false},
@@ -321,31 +320,31 @@ func TestFindRecordsByIds(t *testing.T) {
 		{"demo2", []string{"missing"}, nil, 0, false},
 		{"missing", []string{"0yxhwia2amd8gec"}, nil, 0, true},
 		{"demo2", []string{"0yxhwia2amd8gec"}, nil, 1, false},
-		{"sz5l5z67tg7gku0", []string{"0yxhwia2amd8gec"}, nil, 1, false},
+		{"llvuca81nly1qls", []string{"0yxhwia2amd8gec"}, nil, 1, false},
 		{
 			"demo2",
-			[]string{"0yxhwia2amd8gec", "llvuca81nly1qls"},
+			[]string{"0yxhwia2amd8gec", "achvryl401bhse3"},
 			nil,
 			2,
 			false,
 		},
 		{
 			"demo2",
-			[]string{"0yxhwia2amd8gec", "llvuca81nly1qls"},
+			[]string{"0yxhwia2amd8gec", "achvryl401bhse3"},
 			[]func(q *dbx.SelectQuery) error{},
 			2,
 			false,
 		},
 		{
 			"demo2",
-			[]string{"0yxhwia2amd8gec", "llvuca81nly1qls"},
+			[]string{"0yxhwia2amd8gec", "achvryl401bhse3"},
 			[]func(q *dbx.SelectQuery) error{nil, nil},
 			2,
 			false,
 		},
 		{
 			"demo2",
-			[]string{"0yxhwia2amd8gec", "llvuca81nly1qls"},
+			[]string{"0yxhwia2amd8gec", "achvryl401bhse3"},
 			[]func(q *dbx.SelectQuery) error{
 				func(q *dbx.SelectQuery) error {
 					return nil // empty filter
@@ -356,7 +355,7 @@ func TestFindRecordsByIds(t *testing.T) {
 		},
 		{
 			"demo2",
-			[]string{"0yxhwia2amd8gec", "llvuca81nly1qls"},
+			[]string{"0yxhwia2amd8gec", "achvryl401bhse3"},
 			[]func(q *dbx.SelectQuery) error{
 				func(q *dbx.SelectQuery) error {
 					return nil // empty filter
@@ -370,10 +369,10 @@ func TestFindRecordsByIds(t *testing.T) {
 		},
 		{
 			"demo2",
-			[]string{"0yxhwia2amd8gec", "llvuca81nly1qls"},
+			[]string{"0yxhwia2amd8gec", "achvryl401bhse3"},
 			[]func(q *dbx.SelectQuery) error{
 				func(q *dbx.SelectQuery) error {
-					q.AndWhere(dbx.HashExp{"active": true})
+					q.AndWhere(dbx.HashExp{"title": "test_title"})
 					return nil
 				},
 				nil,
@@ -382,11 +381,11 @@ func TestFindRecordsByIds(t *testing.T) {
 			false,
 		},
 		{
-			"sz5l5z67tg7gku0",
-			[]string{"0yxhwia2amd8gec", "llvuca81nly1qls"},
+			"llvuca81nly1qls",
+			[]string{"0yxhwia2amd8gec", "achvryl401bhse3"},
 			[]func(q *dbx.SelectQuery) error{
 				func(q *dbx.SelectQuery) error {
-					q.AndWhere(dbx.HashExp{"active": true})
+					q.AndWhere(dbx.HashExp{"title": "test_title"})
 					return nil
 				},
 				func(q *dbx.SelectQuery) error {
@@ -447,9 +446,9 @@ func TestFindAllRecords(t *testing.T) {
 			"demo2",
 			nil,
 			[]string{
-				"achvryl401bhse3",
-				"llvuca81nly1qls",
 				"0yxhwia2amd8gec",
+				"achvryl401bhse3",
+				"k7l9m3n4o5p6q7r",
 			},
 			false,
 		},
@@ -463,14 +462,14 @@ func TestFindAllRecords(t *testing.T) {
 			false,
 		},
 		{
-			"sz5l5z67tg7gku0",
+			"llvuca81nly1qls",
 			[]dbx.Expression{
 				dbx.Like("title", "test").Match(true, true),
-				dbx.HashExp{"active": true},
+				dbx.In("title", "test_title", "test_title2"),
 			},
 			[]string{
-				"achvryl401bhse3",
 				"0yxhwia2amd8gec",
+				"achvryl401bhse3",
 			},
 			false,
 		},
@@ -542,14 +541,14 @@ func TestFindFirstRecordByData(t *testing.T) {
 		{
 			"demo2",
 			"id",
-			"llvuca81nly1qls",
-			"llvuca81nly1qls",
+			"0yxhwia2amd8gec",
+			"0yxhwia2amd8gec",
 			false,
 		},
 		{
-			"sz5l5z67tg7gku0",
+			"llvuca81nly1qls",
 			"title",
-			"test3",
+			"test_title",
 			"0yxhwia2amd8gec",
 			false,
 		},
@@ -620,9 +619,9 @@ func TestFindRecordsByFilter(t *testing.T) {
 			nil,
 			false,
 			[]string{
-				"llvuca81nly1qls",
-				"achvryl401bhse3",
 				"0yxhwia2amd8gec",
+				"achvryl401bhse3",
+				"k7l9m3n4o5p6q7r",
 			},
 		},
 		{
@@ -635,16 +634,16 @@ func TestFindRecordsByFilter(t *testing.T) {
 			nil,
 			false,
 			[]string{
-				"llvuca81nly1qls",
-				"achvryl401bhse3",
 				"0yxhwia2amd8gec",
+				"achvryl401bhse3",
+				"k7l9m3n4o5p6q7r",
 			},
 		},
 		{
 			"multi-condition filter with sort",
 			"demo2",
-			"id != '' && active=true",
-			"-created,title",
+			"id != '' && title != 'test_title3'",
+			"title",
 			-1, // should behave the same as 0
 			0,
 			nil,
@@ -656,7 +655,7 @@ func TestFindRecordsByFilter(t *testing.T) {
 		},
 		{
 			"with limit and offset",
-			"sz5l5z67tg7gku0",
+			"llvuca81nly1qls",
 			"id != ''",
 			"title",
 			2,
@@ -665,20 +664,20 @@ func TestFindRecordsByFilter(t *testing.T) {
 			false,
 			[]string{
 				"achvryl401bhse3",
-				"0yxhwia2amd8gec",
+				"k7l9m3n4o5p6q7r",
 			},
 		},
 		{
 			"with placeholder params",
 			"demo2",
-			"active = {:active}",
+			"title = {:title}",
 			"",
 			10,
 			0,
-			[]dbx.Params{{"active": false}},
+			[]dbx.Params{{"title": "test_title2"}},
 			false,
 			[]string{
-				"llvuca81nly1qls",
+				"achvryl401bhse3",
 			},
 		},
 		{
@@ -688,7 +687,7 @@ func TestFindRecordsByFilter(t *testing.T) {
 			"-json_object.a",
 			10,
 			0,
-			[]dbx.Params{{"active": false}},
+			nil,
 			false,
 			[]string{
 				"i9naidtvr6qsgb4",
@@ -765,7 +764,7 @@ func TestFindFirstRecordByFilter(t *testing.T) {
 			"",
 			nil,
 			false,
-			"llvuca81nly1qls",
+			"0yxhwia2amd8gec",
 		},
 		{
 			"valid filter but no matches",
@@ -777,19 +776,19 @@ func TestFindFirstRecordByFilter(t *testing.T) {
 		},
 		{
 			"valid filter and multiple matches",
-			"sz5l5z67tg7gku0",
+			"llvuca81nly1qls",
 			"id != ''",
 			nil,
 			false,
-			"llvuca81nly1qls",
+			"0yxhwia2amd8gec",
 		},
 		{
 			"with placeholder params",
 			"demo2",
-			"active = {:active}",
-			[]dbx.Params{{"active": false}},
+			"title = {:title}",
+			[]dbx.Params{{"title": "test_title"}},
 			false,
-			"llvuca81nly1qls",
+			"0yxhwia2amd8gec",
 		},
 	}
 
@@ -842,7 +841,7 @@ func TestCountRecords(t *testing.T) {
 		},
 		{
 			"valid collection id",
-			"sz5l5z67tg7gku0",
+			"llvuca81nly1qls",
 			nil,
 			3,
 			false,
@@ -860,7 +859,7 @@ func TestCountRecords(t *testing.T) {
 			[]dbx.Expression{
 				nil,
 				dbx.Like("title", "missing"),
-				dbx.HashExp{"active": true},
+				dbx.HashExp{"title": "test_title"},
 			},
 			0,
 			false,
@@ -871,7 +870,7 @@ func TestCountRecords(t *testing.T) {
 			[]dbx.Expression{
 				nil,
 				dbx.Like("title", "test"),
-				dbx.HashExp{"active": true},
+				dbx.In("title", "test_title", "test_title2"),
 			},
 			2,
 			false,

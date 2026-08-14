@@ -415,8 +415,8 @@ func TestCollectionValidate(t *testing.T) {
 			collection: func(app core.App) (*core.Collection, error) {
 				c, _ := app.FindCollectionByNameOrId("demo1")
 				c.Indexes = []string{
-					"create index `idx_test_demo1` on demo1 (id)",
-					"create index `__pb_USERS_auth__username_idx` on anything (text)", // should be case-insensitive
+					"create index \"idx_test_demo1\" on demo1 (id)",
+					"create index \"__pb_USERS_auth__username_idx\" on anything (text)", // should be case-insensitive
 				}
 				return c, nil
 			},
@@ -472,7 +472,7 @@ func TestCollectionValidate(t *testing.T) {
 			collection: func(app core.App) (*core.Collection, error) {
 				c, _ := app.FindCollectionByNameOrId("demo1")
 				c.Indexes = []string{
-					"CREATE INDEX `_wsmn24bux7wo113_created_idx` ON `demo1` (`created`)",
+					"CREATE INDEX \"_wsmn24bux7wo113_created_idx\" ON \"demo1\" (\"created\")",
 					"create index idx_test_demo1 on anything (id)",
 				}
 				return c, nil
@@ -599,7 +599,7 @@ func TestCollectionValidate(t *testing.T) {
 
 				// replace the index with a new one for the same column but with collate and sort
 				demo2.RemoveIndex("idx_unique_demo2_title")
-				demo2.AddIndex("idx_new_demo2_title", true, "title COLLATE test ASC", "")
+				demo2.AddIndex("idx_new_demo2_title", true, "title ASC", "")
 
 				return demo2, nil
 			},

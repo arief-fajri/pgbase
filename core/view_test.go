@@ -15,9 +15,8 @@ func ensureNoTempViews(app core.App, t *testing.T) {
 	var total int
 
 	err := app.DB().Select("count(*)").
-		From("sqlite_schema").
-		AndWhere(dbx.HashExp{"type": "view"}).
-		AndWhere(dbx.NewExp(`[[name]] LIKE '%\_temp\_%' ESCAPE '\'`)).
+		From("information_schema.views").
+		AndWhere(dbx.NewExp(`[[table_name]] LIKE '%\_temp\_%' ESCAPE '\'`)).
 		Limit(1).
 		Row(&total)
 	if err != nil {
@@ -123,7 +122,7 @@ func TestSaveView(t *testing.T) {
 		{
 			"try to break the parent parenthesis",
 			"123Test",
-			"select *, count(id) as c  from `" + core.CollectionNameSuperusers + "`)",
+			"select *, count(id) as c  from \"" + core.CollectionNameSuperusers + "\")",
 			true,
 			nil,
 		},
@@ -285,13 +284,13 @@ func TestCreateViewFields(t *testing.T) {
 					"created",
 					"updated",
 					[text],
-					` + "`bool`" + `,
+					"bool",
 					"url",
 					"select_one",
 					"select_many",
 					"file_one",
 					"demo1"."file_many",
-					` + "`demo1`." + "`number`" + ` number_alias,
+					"demo1"."number" number_alias,
 					"email",
 					"datetime",
 					"json",
@@ -340,12 +339,12 @@ func TestCreateViewFields(t *testing.T) {
 					lj.id cid,
 					ij.id as did,
 					a.bool,
-					` + core.CollectionNameSuperusers + `.id as eid,
-					` + core.CollectionNameSuperusers + `.email
+					"` + core.CollectionNameSuperusers + `".id as eid,
+					"` + core.CollectionNameSuperusers + `".email
 				from demo1 a, demo2 as b
 				left join demo3 lj on lj.id = 123
 				inner join demo4 as ij on ij.id = 123
-				join ` + core.CollectionNameSuperusers + `
+				join "` + core.CollectionNameSuperusers + `"
 				where 1=1
 				group by a.id
 				limit 10
@@ -779,11 +778,11 @@ func TestDryRunView(t *testing.T) {
 		},
 		{
 			"select with invalid formatted field name",
-			"select 'a' as id, count(*)", // missing field alias
+			"select 'a' as id, count(*)", // PG auto-names unaliased columns
 			10,
-			true,
-			nil,
-			nil,
+			false,
+			map[string]string{"id": "text", "count": "json"},
+			[]string{"a"},
 		},
 		{
 			"select resolving to records with missing id",

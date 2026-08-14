@@ -6248,7 +6248,7 @@ namespace core {
   /**
    * DB returns the default app data.db builder instance.
    * 
-   * To minimize SQLITE_BUSY errors, it automatically routes the
+   * To minimize lock contention errors, it automatically routes the
    * SELECT queries to the underlying concurrent db pool and everything else
    * to the nonconcurrent one.
    * 
@@ -6275,7 +6275,7 @@ namespace core {
    * meaning that it can process only 1 db operation at a time (other queries queue up).
    * 
    * This method is used mainly internally and in the tests to execute write
-   * (save/delete) db operations as it helps with minimizing the SQLITE_BUSY errors.
+   * (save/delete) db operations as it helps with minimizing the lock contention errors.
    * 
    * Most users should use simply DB() as it will automatically
    * route the query execution to ConcurrentDB() or NonconcurrentDB().
@@ -6286,7 +6286,7 @@ namespace core {
   /**
    * AuxDB returns the app auxiliary.db builder instance.
    * 
-   * To minimize SQLITE_BUSY errors, it automatically routes the
+   * To minimize lock contention errors, it automatically routes the
    * SELECT queries to the underlying concurrent db pool and everything else
    * to the nonconcurrent one.
    * 
@@ -6313,7 +6313,7 @@ namespace core {
    * meaning that it can process only 1 db operation at a time (other queries queue up).
    * 
    * This method is used mainly internally and in the tests to execute write
-   * (save/delete) db operations as it helps with minimizing the SQLITE_BUSY errors.
+   * (save/delete) db operations as it helps with minimizing the lock contention errors.
    * 
    * Most users should use simply AuxDB() as it will automatically
    * route the query execution to AuxConcurrentDB() or AuxNonconcurrentDB().
@@ -7986,7 +7986,7 @@ namespace core {
   /**
    * DB returns the default app data.db builder instance.
    * 
-   * To minimize SQLITE_BUSY errors, it automatically routes the
+   * To minimize lock contention errors, it automatically routes the
    * SELECT queries to the underlying concurrent db pool and everything
    * else to the nonconcurrent one.
    * 
@@ -8017,7 +8017,7 @@ namespace core {
    * meaning that it can process only 1 db operation at a time (other queries queue up).
    * 
    * This method is used mainly internally and in the tests to execute write
-   * (save/delete) db operations as it helps with minimizing the SQLITE_BUSY errors.
+   * (save/delete) db operations as it helps with minimizing the lock contention errors.
    * 
    * Most users should use simply DB() as it will automatically
    * route the query execution to ConcurrentDB() or NonconcurrentDB().
@@ -8030,7 +8030,7 @@ namespace core {
   /**
    * AuxDB returns the app auxiliary.db builder instance.
    * 
-   * To minimize SQLITE_BUSY errors, it automatically routes the
+   * To minimize lock contention errors, it automatically routes the
    * SELECT queries to the underlying concurrent db pool and everything
    * else to the nonconcurrent one.
    * 
@@ -8061,7 +8061,7 @@ namespace core {
    * meaning that it can process only 1 db operation at a time (other queries queue up).
    * 
    * This method is used mainly internally and in the tests to execute write
-   * (save/delete) db operations as it helps with minimizing the SQLITE_BUSY errors.
+   * (save/delete) db operations as it helps with minimizing the lock contention errors.
    * 
    * Most users should use simply AuxDB() as it will automatically
    * route the query execution to AuxConcurrentDB() or AuxNonconcurrentDB().

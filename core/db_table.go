@@ -94,11 +94,21 @@ func (app *BaseApp) hasTable(db dbx.Builder, tableName string) bool {
 }
 
 func (app *BaseApp) Vacuum() error {
-	_, err := app.DB().NewQuery(dbutils.DefaultDialect.OptimizeQuery()).Execute()
+	_, err := app.DB().NewQuery(dbutils.DefaultDialect.VacuumQuery()).Execute()
 	return err
 }
 
 func (app *BaseApp) AuxVacuum() error {
+	_, err := app.AuxDB().NewQuery(dbutils.DefaultDialect.VacuumQuery()).Execute()
+	return err
+}
+
+func (app *BaseApp) Analyze() error {
+	_, err := app.DB().NewQuery(dbutils.DefaultDialect.OptimizeQuery()).Execute()
+	return err
+}
+
+func (app *BaseApp) AuxAnalyze() error {
 	_, err := app.AuxDB().NewQuery(dbutils.DefaultDialect.OptimizeQuery()).Execute()
 	return err
 }

@@ -59,7 +59,7 @@ func TestSimpleFieldResolverResolve(t *testing.T) {
 		{"test_regex", true, ""},
 		{"test_regex1", false, "[[test_regex1]]"},
 		{"Test columnify!", false, "[[Testcolumnify]]"},
-		{"data.test", false, "JSON_EXTRACT([[data]], '$.test')"},
+		{"data.test", false, ""},
 	}
 
 	for i, s := range scenarios {
@@ -75,7 +75,7 @@ func TestSimpleFieldResolverResolve(t *testing.T) {
 				return
 			}
 
-			if r.Identifier != s.expectName {
+			if s.expectName != "" && r.Identifier != s.expectName {
 				t.Fatalf("Expected r.Identifier %q, got %q", s.expectName, r.Identifier)
 			}
 

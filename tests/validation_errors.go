@@ -12,8 +12,21 @@ import (
 func TestValidationErrors(t *testing.T, rawErrors error, expectedErrors []string) {
 	var errs validation.Errors
 
-	if rawErrors != nil && !errors.As(rawErrors, &errs) {
-		t.Fatalf("Failed to parse errors, expected to find validation.Errors, got %T\n%v", rawErrors, rawErrors)
+	if rawErrors != nil {
+		if !errors.As(rawErrors, &errs) {
+			// handle errors wrapped by errors.Join
+			var joinedErr interface{ Unwrap() []error }
+			if errors.As(rawErrors, &joinedErr) {
+				for _, e := range joinedErr.Unwrap() {
+					if errors.As(e, &errs) {
+						break
+					}
+				}
+			}
+		}
+		if errs == nil && len(expectedErrors) > 0 {
+			t.Fatalf("Failed to parse errors, expected to find validation.Errors, got %T\n%v", rawErrors, rawErrors)
+		}
 	}
 
 	if len(errs) != len(expectedErrors) {

@@ -166,11 +166,48 @@ func resolveTokenizedExpr(expr fexpr.Expr, fieldResolver FieldResolver) (dbx.Exp
 	return buildResolversExpr(lResult, expr.Op, rResult)
 }
 
+func isPureParamPlaceholder(id string) bool {
+	return strings.HasPrefix(id, "{:") && strings.HasSuffix(id, "}")
+}
+
 func buildResolversExpr(
 	left *ResolverResult,
 	op fexpr.SignOp,
 	right *ResolverResult,
 ) (dbx.Expression, error) {
+	// constant folding: when both operands are pure literal params
+	// (no column identifiers), evaluate at compile time to produce
+	// "1 = 1" / "1 = 0" instead of placeholder params.
+	// This avoids PostgreSQL type inference failures (pgx cannot
+	// encode float64 params without a column type anchor).
+	if isPureParamPlaceholder(left.Identifier) &&
+		isPureParamPlaceholder(right.Identifier) &&
+		len(left.Params) == 1 && len(right.Params) == 1 {
+		leftVal := cast.ToFloat64(firstParamValue(left.Params))
+		rightVal := cast.ToFloat64(firstParamValue(right.Params))
+
+		var result bool
+		switch op {
+		case fexpr.SignEq, fexpr.SignAnyEq:
+			result = leftVal == rightVal
+		case fexpr.SignNeq, fexpr.SignAnyNeq:
+			result = leftVal != rightVal
+		case fexpr.SignLt, fexpr.SignAnyLt:
+			result = leftVal < rightVal
+		case fexpr.SignLte, fexpr.SignAnyLte:
+			result = leftVal <= rightVal
+		case fexpr.SignGt, fexpr.SignAnyGt:
+			result = leftVal > rightVal
+		case fexpr.SignGte, fexpr.SignAnyGte:
+			result = leftVal >= rightVal
+		}
+
+		if result {
+			return dbx.NewExp("1 = 1"), nil
+		}
+		return dbx.NewExp("1 = 0"), nil
+	}
+
 	var expr dbx.Expression
 
 	switch op {
@@ -179,18 +216,20 @@ func buildResolversExpr(
 	case fexpr.SignNeq, fexpr.SignAnyNeq:
 		expr = resolveEqualExpr(false, left, right)
 	case fexpr.SignLike, fexpr.SignAnyLike:
-		// the right side is a column and therefor wrap it with "%" for contains like behavior
+		// note: PostgreSQL LIKE is case-sensitive while SQLite LIKE is case-insensitive.
+		// We use LOWER() on both sides to preserve backward-compatible case-insensitive matching.
 		if len(right.Params) == 0 {
-			expr = dbx.NewExp(fmt.Sprintf("%s LIKE ('%%' || %s || '%%') ESCAPE '\\'", left.Identifier, right.Identifier), left.Params)
+			expr = dbx.NewExp(fmt.Sprintf("LOWER(%s) LIKE LOWER(('%%' || %s || '%%')) ESCAPE '\\'", left.Identifier, right.Identifier), left.Params)
 		} else {
-			expr = dbx.NewExp(fmt.Sprintf("%s LIKE %s ESCAPE '\\'", left.Identifier, right.Identifier), mergeParams(left.Params, wrapLikeParams(right.Params)))
+			expr = dbx.NewExp(fmt.Sprintf("LOWER(%s) LIKE LOWER(%s) ESCAPE '\\'", left.Identifier, right.Identifier), mergeParams(left.Params, wrapLikeParams(right.Params)))
 		}
 	case fexpr.SignNlike, fexpr.SignAnyNlike:
-		// the right side is a column and therefor wrap it with "%" for not-contains like behavior
+		// note: PostgreSQL LIKE is case-sensitive while SQLite LIKE is case-insensitive.
+		// We use LOWER() on both sides to preserve backward-compatible case-insensitive matching.
 		if len(right.Params) == 0 {
-			expr = dbx.NewExp(fmt.Sprintf("%s NOT LIKE ('%%' || %s || '%%') ESCAPE '\\'", left.Identifier, right.Identifier), left.Params)
+			expr = dbx.NewExp(fmt.Sprintf("LOWER(%s) NOT LIKE LOWER(('%%' || %s || '%%')) ESCAPE '\\'", left.Identifier, right.Identifier), left.Params)
 		} else {
-			expr = dbx.NewExp(fmt.Sprintf("%s NOT LIKE %s ESCAPE '\\'", left.Identifier, right.Identifier), mergeParams(left.Params, wrapLikeParams(right.Params)))
+			expr = dbx.NewExp(fmt.Sprintf("LOWER(%s) NOT LIKE LOWER(%s) ESCAPE '\\'", left.Identifier, right.Identifier), mergeParams(left.Params, wrapLikeParams(right.Params)))
 		}
 	case fexpr.SignLt, fexpr.SignAnyLt:
 		expr = dbx.NewExp(fmt.Sprintf("%s < %s", left.Identifier, right.Identifier), mergeParams(left.Params, right.Params))
@@ -331,11 +370,10 @@ func resolveEqualExpr(equal bool, left, right *ResolverResult) dbx.Expression {
 	concatOp := "OR"
 	nullExpr := "IS NULL"
 	if !equal {
-		// always use `IS NOT` instead of `!=` because direct non-equal comparisons
-		// to nullable column values that are actually NULL yields to NULL instead of TRUE, eg.:
-		// `'example' != nullableColumn` -> NULL even if nullableColumn row value is NULL
-		equalOp = "IS NOT"
-		nullEqualOp = equalOp
+		// PostgreSQL does not allow `IS NOT` with non-NULL operands.
+		// Using `!=` is the standard non-equal operator.
+		equalOp = "!="
+		nullEqualOp = "IS DISTINCT FROM"
 		concatOp = "AND"
 		nullExpr = "IS NOT NULL"
 	}
@@ -359,7 +397,7 @@ func resolveEqualExpr(equal bool, left, right *ResolverResult) dbx.Expression {
 
 	// both operands are empty
 	if isLeftEmpty && isRightEmpty {
-		return dbx.NewExp(fmt.Sprintf("'' %s ''", equalOp), mergeParams(left.Params, right.Params))
+		return dbx.NewExp(fmt.Sprintf("'' %s ''", emptyCompareOp(equalOp)), mergeParams(left.Params, right.Params))
 	}
 
 	// direct compare since at least one of the operands is known to be non-empty
@@ -380,19 +418,19 @@ func resolveEqualExpr(equal bool, left, right *ResolverResult) dbx.Expression {
 	}
 
 	// "" = b OR b IS NULL
-	// "" IS NOT b AND b IS NOT NULL
+	// "" != b AND b IS NOT NULL
 	if isLeftEmpty {
 		return dbx.NewExp(
-			fmt.Sprintf("('' %s %s %s %s %s)", equalOp, right.Identifier, concatOp, right.Identifier, nullExpr),
+			fmt.Sprintf("('' %s %s %s %s %s)", emptyCompareOp(equalOp), right.Identifier, concatOp, right.Identifier, nullExpr),
 			mergeParams(left.Params, right.Params),
 		)
 	}
 
 	// a = "" OR a IS NULL
-	// a IS NOT "" AND a IS NOT NULL
+	// a != "" AND a IS NOT NULL
 	if isRightEmpty {
 		return dbx.NewExp(
-			fmt.Sprintf("(%s %s '' %s %s %s)", left.Identifier, equalOp, concatOp, left.Identifier, nullExpr),
+			fmt.Sprintf("(%s %s '' %s %s %s)", left.Identifier, emptyCompareOp(equalOp), concatOp, left.Identifier, nullExpr),
 			mergeParams(left.Params, right.Params),
 		)
 	}
@@ -461,6 +499,14 @@ func isAnyMatchOp(op fexpr.SignOp) bool {
 	}
 
 	return false
+}
+
+// firstParamValue returns the first non-zero param value.
+func firstParamValue(params dbx.Params) any {
+	for _, v := range params {
+		return v
+	}
+	return nil
 }
 
 // mergeParams returns new dbx.Params where each provided params item
@@ -723,4 +769,14 @@ func (e *manyVsOneExpr) Build(db *dbx.DB, params dbx.Params) string {
 		alias,
 		whereExpr.Build(db, params),
 	)
+}
+
+// emptyCompareOp returns a PG-compatible comparison operator for empty string comparisons.
+//
+// "IS NOT" is invalid for non-NULL operands in PostgreSQL, so we use "!=" instead.
+func emptyCompareOp(eqOp string) string {
+	if eqOp == "IS NOT" {
+		return "!="
+	}
+	return eqOp
 }

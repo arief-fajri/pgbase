@@ -477,12 +477,12 @@ func (app *BaseApp) ResetBootstrapState() error {
 	return nil
 }
 
-// DB returns the default app data.db builder instance.
+// DB returns the default app database builder instance.
 func (app *BaseApp) DB() dbx.Builder {
 	return app.dataDB
 }
 
-// ConcurrentDB returns the concurrent app data.db builder instance.
+// ConcurrentDB returns the concurrent app database builder instance.
 //
 // This method is used mainly internally for executing db read
 // operations in a concurrent/non-blocking manner.
@@ -493,7 +493,7 @@ func (app *BaseApp) ConcurrentDB() dbx.Builder {
 	return app.dataDB
 }
 
-// NonconcurrentDB returns the nonconcurrent app data.db builder instance.
+// NonconcurrentDB returns the nonconcurrent app database builder instance.
 //
 // Most users should use simply DB() as it will automatically
 // route the query execution to ConcurrentDB() or NonconcurrentDB().
@@ -1276,10 +1276,9 @@ func (app *BaseApp) registerBaseHooks() {
 		Priority: 999,
 	})
 
-	app.Cron().Add("__pbDBOptimize__", "0 0 * * *", func() {
-		_, execErr := app.DB().NewQuery("VACUUM").Execute()
-		if execErr != nil {
-			app.Logger().Warn("Failed to run periodic VACUUM for the main DB", slog.String("error", execErr.Error()))
+	app.Cron().Add("__pbDBVacuum__", "0 0 * * *", func() {
+		if execErr := app.Vacuum(); execErr != nil {
+			app.Logger().Warn("Failed to run periodic VACUUM for the main database", slog.String("error", execErr.Error()))
 		}
 	})
 
@@ -1429,9 +1428,9 @@ func (app *BaseApp) initLogger() error {
 
 			// no logs are allowed -> try to reclaim preserved disk space after the previous delete operation
 			if e.App.Settings().Logs.MaxDays == 0 {
-				err = e.App.AuxVacuum()
+				err = e.App.AuxAnalyze()
 				if err != nil {
-					e.App.Logger().Debug("Failed to VACUUM aux database", "error", err)
+					e.App.Logger().Debug("Failed to ANALYZE aux database", "error", err)
 				}
 			}
 

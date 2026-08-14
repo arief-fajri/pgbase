@@ -51,7 +51,7 @@ func (d *PgSQLDialect) JSONExtract(column, path string) string {
 func (d *PgSQLDialect) TableColumnsQuery() string {
 	return `SELECT column_name
             FROM information_schema.columns
-            WHERE table_name = {:tableName} AND table_schema = 'public'
+            WHERE table_name = {:tableName} AND table_schema = current_schema()
             ORDER BY ordinal_position`
 }
 
@@ -67,22 +67,22 @@ func (d *PgSQLDialect) TableInfoQuery() string {
             LEFT JOIN pg_constraint pk
                 ON pk.conrelid = (quote_ident(c.table_schema) || '.' || quote_ident(c.table_name))::regclass
                 AND pk.contype = 'p'
-                AND pk.conkey @> ARRAY[c.ordinal_position::int]
-            WHERE c.table_name = {:tableName} AND c.table_schema = 'public'
+                AND pk.conkey @> ARRAY[c.ordinal_position::int]::smallint[]
+            WHERE c.table_name = {:tableName} AND c.table_schema = current_schema()
             ORDER BY c.ordinal_position`
 }
 
 func (d *PgSQLDialect) TableIndexesQuery() string {
 	return `SELECT indexname AS name, indexdef AS sql
             FROM pg_indexes
-            WHERE tablename = {:tableName} AND schemaname = 'public'`
+            WHERE tablename = {:tableName} AND schemaname = current_schema()`
 }
 
 func (d *PgSQLDialect) HasTableQuery() string {
 	return `SELECT 1
             FROM information_schema.tables
             WHERE LOWER(table_name) = LOWER({:tableName})
-            AND table_schema = 'public'
+            AND table_schema = current_schema()
             LIMIT 1`
 }
 
@@ -111,6 +111,10 @@ func (d *PgSQLDialect) OptimizeQuery() string {
 	return "ANALYZE"
 }
 
+func (d *PgSQLDialect) VacuumQuery() string {
+	return "VACUUM"
+}
+
 func convertStrftimeFormat(format string) string {
 	replacer := strings.NewReplacer(
 		"%Y", "YYYY",
@@ -119,7 +123,7 @@ func convertStrftimeFormat(format string) string {
 		"%H", "HH24",
 		"%M", "MI",
 		"%S", "SS",
-		"%f", "US",
+		"%f", "MS",
 		"%w", "D",
 		"%j", "DDD",
 	)

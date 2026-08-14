@@ -46,10 +46,10 @@ func TestParseIndex(t *testing.T) {
 		{
 			`CREATE UNIQUE INDEX IF NOT EXISTS "schemaname".[indexname] on 'tablename' (
 				col0,
-				` + "`" + `col1` + "`" + `,
+				"col1",
 				json_extract("col2", "$.a") asc,
-				"col3" collate NOCASE,
-				"col4" collate RTRIM desc
+				"col3" asc,
+				"col4" desc
 			) where test = 1`,
 			dbutils.Index{
 				Unique:     true,
@@ -61,8 +61,8 @@ func TestParseIndex(t *testing.T) {
 					{Name: "col0"},
 					{Name: "col1"},
 					{Name: `json_extract("col2", "$.a")`, Sort: "ASC"},
-					{Name: `col3`, Collate: "NOCASE"},
-					{Name: `col4`, Collate: "RTRIM", Sort: "DESC"},
+					{Name: "col3", Sort: "ASC"},
+					{Name: "col4", Sort: "DESC"},
 				},
 				Where: "test = 1",
 			},
@@ -249,7 +249,7 @@ func TestHasSingleColumnUniqueIndex(t *testing.T) {
 			"empty column",
 			"",
 			[]string{
-				"CREATE UNIQUE INDEX `index1` ON `example` (`test`)",
+				`CREATE UNIQUE INDEX "index1" ON "example" ("test")`,
 			},
 			false,
 		},
@@ -257,7 +257,7 @@ func TestHasSingleColumnUniqueIndex(t *testing.T) {
 			"mismatched column",
 			"test",
 			[]string{
-				"CREATE UNIQUE INDEX `index1` ON `example` (`test2`)",
+				`CREATE UNIQUE INDEX "index1" ON "example" ("test2")`,
 			},
 			false,
 		},
@@ -265,7 +265,7 @@ func TestHasSingleColumnUniqueIndex(t *testing.T) {
 			"non unique index",
 			"test",
 			[]string{
-				"CREATE INDEX `index1` ON `example` (`test`)",
+				`CREATE INDEX "index1" ON "example" ("test")`,
 			},
 			false,
 		},
@@ -273,7 +273,7 @@ func TestHasSingleColumnUniqueIndex(t *testing.T) {
 			"matching columnd and unique index",
 			"test",
 			[]string{
-				"CREATE UNIQUE INDEX `index1` ON `example` (`test`)",
+				`CREATE UNIQUE INDEX "index1" ON "example" ("test")`,
 			},
 			true,
 		},
@@ -281,7 +281,7 @@ func TestHasSingleColumnUniqueIndex(t *testing.T) {
 			"multiple columns",
 			"test",
 			[]string{
-				"CREATE UNIQUE INDEX `index1` ON `example` (`test`, `test2`)",
+				`CREATE UNIQUE INDEX "index1" ON "example" ("test", "test2")`,
 			},
 			false,
 		},
@@ -289,8 +289,8 @@ func TestHasSingleColumnUniqueIndex(t *testing.T) {
 			"multiple indexes",
 			"test",
 			[]string{
-				"CREATE UNIQUE INDEX `index1` ON `example` (`test`, `test2`)",
-				"CREATE UNIQUE INDEX `index2` ON `example` (`test`)",
+				`CREATE UNIQUE INDEX "index1" ON "example" ("test", "test2")`,
+				`CREATE UNIQUE INDEX "index2" ON "example" ("test")`,
 			},
 			true,
 		},
@@ -298,7 +298,7 @@ func TestHasSingleColumnUniqueIndex(t *testing.T) {
 			"partial unique index",
 			"test",
 			[]string{
-				"CREATE UNIQUE INDEX `index` ON `example` (`test`) where test != ''",
+				"CREATE UNIQUE INDEX \"index\" ON \"example\" (\"test\") where test != ''",
 			},
 			true,
 		},
@@ -331,7 +331,7 @@ func TestFindSingleColumnUniqueIndex(t *testing.T) {
 			"empty column",
 			"",
 			[]string{
-				"CREATE UNIQUE INDEX `index1` ON `example` (`test`)",
+				`CREATE UNIQUE INDEX "index1" ON "example" ("test")`,
 			},
 			false,
 		},
@@ -339,7 +339,7 @@ func TestFindSingleColumnUniqueIndex(t *testing.T) {
 			"mismatched column",
 			"test",
 			[]string{
-				"CREATE UNIQUE INDEX `index1` ON `example` (`test2`)",
+				`CREATE UNIQUE INDEX "index1" ON "example" ("test2")`,
 			},
 			false,
 		},
@@ -347,7 +347,7 @@ func TestFindSingleColumnUniqueIndex(t *testing.T) {
 			"non unique index",
 			"test",
 			[]string{
-				"CREATE INDEX `index1` ON `example` (`test`)",
+				`CREATE INDEX "index1" ON "example" ("test")`,
 			},
 			false,
 		},
@@ -355,7 +355,7 @@ func TestFindSingleColumnUniqueIndex(t *testing.T) {
 			"matching columnd and unique index",
 			"test",
 			[]string{
-				"CREATE UNIQUE INDEX `index1` ON `example` (`test`)",
+				`CREATE UNIQUE INDEX "index1" ON "example" ("test")`,
 			},
 			true,
 		},
@@ -363,7 +363,7 @@ func TestFindSingleColumnUniqueIndex(t *testing.T) {
 			"multiple columns",
 			"test",
 			[]string{
-				"CREATE UNIQUE INDEX `index1` ON `example` (`test`, `test2`)",
+				`CREATE UNIQUE INDEX "index1" ON "example" ("test", "test2")`,
 			},
 			false,
 		},
@@ -371,8 +371,8 @@ func TestFindSingleColumnUniqueIndex(t *testing.T) {
 			"multiple indexes",
 			"test",
 			[]string{
-				"CREATE UNIQUE INDEX `index1` ON `example` (`test`, `test2`)",
-				"CREATE UNIQUE INDEX `index2` ON `example` (`test`)",
+				`CREATE UNIQUE INDEX "index1" ON "example" ("test", "test2")`,
+				`CREATE UNIQUE INDEX "index2" ON "example" ("test")`,
 			},
 			true,
 		},
@@ -380,7 +380,7 @@ func TestFindSingleColumnUniqueIndex(t *testing.T) {
 			"partial unique index",
 			"test",
 			[]string{
-				"CREATE UNIQUE INDEX `index` ON `example` (`test`) where test != ''",
+				"CREATE UNIQUE INDEX \"index\" ON \"example\" (\"test\") where test != ''",
 			},
 			true,
 		},

@@ -7,8 +7,27 @@ on:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: pgbase_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     env:
       flags: ""
+      PB_POSTGRES_HOST: localhost
+      PB_POSTGRES_PORT: 5432
+      PB_POSTGRES_USER: test
+      PB_POSTGRES_PASSWORD: test
+      PB_POSTGRES_DBNAME: pgbase_test
     steps:
       # re-enable auto-snapshot from goreleaser-action@v3
       # (https://github.com/goreleaser/goreleaser-action-v4-auto-snapshot-example)

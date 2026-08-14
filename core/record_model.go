@@ -1477,7 +1477,7 @@ func onRecordDeleteExecute(e *RecordEvent) error {
 	// fetch rel references (if any)
 	//
 	// note: the select is outside of the transaction to minimize
-	// SQLITE_BUSY errors when mixing read&write in a single transaction
+	// deadlocks when mixing read&write in a single transaction
 	refs, err := e.App.FindCachedCollectionReferences(e.Record.Collection())
 	if err != nil {
 		return err

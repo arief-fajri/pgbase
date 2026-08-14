@@ -75,7 +75,7 @@ type runSQLResult struct {
 
 var knownWriteQueryPrefixes = []string{
 	"INSERT", "CREATE", "UPDATE", "DELETE",
-	"DROP", "DETACH", "ALTER", "REPLACE",
+	"DROP", "ALTER",
 }
 
 func executeQuery(app core.App, query string, maxRows int) (*runSQLResult, error) {

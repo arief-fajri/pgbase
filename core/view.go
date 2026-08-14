@@ -717,7 +717,7 @@ func identifierFromParts(parts []string) (identifier, error) {
 
 	// we trim the single quote even though it is not a valid column quote character
 	// because PostgreSQL allows it if the context expects an identifier and not string literal
-	// (https://www.sqlite.org/lang_keywords.html)
+	// (https://www.postgresql.org/docs/current/sql-keywords-appendix.html)
 	result.alias = trimRawIdentifier(result.alias, "'")
 
 	return result, nil

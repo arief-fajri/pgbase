@@ -83,7 +83,6 @@ export function pageSQLConsole(route) {
             "DELETE ",
             "DROP ",
             "DETACH ",
-            "PRAGMA ",
         ].find((p) => query.includes(p));
     }
 

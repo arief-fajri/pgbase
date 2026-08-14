@@ -11,7 +11,21 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/search"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+func pgTestDB(t *testing.T) *dbx.DB {
+	t.Helper()
+
+	sqlDB, err := sql.Open("pgx", "host=localhost port=5433 user=test password=test dbname=pgbase_test sslmode=disable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { sqlDB.Close() })
+
+	return dbx.NewFromDB(sqlDB, "pgx")
+}
 
 func TestFilterDataBuildExpr(t *testing.T) {
 	resolver := search.NewSimpleFieldResolver("test1", "test2", "test3", `^test4_\w+$`, `^test5\.[\w\.\:]*\w+$`)
@@ -56,49 +70,49 @@ func TestFilterDataBuildExpr(t *testing.T) {
 			"empty string vs null",
 			"'' = null && null != ''",
 			false,
-			"('' = '' AND '' IS NOT '')",
+			"('' = '' AND '' != '')",
 		},
 		{
 			"like with 2 columns",
 			"test1 ~ test2",
 			false,
-			"[[test1]] LIKE ('%' || [[test2]] || '%') ESCAPE '\\'",
+			"LOWER([[test1]]) LIKE LOWER(('%' || [[test2]] || '%')) ESCAPE '\\'",
 		},
 		{
 			"like with right column operand",
 			"'lorem' ~ test1",
 			false,
-			"{:TEST} LIKE ('%' || [[test1]] || '%') ESCAPE '\\'",
+			"LOWER({:TEST}) LIKE LOWER(('%' || [[test1]] || '%')) ESCAPE '\\'",
 		},
 		{
 			"like with left column operand and text as right operand",
 			"test1 ~ 'lorem'",
 			false,
-			"[[test1]] LIKE {:TEST} ESCAPE '\\'",
+			"LOWER([[test1]]) LIKE LOWER({:TEST}) ESCAPE '\\'",
 		},
 		{
 			"not like with 2 columns",
 			"test1 !~ test2",
 			false,
-			"[[test1]] NOT LIKE ('%' || [[test2]] || '%') ESCAPE '\\'",
+			"LOWER([[test1]]) NOT LIKE LOWER(('%' || [[test2]] || '%')) ESCAPE '\\'",
 		},
 		{
 			"not like with right column operand",
 			"'lorem' !~ test1",
 			false,
-			"{:TEST} NOT LIKE ('%' || [[test1]] || '%') ESCAPE '\\'",
+			"LOWER({:TEST}) NOT LIKE LOWER(('%' || [[test1]] || '%')) ESCAPE '\\'",
 		},
 		{
 			"like with left column operand and text as right operand",
 			"test1 !~ 'lorem'",
 			false,
-			"[[test1]] NOT LIKE {:TEST} ESCAPE '\\'",
+			"LOWER([[test1]]) NOT LIKE LOWER({:TEST}) ESCAPE '\\'",
 		},
 		{
 			"nested json no coalesce",
 			"test5.a = test5.b || test5.c != test5.d",
 			false,
-			"(JSON_EXTRACT([[test5]], '$.a') IS JSON_EXTRACT([[test5]], '$.b') OR JSON_EXTRACT([[test5]], '$.c') IS NOT JSON_EXTRACT([[test5]], '$.d'))",
+			"((CASE WHEN [[test5]] IS NOT NULL AND jsonb_typeof([[test5]]::jsonb) IS NOT NULL\n\t\t THEN [[test5]]::jsonb #>> '.$.a'\n\t\t ELSE (jsonb_build_object('pb', [[test5]]::text)) #>> '.pb.$.a'\n\t\t END) IS (CASE WHEN [[test5]] IS NOT NULL AND jsonb_typeof([[test5]]::jsonb) IS NOT NULL\n\t\t THEN [[test5]]::jsonb #>> '.$.b'\n\t\t ELSE (jsonb_build_object('pb', [[test5]]::text)) #>> '.pb.$.b'\n\t\t END) OR (CASE WHEN [[test5]] IS NOT NULL AND jsonb_typeof([[test5]]::jsonb) IS NOT NULL\n\t\t THEN [[test5]]::jsonb #>> '.$.c'\n\t\t ELSE (jsonb_build_object('pb', [[test5]]::text)) #>> '.pb.$.c'\n\t\t END) IS DISTINCT FROM (CASE WHEN [[test5]] IS NOT NULL AND jsonb_typeof([[test5]]::jsonb) IS NOT NULL\n\t\t THEN [[test5]]::jsonb #>> '.$.d'\n\t\t ELSE (jsonb_build_object('pb', [[test5]]::text)) #>> '.pb.$.d'\n\t\t END))",
 		},
 		{
 			"macros",
@@ -125,19 +139,19 @@ func TestFilterDataBuildExpr(t *testing.T) {
 			"complex expression",
 			"((test1 > 1) || (test2 != 2)) && test3 ~ '%%example' && test4_sub = null",
 			false,
-			"(([[test1]] > {:TEST} OR [[test2]] IS NOT {:TEST}) AND [[test3]] LIKE {:TEST} ESCAPE '\\' AND ([[test4_sub]] = '' OR [[test4_sub]] IS NULL))",
+			"(([[test1]] > {:TEST} OR [[test2]] != {:TEST}) AND LOWER([[test3]]) LIKE LOWER({:TEST}) ESCAPE '\\' AND ([[test4_sub]] = '' OR [[test4_sub]] IS NULL))",
 		},
 		{
 			"combination of special literals (null, true, false)",
 			"test1=true && test2 != false && null = test3 || null != test4_sub",
 			false,
-			"([[test1]] = 1 AND [[test2]] IS NOT 0 AND ('' = [[test3]] OR [[test3]] IS NULL) OR ('' IS NOT [[test4_sub]] AND [[test4_sub]] IS NOT NULL))",
+			"([[test1]] = 1 AND [[test2]] != 0 AND ('' = [[test3]] OR [[test3]] IS NULL) OR ('' != [[test4_sub]] AND [[test4_sub]] IS NOT NULL))",
 		},
 		{
 			"all operators",
 			"(test1 = test2 || test2 != test3) && (test2 ~ 'example' || test2 !~ '%%abc') && 'switch1%%' ~ test1 && 'switch2' !~ test2 && test3 > 1 && test3 >= 0 && test3 <= 4 && 2 < 5",
 			false,
-			"((COALESCE([[test1]], '') = COALESCE([[test2]], '') OR COALESCE([[test2]], '') IS NOT COALESCE([[test3]], '')) AND ([[test2]] LIKE {:TEST} ESCAPE '\\' OR [[test2]] NOT LIKE {:TEST} ESCAPE '\\') AND {:TEST} LIKE ('%' || [[test1]] || '%') ESCAPE '\\' AND {:TEST} NOT LIKE ('%' || [[test2]] || '%') ESCAPE '\\' AND [[test3]] > {:TEST} AND [[test3]] >= {:TEST} AND [[test3]] <= {:TEST} AND {:TEST} < {:TEST})",
+			"((COALESCE([[test1]], '') = COALESCE([[test2]], '') OR COALESCE([[test2]], '') != COALESCE([[test3]], '')) AND (LOWER([[test2]]) LIKE LOWER({:TEST}) ESCAPE '\\' OR LOWER([[test2]]) NOT LIKE LOWER({:TEST}) ESCAPE '\\') AND LOWER({:TEST}) LIKE LOWER(('%' || [[test1]] || '%')) ESCAPE '\\' AND LOWER({:TEST}) NOT LIKE LOWER(('%' || [[test2]] || '%')) ESCAPE '\\' AND [[test3]] > {:TEST} AND [[test3]] >= {:TEST} AND [[test3]] <= {:TEST} AND 1 = 1)",
 		},
 		{
 			"geoDistance function",
@@ -180,12 +194,7 @@ func TestFilterDataBuildExpr(t *testing.T) {
 }
 
 func TestFilterDataBuildExprWithParams(t *testing.T) {
-	// create a dummy db
-	sqlDB, err := sql.Open("sqlite", "file::memory:?cache=shared")
-	if err != nil {
-		t.Fatal(err)
-	}
-	db := dbx.NewFromDB(sqlDB, "sqlite")
+	db := pgTestDB(t)
 
 	calledQueries := []string{}
 	db.QueryLogFunc = func(ctx context.Context, t time.Duration, sql string, rows *sql.Rows, err error) {
@@ -279,12 +288,7 @@ func TestFilterDataBuildExprWithLimit(t *testing.T) {
 }
 
 func TestLikeParamsWrapping(t *testing.T) {
-	// create a dummy db
-	sqlDB, err := sql.Open("sqlite", "file::memory:?cache=shared")
-	if err != nil {
-		t.Fatal(err)
-	}
-	db := dbx.NewFromDB(sqlDB, "sqlite")
+	db := pgTestDB(t)
 
 	calledQueries := []string{}
 	db.QueryLogFunc = func(ctx context.Context, t time.Duration, sql string, rows *sql.Rows, err error) {
@@ -339,8 +343,8 @@ func TestLikeParamsWrapping(t *testing.T) {
 		t.Fatalf("Expected 1 query, got %d", len(calledQueries))
 	}
 
-	expectedQuery := `SELECT * WHERE ([[test1]] LIKE '%abc%' ESCAPE '\' OR [[test2]] LIKE 'ab%c' ESCAPE '\' OR [[test3]] LIKE '%ab\%c%' ESCAPE '\' OR [[test4]] LIKE '%ab\%c' ESCAPE '\' OR [[test5]] LIKE 'ab\\%c' ESCAPE '\' OR [[test6]] LIKE '%ab\\\%c%' ESCAPE '\' OR [[test7]] LIKE '%ab\_c%' ESCAPE '\' OR [[test8]] LIKE '%ab\_c%' ESCAPE '\' OR [[test9]] LIKE '%ab_c' ESCAPE '\' OR [[test10]] LIKE '%ab\\c%' ESCAPE '\' OR [[test11]] LIKE '%\_ab\\c\_%' ESCAPE '\' OR [[test12]] LIKE 'ab\c%' ESCAPE '\' OR [[test13]] LIKE '%a`
-	expectedQuery += "\n" + `b\\%' ESCAPE '\')`
+	expectedQuery := `SELECT * WHERE (LOWER([[test1]]) LIKE LOWER('%abc%') ESCAPE '\' OR LOWER([[test2]]) LIKE LOWER('ab%c') ESCAPE '\' OR LOWER([[test3]]) LIKE LOWER('%ab\%c%') ESCAPE '\' OR LOWER([[test4]]) LIKE LOWER('%ab\%c') ESCAPE '\' OR LOWER([[test5]]) LIKE LOWER('ab\\%c') ESCAPE '\' OR LOWER([[test6]]) LIKE LOWER('%ab\\\%c%') ESCAPE '\' OR LOWER([[test7]]) LIKE LOWER('%ab\_c%') ESCAPE '\' OR LOWER([[test8]]) LIKE LOWER('%ab\_c%') ESCAPE '\' OR LOWER([[test9]]) LIKE LOWER('%ab_c') ESCAPE '\' OR LOWER([[test10]]) LIKE LOWER('%ab\\c%') ESCAPE '\' OR LOWER([[test11]]) LIKE LOWER('%\_ab\\c\_%') ESCAPE '\' OR LOWER([[test12]]) LIKE LOWER('ab\c%') ESCAPE '\' OR LOWER([[test13]]) LIKE LOWER('%a`
+	expectedQuery += "\n" + `b\\%') ESCAPE '\')`
 	if expectedQuery != calledQueries[0] {
 		t.Fatalf("Expected query \n%s, \ngot \n%s", expectedQuery, calledQueries[0])
 	}

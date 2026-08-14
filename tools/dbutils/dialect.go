@@ -21,4 +21,6 @@ type Dialect interface {
 	RandomExpression() string
 
 	OptimizeQuery() string
+
+	VacuumQuery() string
 }

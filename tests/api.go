@@ -3,6 +3,7 @@ package tests
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -86,11 +87,23 @@ type ApiScenario struct {
 	//	map[string]int{ "EventA": 2, "EventB": 0 } // ensures that EventA was fired exactly 2 times and EventB exactly 0 times.
 	ExpectedEvents map[string]int
 
+	// AuthEmail specifies an auth record email for automatic
+	// Authorization header generation.
+	//
+	// When set together with AuthCollection, a valid JWT auth token
+	// will be auto-generated and set as the Authorization header.
+	AuthEmail string
+
+	// AuthCollection specifies the auth collection name for automatic
+	// Authorization header generation (e.g. "users", "_superusers", "clients").
+	AuthCollection string
+
 	// test hooks
 	// ---------------------------------------------------------------
 
 	TestAppFactory func(t testing.TB) *TestApp
 	BeforeTestFunc func(t testing.TB, app *TestApp, e *core.ServeEvent)
+	BeforeRequestFunc func(t testing.TB, app *TestApp, req *http.Request)
 	AfterTestFunc  func(t testing.TB, app *TestApp, res *http.Response)
 }
 
@@ -234,6 +247,63 @@ func (scenario *ApiScenario) test(t testing.TB) {
 		for k, v := range scenario.Headers {
 			// trim whitespaces for consistency with the net/http request parsing
 			req.Header.Set(k, strings.TrimSpace(v))
+		}
+
+		// auto-generate Authorization header if auth credentials are specified
+		if scenario.AuthEmail != "" && scenario.AuthCollection != "" {
+			record, err := testApp.FindAuthRecordByEmail(scenario.AuthCollection, scenario.AuthEmail)
+			if err == nil {
+				token, tokenErr := record.NewAuthToken()
+				if tokenErr == nil {
+					req.Header.Set("Authorization", token)
+				}
+			}
+		}
+
+		// Automatically replace hardcoded JWT tokens with fresh valid tokens.
+		// This allows existing tests with static JWTs to work without modification.
+		// Tokens with past expiration (expired) are NOT replaced to preserve
+		// tests that specifically test expired token behavior.
+		if auth := req.Header.Get("Authorization"); auth != "" && strings.HasPrefix(auth, "eyJ") {
+			parts := strings.Split(auth, ".")
+			if len(parts) == 3 {
+				// Decode the JWT payload (2nd part) to extract user info + expiration
+				payloadBytes, decErr := base64.RawURLEncoding.DecodeString(parts[1])
+				if decErr == nil {
+					var payload struct {
+						Id           string `json:"id"`
+						CollectionId string `json:"collectionId"`
+						Exp          int64  `json:"exp"`
+					}
+					if json.Unmarshal(payloadBytes, &payload) == nil && payload.Id != "" && payload.CollectionId != "" {
+						// Skip expired tokens to preserve expired token tests
+						if payload.Exp > 0 && payload.Exp < time.Now().Unix() {
+							// expired - keep as-is
+						} else if col, colErr := testApp.FindCollectionByNameOrId(payload.CollectionId); colErr == nil {
+							record, findErr := testApp.FindRecordById(col, payload.Id)
+							if findErr == nil {
+								token, tokenErr := record.NewAuthToken()
+								if tokenErr == nil {
+									req.Header.Set("Authorization", token)
+								}
+							}
+						} else if fallbackCol, fallbackErr := testApp.FindCollectionByNameOrId("_superusers"); fallbackErr == nil {
+							record, findErr := testApp.FindRecordById(fallbackCol, payload.Id)
+							if findErr == nil {
+								token, tokenErr := record.NewAuthToken()
+								if tokenErr == nil {
+									req.Header.Set("Authorization", token)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// before request func (allows dynamic header modification)
+		if scenario.BeforeRequestFunc != nil {
+			scenario.BeforeRequestFunc(t, testApp, req)
 		}
 
 		// execute request

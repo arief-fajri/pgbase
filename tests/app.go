@@ -2,18 +2,209 @@
 package tests
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime"
 	"sync"
+	"sync/atomic"
 
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tools/hook"
+	"github.com/pocketbase/dbx"
 
 	_ "github.com/arief-fajri/pgbase/migrations"
 )
+
+// schemaCounter provides unique schema names for test isolation.
+var schemaCounter atomic.Int64
+
+// schemaInitDB is a shared connection used for creating test schemas.
+var schemaInitDB *dbx.DB
+var schemaInitOnce sync.Once
+
+// templateSchemaName is the name of the pre-built migration template schema.
+var templateSchemaName string
+var templateInitOnce sync.Once
+var templateInitErr error
+
+// orphanCleanupOnce ensures we only drop orphaned schemas once per process.
+var orphanCleanupOnce sync.Once
+
+func getSchemaInitDB() (*dbx.DB, error) {
+	var err error
+	schemaInitOnce.Do(func() {
+		schemaInitDB, err = core.DefaultDBConnect(core.DBConfig{
+			Host:         getEnvOrDefault("PGTEST_HOST", "localhost"),
+			Port:         5433,
+			User:         getEnvOrDefault("PGTEST_USER", "test"),
+			Password:     getEnvOrDefault("PGTEST_PASSWORD", "test"),
+			DBName:       getEnvOrDefault("PGTEST_DBNAME", "pgbase_test"),
+			SSLMode:      "disable",
+			MaxOpenConns: 50,
+			MaxIdleConns: 10,
+		})
+	})
+	return schemaInitDB, err
+}
+
+// dropOrphanSchemas drops any leftover pb_test_* and pb_template_* schemas
+// from previous crashed runs to keep the catalog clean.
+func dropOrphanSchemas() {
+	orphanCleanupOnce.Do(func() {
+		db, err := getSchemaInitDB()
+		if err != nil {
+			return
+		}
+		pid := os.Getpid()
+		rows, qErr := db.NewQuery(
+			fmt.Sprintf(`SELECT schema_name FROM information_schema.schemata WHERE (schema_name LIKE '%s') OR (schema_name LIKE '%s' AND schema_name != 'pb_template_%d')`, "pb\\_test\\_%", "pb\\_template\\_%", pid),
+		).Rows()
+		if qErr != nil {
+			return
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var schema string
+			if rows.Scan(&schema) != nil {
+				continue
+			}
+			db.NewQuery("DROP SCHEMA IF EXISTS " + schema + " CASCADE").Execute()
+		}
+	})
+}
+
+// connectToSchema returns a DBConnect callback that connects to the specified schema
+// with the standard test environment settings.
+func connectToSchema(schemaName string) func(cfg core.DBConfig) (*dbx.DB, error) {
+	return func(cfg core.DBConfig) (*dbx.DB, error) {
+		if cfg.Host == "" {
+			cfg.Host = getEnvOrDefault("PGTEST_HOST", "localhost")
+		}
+		cfg.Port = 5433
+		if cfg.User == "" {
+			cfg.User = getEnvOrDefault("PGTEST_USER", "test")
+		}
+		if cfg.Password == "" {
+			cfg.Password = getEnvOrDefault("PGTEST_PASSWORD", "test")
+		}
+		if cfg.DBName == "" {
+			cfg.DBName = getEnvOrDefault("PGTEST_DBNAME", "pgbase_test")
+		}
+		if cfg.SSLMode == "" {
+			cfg.SSLMode = "disable"
+		}
+		cfg.Schema = schemaName
+		return core.DefaultDBConnect(cfg)
+	}
+}
+
+// initTemplateSchema builds a fully-migrated and seeded template schema ONCE
+// per test process. All subsequent test schemas clone from this template,
+// avoiding the per-app cost of re-running all migrations + seed.
+func initTemplateSchema() error {
+	templateInitOnce.Do(func() {
+		// clean orphan schemas first
+		dropOrphanSchemas()
+
+		pid := os.Getpid()
+		templateSchemaName = fmt.Sprintf("pb_template_%d", pid)
+
+		db, err := getSchemaInitDB()
+		if err != nil {
+			templateInitErr = fmt.Errorf("getSchemaInitDB: %w", err)
+			return
+		}
+
+		if _, qErr := db.NewQuery("CREATE SCHEMA IF NOT EXISTS " + templateSchemaName).Execute(); qErr != nil {
+			templateInitErr = fmt.Errorf("create template schema: %w", qErr)
+			return
+		}
+
+		templateDataDir, dErr := os.MkdirTemp("", "pb_template_data")
+		if dErr != nil {
+			templateInitErr = dErr
+			return
+		}
+
+		templateApp := core.NewBaseApp(core.BaseAppConfig{
+			DataDir:          templateDataDir,
+			EncryptionEnv:    "pb_test_env",
+			DataMaxOpenConns: 2,
+			AuxMaxOpenConns:  1,
+			DBConnect:        connectToSchema(templateSchemaName),
+		})
+
+		if bErr := templateApp.Bootstrap(); bErr != nil {
+			templateInitErr = fmt.Errorf("template bootstrap: %w", bErr)
+			return
+		}
+		if _, qErr := templateApp.DB().NewQuery("Select 1").Execute(); qErr != nil {
+			templateInitErr = qErr
+			return
+		}
+		if _, qErr := templateApp.AuxDB().NewQuery("Select 1").Execute(); qErr != nil {
+			templateInitErr = qErr
+			return
+		}
+		if mErr := templateApp.RunAllMigrations(); mErr != nil {
+			templateInitErr = fmt.Errorf("template RunAllMigrations: %w", mErr)
+			return
+		}
+		if sErr := SeedTestData(templateApp); sErr != nil {
+			templateInitErr = fmt.Errorf("template SeedTestData: %w", sErr)
+			return
+		}
+
+		templateApp.ResetBootstrapState()
+	})
+	return templateInitErr
+}
+
+// cloneSchemaFromTemplate copies all tables and data from the template schema
+// into the specified target schema. This avoids re-running migrations and
+// re-seeding data for each test.
+func cloneSchemaFromTemplate(targetSchema string) error {
+	db, err := getSchemaInitDB()
+	if err != nil {
+		return err
+	}
+
+	rows, qErr := db.NewQuery(
+		fmt.Sprintf("SELECT tablename FROM pg_tables WHERE schemaname = '%s' ORDER BY tablename", templateSchemaName),
+	).Rows()
+	if qErr != nil {
+		return qErr
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tableName string
+		if sErr := rows.Scan(&tableName); sErr != nil {
+			return sErr
+		}
+
+		createSQL := fmt.Sprintf(
+			`CREATE TABLE "%s"."%s" (LIKE "%s"."%s" INCLUDING ALL)`,
+			targetSchema, tableName, templateSchemaName, tableName,
+		)
+		if _, cErr := db.NewQuery(createSQL).Execute(); cErr != nil {
+			return fmt.Errorf("clone table %s: %w", tableName, cErr)
+		}
+
+		insertSQL := fmt.Sprintf(
+			`INSERT INTO "%s"."%s" SELECT * FROM "%s"."%s"`,
+			targetSchema, tableName, templateSchemaName, tableName,
+		)
+		if _, iErr := db.NewQuery(insertSQL).Execute(); iErr != nil {
+			return fmt.Errorf("clone data %s: %w", tableName, iErr)
+		}
+	}
+
+	return rows.Err()
+}
 
 // TestApp is a wrapper app instance used for testing.
 type TestApp struct {
@@ -26,6 +217,9 @@ type TestApp struct {
 	EventCalls map[string]int
 
 	TestMailer *TestMailer
+
+	// schemaName is the isolated PostgreSQL schema for this test instance.
+	schemaName string
 }
 
 // Cleanup resets the test application state and removes the test
@@ -41,6 +235,11 @@ func (t *TestApp) Cleanup() {
 	event.App = t
 
 	t.OnTerminate().Trigger(event, func(e *core.TerminateEvent) error {
+		// Drop the isolated schema, removing all tables and data.
+		if t.schemaName != "" {
+			t.DB().NewQuery("DROP SCHEMA IF EXISTS " + t.schemaName + " CASCADE").Execute()
+		}
+
 		t.TestMailer.Reset()
 		t.ResetEventCalls()
 		t.ResetBootstrapState()
@@ -82,8 +281,10 @@ func NewTestApp(optTestDataDir ...string) (*TestApp, error) {
 	}
 
 	return NewTestAppWithConfig(core.BaseAppConfig{
-		DataDir:       testDataDir,
-		EncryptionEnv: "pb_test_env",
+		DataDir:         testDataDir,
+		EncryptionEnv:   "pb_test_env",
+		DataMaxOpenConns: 2,
+		AuxMaxOpenConns:  1,
 	})
 }
 
@@ -110,9 +311,41 @@ func NewTestAppWithConfig(config core.BaseAppConfig) (*TestApp, error) {
 	// replace with the clone
 	config.DataDir = tempDir
 
+	if config.DataMaxOpenConns <= 0 {
+		config.DataMaxOpenConns = 2
+	}
+	if config.AuxMaxOpenConns <= 0 {
+		config.AuxMaxOpenConns = 1
+	}
+
+	// Generate a unique schema name for this test app.
+	// Each test gets its own schema, providing full database isolation
+	// and allowing safe parallel execution.
+	schemaName := generateSchemaName()
+
+	// Ensure the template schema is built once per process.
+	if err := initTemplateSchema(); err != nil {
+		return nil, fmt.Errorf("template init failed: %w", err)
+	}
+
+	// Create a new empty schema for this test app.
+	if err := createTestSchema(schemaName); err != nil {
+		return nil, fmt.Errorf("failed to create schema %s: %w", schemaName, err)
+	}
+
+	// Clone all tables (structure + data) from the template schema,
+	// avoiding re-running migrations and re-seeding data.
+	if err := cloneSchemaFromTemplate(schemaName); err != nil {
+		return nil, fmt.Errorf("failed to clone template to schema %s: %w", schemaName, err)
+	}
+
+	config.DBConnect = connectToSchema(schemaName)
+
 	app := core.NewBaseApp(config)
 
 	// load data dir and db connections
+	// (Bootstrap still runs, but system migrations are skipped
+	//  because the cloned _migrations table marks them as applied)
 	if err := app.Bootstrap(); err != nil {
 		return nil, err
 	}
@@ -125,10 +358,11 @@ func NewTestAppWithConfig(config core.BaseAppConfig) (*TestApp, error) {
 		return nil, err
 	}
 
-	// apply any missing migrations
-	if err := app.RunAllMigrations(); err != nil {
-		return nil, err
-	}
+	// RunAllMigrations is skipped because the cloned _migrations table
+	// already has all app migrations marked as applied.
+	//
+	// SeedTestData is skipped because the template schema already
+	// contains all test data (collections, records, auth users).
 
 	// force disable request logs because the logs db call execute in a separate
 	// go routine and it is possible to panic due to earlier api test completion.
@@ -138,6 +372,7 @@ func NewTestAppWithConfig(config core.BaseAppConfig) (*TestApp, error) {
 		BaseApp:    app,
 		EventCalls: make(map[string]int),
 		TestMailer: &TestMailer{},
+		schemaName: schemaName,
 	}
 
 	t.OnBootstrap().Bind(&hook.Handler[*core.BootstrapEvent]{
@@ -888,4 +1123,21 @@ func copyFile(src string, dest string) error {
 	}
 
 	return nil
+}
+
+// generateSchemaName creates a unique PostgreSQL schema name for test isolation.
+func generateSchemaName() string {
+	id := schemaCounter.Add(1)
+	return fmt.Sprintf("pb_test_%d_%d", os.Getpid(), id)
+}
+
+// createTestSchema creates a PostgreSQL schema for isolated test execution.
+func createTestSchema(schemaName string) error {
+	db, err := getSchemaInitDB()
+	if err != nil {
+		return err
+	}
+
+	_, err = db.NewQuery("CREATE SCHEMA IF NOT EXISTS " + schemaName).Execute()
+	return err
 }

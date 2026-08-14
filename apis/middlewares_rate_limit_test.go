@@ -12,7 +12,10 @@ import (
 )
 
 func TestDefaultRateLimitMiddleware(t *testing.T) {
-	app, _ := tests.NewTestApp()
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer app.Cleanup()
 
 	app.Settings().RateLimits.Enabled = true
@@ -86,8 +89,8 @@ func TestDefaultRateLimitMiddleware(t *testing.T) {
 		{"/norate", 0, false, 200},
 
 		{"/rate/a", 0, false, 200},
-		{"/rate/a", 900, false, 200}, // (fixed window check) wait enough to ensure that it can't fit more than 2 requests in 1s
-		{"/rate/a", 900, false, 200},
+		{"/rate/a", 1001, false, 200}, // (fixed window check) wait enough to ensure that it can't fit more than 2 requests in 1s
+		{"/rate/a", 1001, false, 200},
 		{"/rate/a", 0, false, 200},
 		{"/rate/a", 0, false, 429},
 		{"/rate/a", 0, false, 429},
@@ -121,7 +124,7 @@ func TestDefaultRateLimitMiddleware(t *testing.T) {
 		{"/rate/guest", 0, false, 429},
 
 		// "guest" rule with regular user (should fallback to the /rate/ rule)
-		{"/rate/guest", 1000, true, 200},
+		{"/rate/guest", 1001, true, 200},
 		{"/rate/guest", 0, true, 200},
 		{"/rate/guest", 0, true, 429},
 		{"/rate/guest", 0, true, 429},
@@ -162,7 +165,10 @@ func TestDefaultRateLimitMiddleware(t *testing.T) {
 }
 
 func TestDefaultRateLimitMiddlewareSkipChecks(t *testing.T) {
-	app, _ := tests.NewTestApp()
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer app.Cleanup()
 
 	app.Settings().RateLimits.Enabled = true

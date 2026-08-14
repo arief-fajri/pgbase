@@ -179,7 +179,7 @@ func TestEnrichRecords(t *testing.T) {
 			expected: []string{
 				`"customField":"123"`,
 				`"expand":{"rel"`,
-				`"id":"llvuca81nly1qls"`,
+				`"id":"k7l9m3n4o5p6q7r"`,
 				`"id":"0yxhwia2amd8gec"`,
 			},
 			notExpected: []string{
@@ -195,7 +195,7 @@ func TestEnrichRecords(t *testing.T) {
 			expected: []string{
 				`"customField":"123"`,
 				`"expand":{"rel"`,
-				`"id":"llvuca81nly1qls"`,
+				`"id":"k7l9m3n4o5p6q7r"`,
 				`"id":"0yxhwia2amd8gec"`,
 			},
 		},

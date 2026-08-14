@@ -24,7 +24,7 @@ func TestAutodateFieldColumnType(t *testing.T) {
 
 	f := &core.AutodateField{}
 
-	expected := "TEXT DEFAULT '' NOT NULL"
+	expected := "TIMESTAMPTZ DEFAULT NOW() NOT NULL"
 
 	if v := f.ColumnType(app); v != expected {
 		t.Fatalf("Expected\n%q\ngot\n%q", expected, v)
@@ -359,7 +359,7 @@ func TestAutodateRecordResave(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	record, err := app.FindRecordById(collection, "llvuca81nly1qls")
+	record, err := app.FindRecordById(collection, "0yxhwia2amd8gec")
 	if err != nil {
 		t.Fatal(err)
 	}
