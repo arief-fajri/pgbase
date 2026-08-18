@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"log/slog"
 	"os"
-	"slices"
 	"testing"
 	"time"
 
@@ -407,74 +406,50 @@ func TestBaseAppDBDualBuilder(t *testing.T) {
 	app, _ := tests.NewTestApp()
 	defer app.Cleanup()
 
-	concurrentQueries := []string{}
-	nonconcurrentQueries := []string{}
-	app.ConcurrentDB().(*dbx.DB).QueryLogFunc = func(ctx context.Context, t time.Duration, sql string, rows *sql.Rows, err error) {
-		concurrentQueries = append(concurrentQueries, sql)
+	// PG-BASE uses a single dataDB builder.
+	// In SQLite the concurrent/nonconcurrent builders were separate connections,
+	// but PostgreSQL uses one connection pool that handles both reads and writes.
+	if app.DB() != app.ConcurrentDB() {
+		t.Fatalf("Expected DB() to be the same as ConcurrentDB()")
 	}
-	app.ConcurrentDB().(*dbx.DB).ExecLogFunc = func(ctx context.Context, t time.Duration, sql string, result sql.Result, err error) {
-		concurrentQueries = append(concurrentQueries, sql)
-	}
-	app.NonconcurrentDB().(*dbx.DB).QueryLogFunc = func(ctx context.Context, t time.Duration, sql string, rows *sql.Rows, err error) {
-		nonconcurrentQueries = append(nonconcurrentQueries, sql)
-	}
-	app.NonconcurrentDB().(*dbx.DB).ExecLogFunc = func(ctx context.Context, t time.Duration, sql string, result sql.Result, err error) {
-		nonconcurrentQueries = append(nonconcurrentQueries, sql)
+	if app.DB() != app.NonconcurrentDB() {
+		t.Fatalf("Expected DB() to be the same as NonconcurrentDB()")
 	}
 
-	type testQuery struct {
-		query        string
-		isConcurrent bool
+	regularTests := []string{
+		"SELECT 1",
+		"WITH abc(x) AS (select 2) SELECT x FROM abc",
+		"CREATE TABLE t1(x int)",
+		"INSERT INTO t1(x) values(1)",
+		"UPDATE t1 set x = 2",
+		"SELECT * FROM t1",
+		"DELETE FROM t1",
 	}
 
-	regularTests := []testQuery{
-		{"  \n  sEleCt 1", true},
-		{"With abc(x) AS (select 2) SELECT x FROM abc", true},
-		{"create table t1(x int)", false},
-		{"insert into t1(x) values(1)", false},
-		{"update t1 set x = 2", false},
-		{"delete from t1", false},
-	}
-
-	txTests := []testQuery{
-		{"select 3", false},
-		{" \n WITH abc(x) AS (select 4) SELECT x FROM abc", false},
-		{"create table t2(x int)", false},
-		{"insert into t2(x) values(1)", false},
-		{"update t2 set x = 2", false},
-		{"delete from t2", false},
-	}
-
-	for _, item := range regularTests {
-		_, err := app.DB().NewQuery(item.query).Execute()
-		if err != nil {
-			t.Fatalf("Failed to execute query %q error: %v", item.query, err)
+	for _, query := range regularTests {
+		if _, err := app.DB().NewQuery(query).Execute(); err != nil {
+			t.Fatalf("Failed to execute query %q error: %v", query, err)
 		}
 	}
 
 	app.RunInTransaction(func(txApp core.App) error {
-		for _, item := range txTests {
-			_, err := txApp.DB().NewQuery(item.query).Execute()
-			if err != nil {
-				t.Fatalf("Failed to execute query %q error: %v", item.query, err)
+		txTests := []string{
+			"SELECT 3",
+			"WITH abc(x) AS (select 4) SELECT x FROM abc",
+			"CREATE TABLE t2(x int)",
+			"INSERT INTO t2(x) values(1)",
+			"UPDATE t2 set x = 2",
+			"SELECT * FROM t2",
+			"DELETE FROM t2",
+		}
+		for _, query := range txTests {
+			if _, err := txApp.DB().NewQuery(query).Execute(); err != nil {
+				t.Fatalf("Failed to execute query %q error: %v", query, err)
 			}
 		}
 
 		return nil
 	})
-
-	allTests := append(regularTests, txTests...)
-	for _, item := range allTests {
-		if item.isConcurrent {
-			if !slices.Contains(concurrentQueries, item.query) {
-				t.Fatalf("Expected concurrent query\n%q\ngot\nconcurrent:%v\nnonconcurrent:%v", item.query, concurrentQueries, nonconcurrentQueries)
-			}
-		} else {
-			if !slices.Contains(nonconcurrentQueries, item.query) {
-				t.Fatalf("Expected nonconcurrent query\n%q\ngot\nconcurrent:%v\nnonconcurrent:%v", item.query, concurrentQueries, nonconcurrentQueries)
-			}
-		}
-	}
 }
 
 func TestBaseAppAuxDBDualBuilder(t *testing.T) {
@@ -483,74 +458,49 @@ func TestBaseAppAuxDBDualBuilder(t *testing.T) {
 	app, _ := tests.NewTestApp()
 	defer app.Cleanup()
 
-	concurrentQueries := []string{}
-	nonconcurrentQueries := []string{}
-	app.AuxConcurrentDB().(*dbx.DB).QueryLogFunc = func(ctx context.Context, t time.Duration, sql string, rows *sql.Rows, err error) {
-		concurrentQueries = append(concurrentQueries, sql)
+	// See TestBaseAppDBDualBuilder - PG-BASE uses a single auxDB builder
+	// (one PostgreSQL pool) for both reads and writes.
+	if app.AuxDB() != app.AuxConcurrentDB() {
+		t.Fatalf("Expected AuxDB() to be the same as AuxConcurrentDB()")
 	}
-	app.AuxConcurrentDB().(*dbx.DB).ExecLogFunc = func(ctx context.Context, t time.Duration, sql string, result sql.Result, err error) {
-		concurrentQueries = append(concurrentQueries, sql)
-	}
-	app.AuxNonconcurrentDB().(*dbx.DB).QueryLogFunc = func(ctx context.Context, t time.Duration, sql string, rows *sql.Rows, err error) {
-		nonconcurrentQueries = append(nonconcurrentQueries, sql)
-	}
-	app.AuxNonconcurrentDB().(*dbx.DB).ExecLogFunc = func(ctx context.Context, t time.Duration, sql string, result sql.Result, err error) {
-		nonconcurrentQueries = append(nonconcurrentQueries, sql)
+	if app.AuxDB() != app.AuxNonconcurrentDB() {
+		t.Fatalf("Expected AuxDB() to be the same as AuxNonconcurrentDB()")
 	}
 
-	type testQuery struct {
-		query        string
-		isConcurrent bool
+	regularTests := []string{
+		"SELECT 1",
+		"WITH abc(x) AS (select 2) SELECT x FROM abc",
+		"CREATE TABLE t1(x int)",
+		"INSERT INTO t1(x) values(1)",
+		"UPDATE t1 set x = 2",
+		"SELECT * FROM t1",
+		"DELETE FROM t1",
 	}
 
-	regularTests := []testQuery{
-		{"  \n  sEleCt 1", true},
-		{"With abc(x) AS (select 2) SELECT x FROM abc", true},
-		{"create table t1(x int)", false},
-		{"insert into t1(x) values(1)", false},
-		{"update t1 set x = 2", false},
-		{"delete from t1", false},
-	}
-
-	txTests := []testQuery{
-		{"select 3", false},
-		{" \n WITH abc(x) AS (select 4) SELECT x FROM abc", false},
-		{"create table t2(x int)", false},
-		{"insert into t2(x) values(1)", false},
-		{"update t2 set x = 2", false},
-		{"delete from t2", false},
-	}
-
-	for _, item := range regularTests {
-		_, err := app.AuxDB().NewQuery(item.query).Execute()
-		if err != nil {
-			t.Fatalf("Failed to execute query %q error: %v", item.query, err)
+	for _, query := range regularTests {
+		if _, err := app.AuxDB().NewQuery(query).Execute(); err != nil {
+			t.Fatalf("Failed to execute query %q error: %v", query, err)
 		}
 	}
 
 	app.AuxRunInTransaction(func(txApp core.App) error {
-		for _, item := range txTests {
-			_, err := txApp.AuxDB().NewQuery(item.query).Execute()
-			if err != nil {
-				t.Fatalf("Failed to execute query %q error: %v", item.query, err)
+		txTests := []string{
+			"SELECT 3",
+			"WITH abc(x) AS (select 4) SELECT x FROM abc",
+			"CREATE TABLE t2(x int)",
+			"INSERT INTO t2(x) values(1)",
+			"UPDATE t2 set x = 2",
+			"SELECT * FROM t2",
+			"DELETE FROM t2",
+		}
+		for _, query := range txTests {
+			if _, err := txApp.AuxDB().NewQuery(query).Execute(); err != nil {
+				t.Fatalf("Failed to execute query %q error: %v", query, err)
 			}
 		}
 
 		return nil
 	})
-
-	allTests := append(regularTests, txTests...)
-	for _, item := range allTests {
-		if item.isConcurrent {
-			if !slices.Contains(concurrentQueries, item.query) {
-				t.Fatalf("Expected concurrent query\n%q\ngot\nconcurrent:%v\nnonconcurrent:%v", item.query, concurrentQueries, nonconcurrentQueries)
-			}
-		} else {
-			if !slices.Contains(nonconcurrentQueries, item.query) {
-				t.Fatalf("Expected nonconcurrent query\n%q\ngot\nconcurrent:%v\nnonconcurrent:%v", item.query, concurrentQueries, nonconcurrentQueries)
-			}
-		}
-	}
 }
 
 func TestBaseAppTriggerOnTerminate(t *testing.T) {

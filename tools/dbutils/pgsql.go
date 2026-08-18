@@ -2,35 +2,45 @@ package dbutils
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+var jsonIndexRegexp = regexp.MustCompile(`\[(\d+)\]`)
 
 type PgSQLDialect struct{}
 
 func (d *PgSQLDialect) JSONEach(column string) string {
+	// Works for both jsonb array columns (multi relation/select/file) and
+	// plain text scalar columns (single relation, stored as a bare id):
+	//   - a JSON array text/jsonb  -> unnested elements
+	//   - a non-empty scalar        -> a single-element set
+	//   - NULL or empty string      -> an empty set
+	// The leading "[" heuristic avoids casting non-JSON text (e.g. a bare id
+	// like "abc") to jsonb, which would raise SQLSTATE 22P02.
 	return fmt.Sprintf(
-		`jsonb_array_elements(
-			CASE WHEN jsonb_typeof([[%s]]) = 'array'
-			THEN [[%s]]::jsonb
-			ELSE jsonb_build_array([[%s]]::text)
+		`jsonb_array_elements_text(
+			CASE
+				WHEN [[%s]] IS NULL OR [[%s]]::text = '' THEN '[]'::jsonb
+				WHEN left(ltrim([[%s]]::text), 1) = '[' THEN ([[%s]]::text)::jsonb
+				ELSE jsonb_build_array([[%s]]::text)
 			END
 		)`,
-		column, column, column,
+		column, column, column, column, column,
 	)
 }
 
 func (d *PgSQLDialect) JSONArrayLength(column string) string {
+	// Mirrors [PgSQLDialect.JSONEach] typing rules: JSON array -> element
+	// count, non-empty scalar -> 1, NULL/empty -> 0. Comparing the column as
+	// ::text avoids folding the untyped '' literal to jsonb (SQLSTATE 22P02).
 	return fmt.Sprintf(
-		`jsonb_array_length(
-			CASE WHEN jsonb_typeof([[%s]]) = 'array'
-			THEN [[%s]]::jsonb
-			ELSE CASE WHEN [[%s]] = '' OR [[%s]] IS NULL
-				 THEN '[]'::jsonb
-				 ELSE jsonb_build_array([[%s]])
-			END
-			END
-		)`,
-		column, column, column, column, column,
+		`(CASE
+			WHEN [[%s]] IS NULL OR [[%s]]::text = '' THEN 0
+			WHEN left(ltrim([[%s]]::text), 1) = '[' THEN jsonb_array_length(([[%s]]::text)::jsonb)
+			ELSE 1
+		END)`,
+		column, column, column, column,
 	)
 }
 
@@ -44,8 +54,36 @@ func (d *PgSQLDialect) JSONExtract(column, path string) string {
 		 THEN [[%s]]::jsonb #>> '%s'
 		 ELSE (jsonb_build_object('pb', [[%s]]::text)) #>> '%s'
 		 END)`,
-		column, column, column, path, column, ".pb"+path,
+		column, column, column, pgJSONPath(path), column, pgJSONPath(".pb"+path),
 	)
+}
+
+// pgJSONPath converts a SQLite-style dotted json path (eg. ".a.b[0]" or
+// "[1].a[2]") into the text[]-array lookup notation expected by PostgreSQL's
+// #>/#>> operators (eg. "{a,b,0}").
+//
+// A leading "$" root marker (SQLite json path syntax, eg. "$.a.b") is ignored
+// since PostgreSQL's path arrays are relative to the document root and would
+// otherwise treat "$" as a literal key.
+func pgJSONPath(path string) string {
+	parts := []string{}
+	for _, seg := range strings.Split(path, ".") {
+		// extract the key segment (text before the first "[")
+		key := seg
+		indices := ""
+		if i := strings.IndexByte(seg, '['); i >= 0 {
+			key = seg[:i]
+			indices = seg[i:]
+		}
+		if key != "" && key != "$" {
+			parts = append(parts, key)
+		}
+		// extract each "[n]" array index
+		for _, m := range jsonIndexRegexp.FindAllStringSubmatch(indices, -1) {
+			parts = append(parts, m[1])
+		}
+	}
+	return "{" + strings.Join(parts, ",") + "}"
 }
 
 func (d *PgSQLDialect) TableColumnsQuery() string {
@@ -73,9 +111,18 @@ func (d *PgSQLDialect) TableInfoQuery() string {
 }
 
 func (d *PgSQLDialect) TableIndexesQuery() string {
-	return `SELECT indexname AS name, indexdef AS sql
-            FROM pg_indexes
-            WHERE tablename = {:tableName} AND schemaname = current_schema()`
+	// Exclude the auto-created primary key index (<table>_pkey) so the
+	// result mirrors SQLite, whose sqlite_master query filters out
+	// auto-indexes (they have a NULL "sql"). Only explicitly created
+	// indexes (CREATE [UNIQUE] INDEX ...) are returned.
+	return `SELECT i.relname AS name, pg_get_indexdef(x.indexrelid) AS sql
+            FROM pg_index x
+            JOIN pg_class i ON i.oid = x.indexrelid
+            JOIN pg_class t ON t.oid = x.indrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            WHERE t.relname = {:tableName}
+                AND n.nspname = current_schema()
+                AND NOT x.indisprimary`
 }
 
 func (d *PgSQLDialect) HasTableQuery() string {

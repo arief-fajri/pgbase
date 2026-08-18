@@ -261,7 +261,11 @@ func (f *RelationField) checkCollectionId(app App, collection *Collection) valid
 			var err error
 			oldCollection, err = app.FindCachedCollectionByNameOrId(collection.Id)
 			if err != nil {
-				return err
+				// If the collection ID was changed (e.g. during validation of
+				// a "changing id" scenario), the old collection can't be found
+				// by the new ID. In this case, skip the change-prevention check
+				// since the ID itself is being validated elsewhere.
+				oldCollection = nil
 			}
 		}
 

@@ -1139,11 +1139,22 @@ func (m *Record) dbExport() (map[string]any, error) {
 			}
 			result[fieldName] = v
 		} else {
-			result[fieldName] = m.GetRaw(fieldName)
+			result[fieldName] = normalizeDbValue(m.GetRaw(fieldName))
 		}
 	}
 
 	return result, nil
+}
+
+// normalizeDbValue converts Go values to their PostgreSQL-safe persisted
+// representation. A zero types.DateTime is serialized as an empty string by
+// its driver.Valuer, which PostgreSQL rejects for TIMESTAMPTZ columns, so we
+// normalize it to nil (NULL).
+func normalizeDbValue(value any) any {
+	if dt, ok := value.(types.DateTime); ok && dt.IsZero() {
+		return nil
+	}
+	return value
 }
 
 func areValuesEqual(a any, b any) bool {

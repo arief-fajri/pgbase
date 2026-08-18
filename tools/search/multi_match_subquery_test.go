@@ -28,7 +28,9 @@ func TestMultiMatchSubqueryBuild(t *testing.T) {
 
 	result := mm.Build(db, params)
 
-	expectedResult := `SELECT ({:mm},{:external}) as [[multiMatchValue]] FROM "test_FromTableName" "test_FromTableAlias" LEFT JOIN "join_table1" "join_alias1" LEFT JOIN "join_table2" "join_alias2" ON 123={:join} WHERE "test_FromTableAlias"."id" = "test_TargetTableAlias"."id"`
+	// NB! a Join without an explicit On condition must emit "ON 1=1" because
+	// PostgreSQL (unlike SQLite) requires an ON/USING clause for every LEFT JOIN.
+	expectedResult := `SELECT ({:mm},{:external}) as [[multiMatchValue]] FROM "test_FromTableName" "test_FromTableAlias" LEFT JOIN "join_table1" "join_alias1" ON 1=1 LEFT JOIN "join_table2" "join_alias2" ON 123={:join} WHERE "test_FromTableAlias"."id" = "test_TargetTableAlias"."id"`
 	if expectedResult != result {
 		t.Fatalf("Expected build result\n%v\ngot\n%v", expectedResult, result)
 	}

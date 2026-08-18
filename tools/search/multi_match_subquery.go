@@ -52,9 +52,13 @@ func (m *MultiMatchSubquery) Build(db *dbx.DB, params dbx.Params) string {
 		mergedJoins.WriteString(db.QuoteTableName(j.TableName))
 		mergedJoins.WriteString(" ")
 		mergedJoins.WriteString(db.QuoteTableName(j.TableAlias))
+		// PostgreSQL requires an explicit ON clause for every LEFT JOIN
+		// (SQLite allowed an implicit cross join). Fall back to "ON 1=1".
+		mergedJoins.WriteString(" ON ")
 		if j.On != nil {
-			mergedJoins.WriteString(" ON ")
 			mergedJoins.WriteString(j.On.Build(db, params))
+		} else {
+			mergedJoins.WriteString("1=1")
 		}
 	}
 

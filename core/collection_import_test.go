@@ -11,8 +11,6 @@ import (
 )
 
 func TestImportCollections(t *testing.T) {
-	t.Parallel()
-
 	testApp, _ := tests.NewTestApp()
 	defer testApp.Cleanup()
 
@@ -220,8 +218,6 @@ func TestImportCollections(t *testing.T) {
 }
 
 func TestImportCollectionsByMarshaledJSON(t *testing.T) {
-	t.Parallel()
-
 	testApp, _ := tests.NewTestApp()
 	defer testApp.Cleanup()
 
@@ -320,8 +316,6 @@ func TestImportCollectionsByMarshaledJSON(t *testing.T) {
 }
 
 func TestImportCollectionsUpdateRules(t *testing.T) {
-	t.Parallel()
-
 	scenarios := []struct {
 		name          string
 		data          map[string]any

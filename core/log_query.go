@@ -40,7 +40,8 @@ func (app *BaseApp) LogsStats(expr dbx.Expression) ([]*LogsStatsItem, error) {
 
 	query := app.LogQuery().
 		Select("count(id) as total", "to_char(created, 'YYYY-MM-DD HH24:00:00') as date").
-		GroupBy("date")
+		GroupBy("date").
+		OrderBy("date ASC")
 
 	if expr != nil {
 		query.AndWhere(expr)

@@ -561,9 +561,15 @@ func (cv *collectionValidator) checkIndexes(value any) error {
 		duplicatedNames[strings.ToLower(parsed.IndexName)] = struct{}{}
 
 		// ensure that the index name is not used in another collection
+		//
+		// scope the lookup to the current schema so that isolated test
+		// schemas (and any secondary schemas) don't produce cross-schema
+		// false positives - upstream's sqlite_master check is inherently
+		// per-database, and all collection tables live in current_schema().
 		var usedTblName string
 		_ = cv.app.ConcurrentDB().Select("tablename").
 			From("pg_indexes").
+			AndWhere(dbx.NewExp("[[schemaname]] = current_schema()")).
 			AndWhere(dbx.NewExp("LOWER([[tablename]])!=LOWER({:oldName})", dbx.Params{"oldName": cv.original.Name})).
 			AndWhere(dbx.NewExp("LOWER([[tablename]])!=LOWER({:newName})", dbx.Params{"newName": cv.new.Name})).
 			AndWhere(dbx.NewExp("LOWER([[indexname]])=LOWER({:indexName})", dbx.Params{"indexName": parsed.IndexName})).

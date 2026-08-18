@@ -32,6 +32,14 @@ type ResolverResult struct {
 	// Set to NullFallbackEnforced to prefer COALESCE or NULL fallbacks when needed.
 	NullFallback NullFallbackPreference
 
+	// JSONText indicates that the Identifier resolves to a JSON-extracted
+	// text value (eg. via dbutils.JSONExtract).
+	//
+	// It is used to cast the operand to numeric for numeric comparisons
+	// (<, <=, >, >=) since PostgreSQL has no implicit text<->number
+	// comparison (unlike SQLite's dynamic typing).
+	JSONText bool
+
 	// Params is a map with db placeholder->value pairs that will be added
 	// to the query when building both resolved operands/sides in a single expression.
 	Params dbx.Params
@@ -116,6 +124,7 @@ func (r *SimpleFieldResolver) Resolve(field string) (*ResolverResult, error) {
 
 	return &ResolverResult{
 		NullFallback: NullFallbackDisabled,
+		JSONText:     true,
 		Identifier: dbutils.JSONExtract(
 			inflector.Columnify(parts[0]),
 			jsonPath.String(),

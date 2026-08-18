@@ -9,10 +9,11 @@ import (
 func TestJSONEach(t *testing.T) {
 	result := dbutils.JSONEach("a.b")
 
-	expected := `jsonb_array_elements(
-			CASE WHEN jsonb_typeof([[a.b]]) = 'array'
-			THEN [[a.b]]::jsonb
-			ELSE jsonb_build_array([[a.b]]::text)
+	expected := `jsonb_array_elements_text(
+			CASE
+				WHEN [[a.b]] IS NULL OR [[a.b]]::text = '' THEN '[]'::jsonb
+				WHEN left(ltrim([[a.b]]::text), 1) = '[' THEN ([[a.b]]::text)::jsonb
+				ELSE jsonb_build_array([[a.b]]::text)
 			END
 		)`
 
@@ -24,15 +25,11 @@ func TestJSONEach(t *testing.T) {
 func TestJSONArrayLength(t *testing.T) {
 	result := dbutils.JSONArrayLength("a.b")
 
-	expected := `jsonb_array_length(
-			CASE WHEN jsonb_typeof([[a.b]]) = 'array'
-			THEN [[a.b]]::jsonb
-			ELSE CASE WHEN [[a.b]] = '' OR [[a.b]] IS NULL
-				 THEN '[]'::jsonb
-				 ELSE jsonb_build_array([[a.b]])
-			END
-			END
-		)`
+	expected := `(CASE
+			WHEN [[a.b]] IS NULL OR [[a.b]]::text = '' THEN 0
+			WHEN left(ltrim([[a.b]]::text), 1) = '[' THEN jsonb_array_length(([[a.b]]::text)::jsonb)
+			ELSE 1
+		END)`
 
 	if result != expected {
 		t.Fatalf("Expected\n%v\ngot\n%v", expected, result)
@@ -51,8 +48,8 @@ func TestJSONExtract(t *testing.T) {
 			"a.b",
 			"",
 			`(CASE WHEN [[a.b]] IS NOT NULL AND jsonb_typeof([[a.b]]::jsonb) IS NOT NULL
-		 THEN [[a.b]]::jsonb #>> ''
-		 ELSE (jsonb_build_object('pb', [[a.b]]::text)) #>> '.pb'
+		 THEN [[a.b]]::jsonb #>> '{}'
+		 ELSE (jsonb_build_object('pb', [[a.b]]::text)) #>> '{pb}'
 		 END)`,
 		},
 		{
@@ -60,8 +57,8 @@ func TestJSONExtract(t *testing.T) {
 			"a.b",
 			"[1].a[2]",
 			`(CASE WHEN [[a.b]] IS NOT NULL AND jsonb_typeof([[a.b]]::jsonb) IS NOT NULL
-		 THEN [[a.b]]::jsonb #>> '[1].a[2]'
-		 ELSE (jsonb_build_object('pb', [[a.b]]::text)) #>> '.pb[1].a[2]'
+		 THEN [[a.b]]::jsonb #>> '{1,a,2}'
+		 ELSE (jsonb_build_object('pb', [[a.b]]::text)) #>> '{pb,1,a,2}'
 		 END)`,
 		},
 		{
@@ -69,8 +66,8 @@ func TestJSONExtract(t *testing.T) {
 			"a.b",
 			"a.b[2].c",
 			`(CASE WHEN [[a.b]] IS NOT NULL AND jsonb_typeof([[a.b]]::jsonb) IS NOT NULL
-		 THEN [[a.b]]::jsonb #>> '.a.b[2].c'
-		 ELSE (jsonb_build_object('pb', [[a.b]]::text)) #>> '.pb.a.b[2].c'
+		 THEN [[a.b]]::jsonb #>> '{a,b,2,c}'
+		 ELSE (jsonb_build_object('pb', [[a.b]]::text)) #>> '{pb,a,b,2,c}'
 		 END)`,
 		},
 	}

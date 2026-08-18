@@ -8,7 +8,6 @@ import (
 )
 
 func TestSendSystemAlert(t *testing.T) {
-	t.Parallel()
 
 	testDataDir, err := os.MkdirTemp("", "sendSystemAlert_pb_data")
 	if err != nil {
@@ -25,6 +24,7 @@ func TestSendSystemAlert(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	cleanupTestSuperusers(testApp)
 	if err := createTestSuperusers(testApp, 3); err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,6 @@ func TestSendSystemAlert(t *testing.T) {
 }
 
 func TestSendSystemAlertToAllSuperusers(t *testing.T) {
-	t.Parallel()
 
 	testDataDir, err := os.MkdirTemp("", "sendSystemAlertToAllSuperusers_pb_data")
 	if err != nil {
@@ -78,6 +77,7 @@ func TestSendSystemAlertToAllSuperusers(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	cleanupTestSuperusers(testApp)
 	if err := createTestSuperusers(testApp, 3); err != nil {
 		t.Fatal(err)
 	}
@@ -101,6 +101,14 @@ func TestSendSystemAlertToAllSuperusers(t *testing.T) {
 
 	if sendCalls != 3 {
 		t.Fatalf("Expected 3 mail send calls, got %d", sendCalls)
+	}
+}
+
+func cleanupTestSuperusers(app App) {
+	// remove existing superusers so createTestSuperusers() produces a
+	// deterministic set (these tests reuse the shared default schema)
+	if _, err := app.DB().NewQuery(`DELETE FROM "_superusers"`).Execute(); err != nil {
+		app.Logger().Warn("cleanupTestSuperusers", "error", err.Error())
 	}
 }
 

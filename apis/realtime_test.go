@@ -1113,6 +1113,10 @@ func TestRealtimeRecordResolve(t *testing.T) {
 			func(testApp core.App) error {
 				m := &CustomModelResolve{tableName: testCollectionName}
 				m.Id = testRecordId
+				// NB! the "created" column is a PostgreSQL TIMESTAMPTZ, so the custom
+				// model struct must provide a valid date string (SQLite used to store
+				// dates as plain TEXT and accepted arbitrary values like "" or "123").
+				m.Created = "2024-01-01 10:00:00.000Z"
 
 				// create
 				err := testApp.Save(m)
@@ -1121,7 +1125,7 @@ func TestRealtimeRecordResolve(t *testing.T) {
 				}
 
 				// update
-				m.Created = "123"
+				m.Created = "2024-01-02 10:00:00.000Z"
 				err = testApp.Save(m)
 				if err != nil {
 					return err

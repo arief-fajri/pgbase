@@ -3,11 +3,19 @@ package validators
 import (
 	"database/sql"
 	"errors"
+	"regexp"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pocketbase/dbx"
 	validation "github.com/pocketbase/ozzo-validation/v4"
 )
+
+// pgUniqueDetailKeyRegex extracts the offending column name(s) from a
+// PostgreSQL unique-violation error detail, eg. "Key (title)=(abc) already
+// exists." or the multi-column "Key (a, b)=(1, 2) already exists.".
+var pgUniqueDetailKeyRegex = regexp.MustCompile(`(?i)Key \(([^)]+)\)=`)
+
 
 // UniqueId checks whether a field string id already exists in the specified table.
 //
@@ -56,6 +64,31 @@ func NormalizeUniqueIndexError(err error, tableOrAlias string, fieldNames []stri
 
 	msg := strings.ToLower(err.Error())
 
+	// PostgreSQL: prefer the structured error detail which reliably names the
+	// offending column(s) regardless of the (arbitrary) index/constraint name,
+	// eg. DETAIL: "Key (title)=(test2) already exists.".
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		detailCols := map[string]struct{}{}
+		if m := pgUniqueDetailKeyRegex.FindStringSubmatch(pgErr.Detail); len(m) == 2 {
+			for _, c := range strings.Split(m[1], ",") {
+				detailCols[strings.ToLower(strings.TrimSpace(c))] = struct{}{}
+			}
+		}
+
+		if len(detailCols) > 0 {
+			normalizedErrs := validation.Errors{}
+			for _, name := range fieldNames {
+				if _, ok := detailCols[strings.ToLower(name)]; ok {
+					normalizedErrs[name] = validation.NewError("validation_not_unique", "Value must be unique")
+				}
+			}
+			if len(normalizedErrs) > 0 {
+				return normalizedErrs
+			}
+		}
+	}
+
 	// check for unique constraint failure (SQLite format)
 	if strings.Contains(msg, "unique constraint failed") {
 		// note: extra space to unify multi-columns lookup
@@ -84,12 +117,19 @@ func NormalizeUniqueIndexError(err error, tableOrAlias string, fieldNames []stri
 
 		for _, name := range fieldNames {
 			lowerName := strings.ToLower(name)
-			// match constraint patterns: table_field_idx, idx_field_table, _field_
-			if strings.Contains(msg, `"`+lowerTable+`_`+lowerName+`"`) ||
-				strings.Contains(msg, `"`+lowerName+`_`+lowerTable+`"`) ||
-				strings.Contains(msg, `"idx_`+lowerName+`_`+lowerTable+`"`) ||
-				strings.Contains(msg, `"idx_`+lowerTable+`_`+lowerName+`"`) {
-				normalizedErrs[name] = validation.NewError("validation_not_unique", "Value must be unique")
+			// match common index/constraint naming schemes:
+			//   <table>_<field>, <table>_<field>_idx, <field>_<table>,
+			//   <field>_<table>_idx, idx_<table>_<field>, idx_<field>_<table>
+			for _, pattern := range []string{
+				lowerTable + "_" + lowerName,
+				lowerName + "_" + lowerTable,
+				"idx_" + lowerName + "_" + lowerTable,
+				"idx_" + lowerTable + "_" + lowerName,
+			} {
+				if strings.Contains(msg, `"`+pattern+`"`) || strings.Contains(msg, `"`+pattern+`_idx"`) {
+					normalizedErrs[name] = validation.NewError("validation_not_unique", "Value must be unique")
+					break
+				}
 			}
 		}
 

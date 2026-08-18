@@ -14,7 +14,6 @@ import (
 )
 
 func TestNotifyWatcher_SettingsUpdate(t *testing.T) {
-	t.Parallel()
 
 	testEvents := store.New[core.App, int](nil)
 
@@ -50,13 +49,11 @@ func TestNotifyWatcher_SettingsUpdate(t *testing.T) {
 
 	app2.OnSettingsReload().BindFunc(func(e *core.SettingsReloadEvent) error {
 		testEvents.SetFunc(app2, func(old int) int {
-			defer func() {
-				done <- struct{}{}
-			}()
-
 			return old + 1
 		})
-		return e.Next()
+		err := e.Next()
+		done <- struct{}{}
+		return err
 	})
 
 	// updating app1 settings should trigger a reload in app2
@@ -88,7 +85,6 @@ func TestNotifyWatcher_SettingsUpdate(t *testing.T) {
 }
 
 func TestNotifyWatcher_CollectionsUpdate(t *testing.T) {
-	t.Parallel()
 
 	tmpDir, err := os.MkdirTemp("", "pb_notify_test*")
 	if err != nil {
@@ -155,8 +151,19 @@ func TestNotifyWatcher_CollectionsUpdate(t *testing.T) {
 		}
 	}()
 
+	// clean any leftover "test" collection/table from a previous crashed run
+	app1.DB().NewQuery(`DROP TABLE IF EXISTS "test"`).Execute()
+	if leftover, _ := app1.FindCollectionByNameOrId("test"); leftover != nil {
+		app1.Delete(leftover)
+	}
+
 	// create/update/delete app1 collections should trigger a reload in app2
 	dummyCollection := core.NewBaseCollection("test")
+	defer func() {
+		if leftover, _ := app1.FindCollectionByNameOrId("test"); leftover != nil {
+			app1.Delete(leftover)
+		}
+	}()
 	if err := app1.Save(dummyCollection); err != nil {
 		t.Fatal(err)
 	}
@@ -173,18 +180,13 @@ func TestNotifyWatcher_CollectionsUpdate(t *testing.T) {
 	ticker.Stop()
 	done <- true
 
-	nonconcurrentQueries := testQueries.Get("nonconcurrent")
-	concurrentQueries := testQueries.Get("concurrent")
+	// In PG-BASE the concurrent and nonconcurrent builders are the same
+	// underlying connection pool, so all queries are captured together.
+	queries := append([]string(nil), testQueries.Get("concurrent")...)
+	queries = append(queries, testQueries.Get("nonconcurrent")...)
 
-	if len(nonconcurrentQueries) != 0 {
-		t.Fatalf("Expected 0 concurrent queries, got %d (%v)", len(nonconcurrentQueries), nonconcurrentQueries)
-	}
-	if len(concurrentQueries) != 1 {
-		t.Fatalf("Expected 1 concurrent query, got %d (%v)", len(concurrentQueries), concurrentQueries)
-	}
-
-	expectedQuery := `SELECT {{_collections}}.* FROM "_collections" ORDER BY "id" ASC`
-	if concurrentQueries[0] != expectedQuery {
-		t.Fatalf("Expected query\n%s\ngot\n%s", expectedQuery, concurrentQueries[0])
+	expectedQuery := `SELECT "_collections".* FROM "_collections" ORDER BY "id" ASC`
+	if len(queries) != 1 || queries[0] != expectedQuery {
+		t.Fatalf("Expected query\n%s\ngot\n%v", expectedQuery, queries)
 	}
 }

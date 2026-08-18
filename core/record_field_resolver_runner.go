@@ -478,6 +478,7 @@ func (r *runner) processActiveProps() (*search.ResolverResult, error) {
 
 			result := &search.ResolverResult{
 				NullFallback: search.NullFallbackDisabled,
+				JSONText:     true,
 				Identifier:   dbutils.JSONExtract(r.activeTableAlias+"."+inflector.Columnify(prop), jsonPathStr),
 			}
 
@@ -835,6 +836,7 @@ func (r *runner) finalizeActivePropsProcessing(collection *Collection, prop stri
 	// (https://github.com/arief-fajri/pgbase/issues/4068)
 	if field.Type() == FieldTypeJSON {
 		result.NullFallback = search.NullFallbackDisabled
+		result.JSONText = true
 		result.Identifier = dbutils.JSONExtract(r.activeTableAlias+"."+cleanFieldName, "")
 		if r.withMultiMatch {
 			r.multiMatch.ValueIdentifier = dbutils.JSONExtract(r.multiMatchActiveTableAlias+"."+cleanFieldName, "")

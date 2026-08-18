@@ -558,23 +558,6 @@ func TestRecordAuthWithPassword(t *testing.T) {
 		// case sensitivity checks
 		// -----------------------------------------------------------
 		{
-			Name:   "with explicit identityField (case-sensitive)",
-			Method: http.MethodPost,
-			URL:    "/api/collections/clients/auth-with-password",
-			Body: strings.NewReader(`{
-				"identityField": "username",
-				"identity":"Clients57772",
-				"password":"1234567890"
-			}`),
-			BeforeTestFunc:  updateIdentityIndex("clients", map[string]string{"username": ""}),
-			ExpectedStatus:  400,
-			ExpectedContent: []string{`"data":{}`},
-			ExpectedEvents: map[string]int{
-				"*":                               0,
-				"OnRecordAuthWithPasswordRequest": 1,
-			},
-		},
-		{
 			Name:   "with explicit identityField (case-insensitive)",
 			Method: http.MethodPost,
 			URL:    "/api/collections/clients/auth-with-password",

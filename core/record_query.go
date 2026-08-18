@@ -274,6 +274,24 @@ func (app *BaseApp) FindRecordsByIds(
 		return nil, err
 	}
 
+	// preserve the requested recordIds order since PostgreSQL's "id IN (...)"
+	// has no guaranteed row order (unlike SQLite's default rowid ordering that
+	// callers historically relied on, eg. when collecting expand ids).
+	if len(records) > 1 {
+		byId := make(map[string]*Record, len(records))
+		for _, r := range records {
+			byId[r.Id] = r
+		}
+		ordered := make([]*Record, 0, len(records))
+		for _, id := range recordIds {
+			if r, ok := byId[id]; ok {
+				ordered = append(ordered, r)
+				delete(byId, id)
+			}
+		}
+		records = ordered
+	}
+
 	return records, nil
 }
 

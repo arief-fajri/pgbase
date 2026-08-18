@@ -76,7 +76,11 @@ func (app *BaseApp) registerNotifyWatcherHooks() {
 			if err := os.WriteFile(settingsFile, nil, 0644); err != nil {
 				e.App.Logger().Warn("Failed to write watcher file", "error", err, "file", settingsFile)
 			}
-			_ = os.Remove(settingsFile)
+			// Keep the sentinel around briefly. macOS kqueue can otherwise
+			// coalesce the create and remove events before other watchers see it.
+			time.AfterFunc(250*time.Millisecond, func() {
+				_ = os.Remove(settingsFile)
+			})
 		}
 
 		return nil
@@ -103,7 +107,13 @@ func (app *BaseApp) registerNotifyWatcherHooks() {
 			if err := os.WriteFile(collectionsFile, nil, 0644); err != nil {
 				e.App.Logger().Warn("Failed to write watcher file", "error", err, "file", collectionsFile)
 			}
-			_ = os.Remove(collectionsFile)
+			// Keep the sentinel around briefly. macOS kqueue can otherwise
+			// coalesce the create and remove events into a single Remove
+			// (which is ignored for collections) before other watchers see
+			// the write, causing the reload to be missed entirely.
+			time.AfterFunc(250*time.Millisecond, func() {
+				_ = os.Remove(collectionsFile)
+			})
 		}
 
 		return nil
@@ -164,13 +174,28 @@ func createNotifyDirWatcher(app App, instanceId string, localNotifyDirPath strin
 				}
 
 				// modified from within the current app instance or cleanup event
-				if strings.HasSuffix(event.Name, instanceId) || event.Has(fsnotify.Remove) || !app.IsBootstrapped() {
+				if strings.HasSuffix(event.Name, instanceId) || !app.IsBootstrapped() {
+					continue
+				}
+
+				// On macOS (kqueue), a rapid Write+Remove can be coalesced into
+				// a single Remove event. Allow settings Remove events through so
+				// the settings reload still fires while preserving collection
+				// notification debouncing.
+				filename := filepath.Base(event.Name)
+				isSettingsSentinel := strings.HasPrefix(filename, "settings@")
+				if event.Has(fsnotify.Remove) && !isSettingsSentinel {
 					continue
 				}
 
 				stopDebounceTimer()
 
-				debounceTimer = time.AfterFunc(50*time.Millisecond, func() {
+				// The debounce window must comfortably span a burst of rapid
+				// schema changes so they coalesce into a single reload. Unlike
+				// SQLite, PostgreSQL DDL (CREATE/ALTER/DROP TABLE) can take tens
+				// of milliseconds each, spacing consecutive notify events wider
+				// apart, so a short window would fire mid-burst and reload twice.
+				debounceTimer = time.AfterFunc(200*time.Millisecond, func() {
 					filename := filepath.Base(event.Name)
 
 					// settings changed

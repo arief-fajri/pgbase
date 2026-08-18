@@ -16,7 +16,10 @@ import (
 )
 
 func TestCreateBackup(t *testing.T) {
-	app, _ := tests.NewTestApp()
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatalf("NewTestApp: %v", err)
+	}
 	defer app.Cleanup()
 
 	// set some long app name with spaces and special characters

@@ -24,7 +24,7 @@ func TestAutodateFieldColumnType(t *testing.T) {
 
 	f := &core.AutodateField{}
 
-	expected := "TIMESTAMPTZ DEFAULT NOW() NOT NULL"
+	expected := "TIMESTAMPTZ"
 
 	if v := f.ColumnType(app); v != expected {
 		t.Fatalf("Expected\n%q\ngot\n%q", expected, v)

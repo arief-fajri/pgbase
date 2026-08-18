@@ -152,16 +152,60 @@ func (app *BaseApp) ImportCollections(toImport []map[string]any, deleteMissing b
 		// delete old collections not available in the new configuration
 		// (before saving the imports in case a deleted collection name is being reused)
 		if deleteMissing {
-			for _, existing := range existingCollections {
-				if mappedImported[existing.Id] != nil || existing.System {
-					continue // exist or system
+				missing := make(map[string]*Collection)
+				for _, existing := range existingCollections {
+					if mappedImported[existing.Id] == nil && !existing.System {
+						missing[existing.Id] = existing
+					}
 				}
 
-				// delete collection
-				if err := txApp.Delete(existing); err != nil {
-					return err
+				// Delete views first, then relation dependents before their targets.
+				// This keeps record cascade checks from blocking the transaction when
+				// deleteMissing removes an entire related collection graph.
+				dependents := make(map[string][]*Collection)
+				for _, existing := range missing {
+					if existing.IsView() {
+						continue
+					}
+					for _, rawField := range existing.Fields {
+						field, ok := rawField.(*RelationField)
+						if !ok || field.CollectionId == existing.Id || missing[field.CollectionId] == nil {
+							continue
+						}
+						dependents[field.CollectionId] = append(dependents[field.CollectionId], existing)
+					}
 				}
-			}
+
+				deleteOrder := make([]*Collection, 0, len(missing))
+				visited := make(map[string]bool, len(missing))
+				var visit func(*Collection)
+				visit = func(collection *Collection) {
+					if collection == nil || visited[collection.Id] {
+						return
+					}
+					visited[collection.Id] = true
+					for _, dependent := range dependents[collection.Id] {
+						visit(dependent)
+					}
+					deleteOrder = append(deleteOrder, collection)
+				}
+
+				for _, existing := range existingCollections {
+					if existing.IsView() && missing[existing.Id] != nil {
+						visit(existing)
+					}
+				}
+				for _, existing := range existingCollections {
+					if !existing.IsView() && missing[existing.Id] != nil {
+						visit(existing)
+					}
+				}
+
+				for _, existing := range deleteOrder {
+					if err := txApp.Delete(existing); err != nil {
+						return err
+					}
+				}
 		}
 
 		// upsert imported collections
