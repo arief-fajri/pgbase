@@ -208,7 +208,7 @@ func TestCollectionValidate(t *testing.T) {
 		{
 			name: "changing id",
 			collection: func(app core.App) (*core.Collection, error) {
-				c, _ := app.FindCollectionByNameOrId("demo3")
+				c, _ := app.FindCollectionByNameOrId("demo1")
 				c.Id = "anything"
 				return c, nil
 			},
@@ -416,7 +416,7 @@ func TestCollectionValidate(t *testing.T) {
 				c, _ := app.FindCollectionByNameOrId("demo1")
 				c.Indexes = []string{
 					"create index \"idx_test_demo1\" on demo1 (id)",
-					"create index \"__pb_USERS_auth__username_idx\" on anything (text)", // should be case-insensitive
+					"create index \"idx_tokenKey__pb_users_auth_\" on anything (text)", // should be case-insensitive
 				}
 				return c, nil
 			},

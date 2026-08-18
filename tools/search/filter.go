@@ -183,23 +183,56 @@ func buildResolversExpr(
 	if isPureParamPlaceholder(left.Identifier) &&
 		isPureParamPlaceholder(right.Identifier) &&
 		len(left.Params) == 1 && len(right.Params) == 1 {
-		leftVal := cast.ToFloat64(firstParamValue(left.Params))
-		rightVal := cast.ToFloat64(firstParamValue(right.Params))
+		leftVal := firstParamValue(left.Params)
+		rightVal := firstParamValue(right.Params)
 
 		var result bool
+		if ln, lErr := cast.ToFloat64E(leftVal); lErr == nil {
+			if rn, rErr := cast.ToFloat64E(rightVal); rErr == nil {
+				// both numeric - compare as numbers
+				switch op {
+				case fexpr.SignEq, fexpr.SignAnyEq:
+					result = ln == rn
+				case fexpr.SignNeq, fexpr.SignAnyNeq:
+					result = ln != rn
+				case fexpr.SignLt, fexpr.SignAnyLt:
+					result = ln < rn
+				case fexpr.SignLte, fexpr.SignAnyLte:
+					result = ln <= rn
+				case fexpr.SignGt, fexpr.SignAnyGt:
+					result = ln > rn
+				case fexpr.SignGte, fexpr.SignAnyGte:
+					result = ln >= rn
+				}
+
+				if result {
+					return dbx.NewExp("1 = 1"), nil
+				}
+				return dbx.NewExp("1 = 0"), nil
+			}
+		}
+
+		// One or both operands are non-numeric (e.g. @request.auth.id IDs, text
+		// fields, or mixed number/string literals). Compare as text strings at
+		// build time: this keeps the SQL deterministic and avoids PostgreSQL
+		// "operator does not exist: double precision = text" errors, while also
+		// fixing cases where casting IDs/text to float64 (0) produced wrong
+		// results (e.g. `id != ''`).
+		lStr := cast.ToString(leftVal)
+		rStr := cast.ToString(rightVal)
 		switch op {
 		case fexpr.SignEq, fexpr.SignAnyEq:
-			result = leftVal == rightVal
+			result = lStr == rStr
 		case fexpr.SignNeq, fexpr.SignAnyNeq:
-			result = leftVal != rightVal
+			result = lStr != rStr
 		case fexpr.SignLt, fexpr.SignAnyLt:
-			result = leftVal < rightVal
+			result = lStr < rStr
 		case fexpr.SignLte, fexpr.SignAnyLte:
-			result = leftVal <= rightVal
+			result = lStr <= rStr
 		case fexpr.SignGt, fexpr.SignAnyGt:
-			result = leftVal > rightVal
+			result = lStr > rStr
 		case fexpr.SignGte, fexpr.SignAnyGte:
-			result = leftVal >= rightVal
+			result = lStr >= rStr
 		}
 
 		if result {
@@ -232,13 +265,17 @@ func buildResolversExpr(
 			expr = dbx.NewExp(fmt.Sprintf("LOWER(%s) NOT LIKE LOWER(%s) ESCAPE '\\'", left.Identifier, right.Identifier), mergeParams(left.Params, wrapLikeParams(right.Params)))
 		}
 	case fexpr.SignLt, fexpr.SignAnyLt:
-		expr = dbx.NewExp(fmt.Sprintf("%s < %s", left.Identifier, right.Identifier), mergeParams(left.Params, right.Params))
+		li, ri := numericCompareIdentifiers(left, right)
+		expr = dbx.NewExp(fmt.Sprintf("%s < %s", li, ri), mergeParams(left.Params, right.Params))
 	case fexpr.SignLte, fexpr.SignAnyLte:
-		expr = dbx.NewExp(fmt.Sprintf("%s <= %s", left.Identifier, right.Identifier), mergeParams(left.Params, right.Params))
+		li, ri := numericCompareIdentifiers(left, right)
+		expr = dbx.NewExp(fmt.Sprintf("%s <= %s", li, ri), mergeParams(left.Params, right.Params))
 	case fexpr.SignGt, fexpr.SignAnyGt:
-		expr = dbx.NewExp(fmt.Sprintf("%s > %s", left.Identifier, right.Identifier), mergeParams(left.Params, right.Params))
+		li, ri := numericCompareIdentifiers(left, right)
+		expr = dbx.NewExp(fmt.Sprintf("%s > %s", li, ri), mergeParams(left.Params, right.Params))
 	case fexpr.SignGte, fexpr.SignAnyGte:
-		expr = dbx.NewExp(fmt.Sprintf("%s >= %s", left.Identifier, right.Identifier), mergeParams(left.Params, right.Params))
+		li, ri := numericCompareIdentifiers(left, right)
+		expr = dbx.NewExp(fmt.Sprintf("%s >= %s", li, ri), mergeParams(left.Params, right.Params))
 	}
 
 	if expr == nil {
@@ -292,9 +329,13 @@ var normalizedIdentifiers = map[string]string{
 	// if `null` field is missing, treat `null` identifier as NULL token
 	"null": "NULL",
 	// if `true` field is missing, treat `true` identifier as TRUE token
-	"true": "1",
+	//
+	// NB! PostgreSQL requires actual boolean operands instead of the
+	// integer 1/0 literals that SQLite tolerated, so we keep the
+	// native TRUE/FALSE keywords (both backends understand them).
+	"true": "TRUE",
 	// if `false` field is missing, treat `false` identifier as FALSE token
-	"false": "0",
+	"false": "FALSE",
 }
 
 func resolveToken(token fexpr.Token, fieldResolver FieldResolver) (*ResolverResult, error) {
@@ -379,10 +420,20 @@ func resolveEqualExpr(equal bool, left, right *ResolverResult) dbx.Expression {
 	}
 
 	// no coalesce fallback (eg. compare to a json field)
-	// a IS b
-	// a IS NOT b
+	// a IS b / a IS NOT b
 	if left.NullFallback == NullFallbackDisabled ||
 		right.NullFallback == NullFallbackDisabled {
+		// PostgreSQL allows "IS"/"IS DISTINCT FROM" only when at least one of the
+		// operands is a NULL literal. For two non-NULL operands (eg. a JSON field
+		// compared to a bound value placeholder) we must use the regular
+		// "="/"!=" operators, otherwise pgx fails with
+		// "argument of IS must be type boolean, not type text/numeric".
+		if left.Identifier != "NULL" && right.Identifier != "NULL" {
+			return dbx.NewExp(
+				fmt.Sprintf("%s %s %s", left.Identifier, equalOp, right.Identifier),
+				mergeParams(left.Params, right.Params),
+			)
+		}
 		return dbx.NewExp(
 			fmt.Sprintf("%s %s %s", left.Identifier, nullEqualOp, right.Identifier),
 			mergeParams(left.Params, right.Params),
@@ -507,6 +558,39 @@ func firstParamValue(params dbx.Params) any {
 		return v
 	}
 	return nil
+}
+
+// isNumericParam reports whether the resolved operand is a single numeric
+// literal param (produced from an fexpr number token).
+func isNumericParam(result *ResolverResult) bool {
+	if len(result.Params) != 1 {
+		return false
+	}
+	switch firstParamValue(result.Params).(type) {
+	case float64, float32, int, int64, int32, int16, int8, uint, uint64, uint32, uint16, uint8:
+		return true
+	}
+	return false
+}
+
+// numericCompareIdentifiers returns the left/right SQL identifiers to use for a
+// numeric comparison (<, <=, >, >=), casting a JSON-extracted text operand to
+// numeric when it is compared against a numeric literal.
+//
+// PostgreSQL has no implicit text<->number comparison and pgx cannot encode a
+// numeric literal into a text-typed placeholder (the JSON `#>>` extraction
+// yields text). Casting the JSON side to numeric makes the comparison both
+// valid and numerically correct, eg. `data.status > 200` (unlike SQLite, which
+// coerces via its dynamic typing).
+func numericCompareIdentifiers(left, right *ResolverResult) (string, string) {
+	li, ri := left.Identifier, right.Identifier
+	if left.JSONText && isNumericParam(right) {
+		li = "(" + li + ")::numeric"
+	}
+	if right.JSONText && isNumericParam(left) {
+		ri = "(" + ri + ")::numeric"
+	}
+	return li, ri
 }
 
 // mergeParams returns new dbx.Params where each provided params item

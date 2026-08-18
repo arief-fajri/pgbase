@@ -11,7 +11,6 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tests"
-	"github.com/arief-fajri/pgbase/tools/dbutils"
 	"github.com/arief-fajri/pgbase/tools/types"
 )
 
@@ -250,20 +249,20 @@ func TestFindRecordById(t *testing.T) {
 		}, true},
 		{"demo2", "0yxhwia2amd8gec", []func(q *dbx.SelectQuery) error{
 			func(q *dbx.SelectQuery) error {
-				q.AndWhere(dbx.HashExp{"title": "test_title"})
+				q.AndWhere(dbx.HashExp{"title": "test3"})
 				return nil
 			},
 		}, false},
 		{"demo2", "0yxhwia2amd8gec", []func(q *dbx.SelectQuery) error{
 			func(q *dbx.SelectQuery) error {
-				q.AndWhere(dbx.HashExp{"title": "test_title"})
+				q.AndWhere(dbx.HashExp{"title": "test3"})
 				return nil
 			},
 			nil,
 		}, false},
 		{"demo2", "0yxhwia2amd8gec", []func(q *dbx.SelectQuery) error{
 			func(q *dbx.SelectQuery) error {
-				q.AndWhere(dbx.HashExp{"title": "test_title"})
+				q.AndWhere(dbx.HashExp{"title": "test3"})
 				return nil
 			},
 			func(q *dbx.SelectQuery) error {
@@ -273,7 +272,7 @@ func TestFindRecordById(t *testing.T) {
 		}, true},
 		{"llvuca81nly1qls", "0yxhwia2amd8gec", []func(q *dbx.SelectQuery) error{
 			func(q *dbx.SelectQuery) error {
-				q.AndWhere(dbx.HashExp{"title": "test_title"})
+				q.AndWhere(dbx.HashExp{"title": "test3"})
 				return nil
 			},
 			func(q *dbx.SelectQuery) error {
@@ -372,7 +371,7 @@ func TestFindRecordsByIds(t *testing.T) {
 			[]string{"0yxhwia2amd8gec", "achvryl401bhse3"},
 			[]func(q *dbx.SelectQuery) error{
 				func(q *dbx.SelectQuery) error {
-					q.AndWhere(dbx.HashExp{"title": "test_title"})
+					q.AndWhere(dbx.HashExp{"title": "test3"})
 					return nil
 				},
 				nil,
@@ -385,7 +384,7 @@ func TestFindRecordsByIds(t *testing.T) {
 			[]string{"0yxhwia2amd8gec", "achvryl401bhse3"},
 			[]func(q *dbx.SelectQuery) error{
 				func(q *dbx.SelectQuery) error {
-					q.AndWhere(dbx.HashExp{"title": "test_title"})
+					q.AndWhere(dbx.HashExp{"title": "test3"})
 					return nil
 				},
 				func(q *dbx.SelectQuery) error {
@@ -465,7 +464,7 @@ func TestFindAllRecords(t *testing.T) {
 			"llvuca81nly1qls",
 			[]dbx.Expression{
 				dbx.Like("title", "test").Match(true, true),
-				dbx.In("title", "test_title", "test_title2"),
+				dbx.In("title", "test3", "test2"),
 			},
 			[]string{
 				"0yxhwia2amd8gec",
@@ -548,7 +547,7 @@ func TestFindFirstRecordByData(t *testing.T) {
 		{
 			"llvuca81nly1qls",
 			"title",
-			"test_title",
+			"test3",
 			"0yxhwia2amd8gec",
 			false,
 		},
@@ -642,15 +641,15 @@ func TestFindRecordsByFilter(t *testing.T) {
 		{
 			"multi-condition filter with sort",
 			"demo2",
-			"id != '' && title != 'test_title3'",
+			"id != '' && title != 'test1'",
 			"title",
 			-1, // should behave the same as 0
 			0,
 			nil,
 			false,
 			[]string{
-				"0yxhwia2amd8gec",
 				"achvryl401bhse3",
+				"0yxhwia2amd8gec",
 			},
 		},
 		{
@@ -664,7 +663,7 @@ func TestFindRecordsByFilter(t *testing.T) {
 			false,
 			[]string{
 				"achvryl401bhse3",
-				"k7l9m3n4o5p6q7r",
+				"0yxhwia2amd8gec",
 			},
 		},
 		{
@@ -674,7 +673,7 @@ func TestFindRecordsByFilter(t *testing.T) {
 			"",
 			10,
 			0,
-			[]dbx.Params{{"title": "test_title2"}},
+			[]dbx.Params{{"title": "test2"}},
 			false,
 			[]string{
 				"achvryl401bhse3",
@@ -786,7 +785,7 @@ func TestFindFirstRecordByFilter(t *testing.T) {
 			"with placeholder params",
 			"demo2",
 			"title = {:title}",
-			[]dbx.Params{{"title": "test_title"}},
+			[]dbx.Params{{"title": "test3"}},
 			false,
 			"0yxhwia2amd8gec",
 		},
@@ -859,7 +858,7 @@ func TestCountRecords(t *testing.T) {
 			[]dbx.Expression{
 				nil,
 				dbx.Like("title", "missing"),
-				dbx.HashExp{"title": "test_title"},
+				dbx.HashExp{"title": "test3"},
 			},
 			0,
 			false,
@@ -870,7 +869,7 @@ func TestCountRecords(t *testing.T) {
 			[]dbx.Expression{
 				nil,
 				dbx.Like("title", "test"),
-				dbx.In("title", "test_title", "test_title2"),
+				dbx.In("title", "test3", "test2"),
 			},
 			2,
 			false,
@@ -899,6 +898,12 @@ func TestFindAuthRecordByToken(t *testing.T) {
 	app, _ := tests.NewTestApp()
 	defer app.Cleanup()
 
+	userRecord, _ := app.FindRecordById("_pb_users_auth_", "4q1xlclmfloku33")
+	nologinRecord, _ := app.FindRecordById("nologin", "dc49k6jgejn40h3")
+
+	authToken, _ := userRecord.NewAuthToken()
+	verificationToken, _ := nologinRecord.NewVerificationToken()
+
 	scenarios := []struct {
 		name       string
 		token      string
@@ -925,25 +930,25 @@ func TestFindAuthRecordByToken(t *testing.T) {
 		},
 		{
 			"valid auth token",
-			"eyJhbGciOiJIUzI1NiJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoiX3BiX3VzZXJzX2F1dGhfIiwiZXhwIjoyNTI0NjA0NDYxLCJyZWZyZXNoYWJsZSI6dHJ1ZX0.ZT3F0Z3iM-xbGgSG3LEKiEzHrPHr8t8IuHLZGGNuxLo",
+			authToken,
 			nil,
 			"4q1xlclmfloku33",
 		},
 		{
 			"valid verification token",
-			"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImRjNDlrNmpnZWpuNDBoMyIsImV4cCI6MjUyNDYwNDQ2MSwidHlwZSI6InZlcmlmaWNhdGlvbiIsImNvbGxlY3Rpb25JZCI6ImtwdjcwOXNrMmxxYnFrOCIsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSJ9.5GmuZr4vmwk3Cb_3ZZWNxwbE75KZC-j71xxIPR9AsVw",
+			verificationToken,
 			nil,
 			"dc49k6jgejn40h3",
 		},
 		{
 			"auth token with file type only check",
-			"eyJhbGciOiJIUzI1NiJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoiX3BiX3VzZXJzX2F1dGhfIiwiZXhwIjoyNTI0NjA0NDYxLCJyZWZyZXNoYWJsZSI6dHJ1ZX0.ZT3F0Z3iM-xbGgSG3LEKiEzHrPHr8t8IuHLZGGNuxLo",
+			authToken,
 			[]string{core.TokenTypeFile},
 			"",
 		},
 		{
 			"auth token with file and auth type check",
-			"eyJhbGciOiJIUzI1NiJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoiX3BiX3VzZXJzX2F1dGhfIiwiZXhwIjoyNTI0NjA0NDYxLCJyZWZyZXNoYWJsZSI6dHJ1ZX0.ZT3F0Z3iM-xbGgSG3LEKiEzHrPHr8t8IuHLZGGNuxLo",
+			authToken,
 			[]string{core.TokenTypeFile, core.TokenTypeAuth},
 			"4q1xlclmfloku33",
 		},
@@ -976,42 +981,21 @@ func TestFindAuthRecordByEmail(t *testing.T) {
 	scenarios := []struct {
 		collectionIdOrName string
 		email              string
-		nocaseIndex        bool
 		expectError        bool
 	}{
-		{"missing", "test@example.com", false, true},
-		{"demo2", "test@example.com", false, true},
-		{"users", "missing@example.com", false, true},
-		{"users", "test@example.com", false, false},
-		{"clients", "test2@example.com", false, false},
-		// case-insensitive tests
-		{"clients", "TeSt2@example.com", false, true},
-		{"clients", "TeSt2@example.com", true, false},
+		{"missing", "test@example.com", true},
+		{"demo2", "test@example.com", true},
+		{"users", "missing@example.com", true},
+		{"users", "test@example.com", false},
+		{"clients", "test2@example.com", false},
+		// PG-BASE email lookup is always case-insensitive
+		{"clients", "TeSt2@example.com", false},
 	}
 
 	for _, s := range scenarios {
 		t.Run(fmt.Sprintf("%s_%s", s.collectionIdOrName, s.email), func(t *testing.T) {
 			app, _ := tests.NewTestApp()
 			defer app.Cleanup()
-
-			collection, _ := app.FindCollectionByNameOrId(s.collectionIdOrName)
-			if collection != nil {
-				emailIndex, ok := dbutils.FindSingleColumnUniqueIndex(collection.Indexes, core.FieldNameEmail)
-				if ok {
-					if s.nocaseIndex {
-						emailIndex.Columns[0].Collate = "nocase"
-					} else {
-						emailIndex.Columns[0].Collate = ""
-					}
-
-					collection.RemoveIndex(emailIndex.IndexName)
-					collection.Indexes = append(collection.Indexes, emailIndex.Build())
-					err := app.Save(collection)
-					if err != nil {
-						t.Fatalf("Failed to update email index: %v", err)
-					}
-				}
-			}
 
 			record, err := app.FindAuthRecordByEmail(s.collectionIdOrName, s.email)
 

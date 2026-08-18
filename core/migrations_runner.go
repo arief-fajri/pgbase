@@ -275,9 +275,11 @@ func (r *MigrationsRunner) isMigrationApplied(txApp App, file string) bool {
 }
 
 func (r *MigrationsRunner) saveAppliedMigration(txApp App, file string) error {
+	// Use microsecond precision to keep consistent ordering with any other
+	// (microsecond) timestamps written into the same column.
 	_, err := txApp.DB().Insert(r.tableName, dbx.Params{
 		"file":    file,
-		"applied": time.Now().Unix(),
+		"applied": time.Now().UnixMicro(),
 	}).Execute()
 
 	return err

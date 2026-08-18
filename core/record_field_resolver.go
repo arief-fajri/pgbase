@@ -139,7 +139,7 @@ func (r *RecordFieldResolver) UpdateQuery(query *dbx.SelectQuery) error {
 		for _, join := range r.joins {
 			query.LeftJoin(
 				(join.TableName + " " + join.TableAlias),
-				join.On,
+				joinOnExpr(join.On),
 			)
 		}
 	}
@@ -199,7 +199,7 @@ func (r *RecordFieldResolver) updateQueryWithCollectionListRule(c *Collection, t
 		for _, j := range cloneR.joins {
 			query.LeftJoin(
 				(j.TableName + " " + j.TableAlias),
-				j.On,
+				joinOnExpr(j.On),
 			)
 		}
 	}
@@ -396,6 +396,18 @@ func (r *RecordFieldResolver) loadCollection(collectionNameOrId string) (*Collec
 	}
 
 	return getCollectionByModelOrIdentifier(r.app, collectionNameOrId)
+}
+
+// joinOnExpr returns the provided join condition or a constant TRUE
+// expression when nil. PostgreSQL (unlike SQLite) requires an explicit
+// ON/USING clause for every [LEFT] JOIN, so an unconditional cross-join
+// (e.g. @collection joins or lateral json function joins) must be written
+// as "... ON 1=1".
+func joinOnExpr(on dbx.Expression) dbx.Expression {
+	if on == nil {
+		return dbx.NewExp("1=1")
+	}
+	return on
 }
 
 func (r *RecordFieldResolver) registerJoin(tableName string, tableAlias string, on dbx.Expression) error {

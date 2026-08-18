@@ -231,7 +231,7 @@ func normalizeSingleVsMultipleFieldChanges(app App, newCollection *Collection, o
 								END
 							)
 						END
-					)::text`,
+					)`,
 				newCollection.Name,
 				originalName,
 				oldTempName,

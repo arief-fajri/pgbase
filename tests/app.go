@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -50,8 +51,16 @@ func getSchemaInitDB() (*dbx.DB, error) {
 	return schemaInitDB, err
 }
 
-// dropOrphanSchemas drops any leftover pb_test_* and pb_template_* schemas
-// from previous crashed runs to keep the catalog clean.
+// dropOrphanSchemas drops ONLY the current process's own leftover schemas
+// (a stale pb_template_<pid> and any pb_test_<pid>_* schemas) that survived a
+// previous run which happened to reuse the same PID.
+//
+// It must never drop schemas belonging to other PIDs: "go test ./..." runs each
+// package as a separate process against the SAME database, so dropping other
+// processes' template/test schemas would destroy their state mid-run (causing
+// "template init failed", "commit unexpectedly resulted in rollback", nil-app
+// panics and lock-wait hangs). Cleaning stale same-PID schemas here also lets
+// initTemplateSchema recreate a fresh template instead of reusing a dirty one.
 func dropOrphanSchemas() {
 	orphanCleanupOnce.Do(func() {
 		db, err := getSchemaInitDB()
@@ -60,7 +69,11 @@ func dropOrphanSchemas() {
 		}
 		pid := os.Getpid()
 		rows, qErr := db.NewQuery(
-			fmt.Sprintf(`SELECT schema_name FROM information_schema.schemata WHERE (schema_name LIKE '%s') OR (schema_name LIKE '%s' AND schema_name != 'pb_template_%d')`, "pb\\_test\\_%", "pb\\_template\\_%", pid),
+			fmt.Sprintf(
+				`SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE '%s' OR schema_name = '%s'`,
+				fmt.Sprintf("pb\\_test\\_%d\\_%%", pid),
+				fmt.Sprintf("pb_template_%d", pid),
+			),
 		).Rows()
 		if qErr != nil {
 			return
@@ -74,6 +87,32 @@ func dropOrphanSchemas() {
 			db.NewQuery("DROP SCHEMA IF EXISTS " + schema + " CASCADE").Execute()
 		}
 	})
+}
+
+// cleanPublicLeakedTables drops any tables/views left over in the shared
+// "public" schema. Test apps are schema-isolated, but connections still use
+// search_path=<schema>,public (the ",public" is required so extension
+// functions resolve). That fallback means an unqualified query for a table
+// missing in the test schema (eg. right after a RENAME) silently resolves to a
+// stale table of the same name in public, corrupting results (observed as
+// spurious view-resave events in TestCollectionUpdate/valid_data). No test
+// legitimately creates objects in public, so wiping them here is safe.
+// Extensions are left intact (they are not tables/views).
+func cleanPublicLeakedTables() {
+	db, err := getSchemaInitDB()
+	if err != nil {
+		return
+	}
+	db.NewQuery(`DO $$
+DECLARE r record;
+BEGIN
+	FOR r IN SELECT viewname FROM pg_views WHERE schemaname = 'public' LOOP
+		EXECUTE 'DROP VIEW IF EXISTS public.' || quote_ident(r.viewname) || ' CASCADE';
+	END LOOP;
+	FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+		EXECUTE 'DROP TABLE IF EXISTS public.' || quote_ident(r.tablename) || ' CASCADE';
+	END LOOP;
+END $$;`).Execute()
 }
 
 // connectToSchema returns a DBConnect callback that connects to the specified schema
@@ -108,6 +147,10 @@ func initTemplateSchema() error {
 	templateInitOnce.Do(func() {
 		// clean orphan schemas first
 		dropOrphanSchemas()
+
+		// wipe any stale app tables/views leaked into the shared public schema
+		// so the search_path=<schema>,public fallback can't resolve to them
+		cleanPublicLeakedTables()
 
 		pid := os.Getpid()
 		templateSchemaName = fmt.Sprintf("pb_template_%d", pid)
@@ -172,20 +215,28 @@ func cloneSchemaFromTemplate(targetSchema string) error {
 		return err
 	}
 
+	tableNames := []string{}
 	rows, qErr := db.NewQuery(
 		fmt.Sprintf("SELECT tablename FROM pg_tables WHERE schemaname = '%s' ORDER BY tablename", templateSchemaName),
 	).Rows()
 	if qErr != nil {
 		return qErr
 	}
-	defer rows.Close()
-
 	for rows.Next() {
 		var tableName string
 		if sErr := rows.Scan(&tableName); sErr != nil {
+			rows.Close()
 			return sErr
 		}
+		tableNames = append(tableNames, tableName)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
 
+	for _, tableName := range tableNames {
 		createSQL := fmt.Sprintf(
 			`CREATE TABLE "%s"."%s" (LIKE "%s"."%s" INCLUDING ALL)`,
 			targetSchema, tableName, templateSchemaName, tableName,
@@ -201,9 +252,140 @@ func cloneSchemaFromTemplate(targetSchema string) error {
 		if _, iErr := db.NewQuery(insertSQL).Execute(); iErr != nil {
 			return fmt.Errorf("clone data %s: %w", tableName, iErr)
 		}
+
+		// `LIKE ... INCLUDING ALL` copies the indexes but PostgreSQL always
+		// assigns them fresh, auto-generated names (e.g. a custom index
+		// `idx_unique_demo2_title` becomes `demo2_title_idx`). Production code
+		// creates indexes with their metadata names, so mirror that here by
+		// syncing each cloned table's indexes back to the template names.
+		if sErr := syncClonedTableIndexes(db, targetSchema, tableName); sErr != nil {
+			return sErr
+		}
 	}
 
-	return rows.Err()
+	return nil
+}
+
+// syncClonedTableIndexes makes the target table's index set match the template
+// table's index set by name: it drops indexes present in the target but not in
+// the template (the auto-renamed ones) and recreates the template indexes that
+// are missing from the target (using their original names). Index names shared
+// by both (e.g. `<table>_pkey`, `<table>_<col>_key`) are left untouched.
+func syncClonedTableIndexes(db dbx.Builder, targetSchema, tableName string) error {
+	type idxRow struct {
+		Name string `db:"name"`
+		Def  string `db:"sql"`
+	}
+
+	templateIdx := []idxRow{}
+	if err := db.NewQuery(fmt.Sprintf(
+		"SELECT indexname AS name, indexdef AS sql FROM pg_indexes WHERE schemaname = '%s' AND tablename = '%s'",
+		templateSchemaName, tableName,
+	)).All(&templateIdx); err != nil {
+		return fmt.Errorf("read template indexes for %s: %w", tableName, err)
+	}
+
+	targetIdx := []idxRow{}
+	if err := db.NewQuery(fmt.Sprintf(
+		"SELECT indexname AS name, indexdef AS sql FROM pg_indexes WHERE schemaname = '%s' AND tablename = '%s'",
+		targetSchema, tableName,
+	)).All(&targetIdx); err != nil {
+		return fmt.Errorf("read cloned indexes for %s: %w", tableName, err)
+	}
+
+	templateNames := make(map[string]struct{}, len(templateIdx))
+	for _, idx := range templateIdx {
+		templateNames[idx.Name] = struct{}{}
+	}
+	targetNames := make(map[string]struct{}, len(targetIdx))
+	for _, idx := range targetIdx {
+		targetNames[idx.Name] = struct{}{}
+	}
+
+	// drop auto-renamed indexes that don't exist under the template names
+	for _, idx := range targetIdx {
+		if _, ok := templateNames[idx.Name]; ok {
+			continue
+		}
+		if _, dErr := db.NewQuery(fmt.Sprintf(
+			`DROP INDEX IF EXISTS "%s"."%s"`, targetSchema, idx.Name,
+		)).Execute(); dErr != nil {
+			return fmt.Errorf("drop cloned index %s: %w", idx.Name, dErr)
+		}
+	}
+
+	// recreate template indexes missing from the target using their real names
+	for _, idx := range templateIdx {
+		if _, ok := targetNames[idx.Name]; ok {
+			continue
+		}
+		// the indexdef schema-qualifies the table (ON <template>.<table>);
+		// point it at the target schema so the new index lands there
+		createSQL := strings.ReplaceAll(idx.Def, `"`+templateSchemaName+`".`, `"`+targetSchema+`".`)
+		createSQL = strings.ReplaceAll(createSQL, templateSchemaName+".", targetSchema+".")
+		if _, cErr := db.NewQuery(createSQL).Execute(); cErr != nil {
+			return fmt.Errorf("recreate index %s: %w", idx.Name, cErr)
+		}
+	}
+
+	return nil
+}
+
+// cloneViewsFromTemplate recreates the template schema views in the target
+// schema via a connection with search_path pointing to the target schema,
+// so that unqualified relation references inside the view definitions
+// resolve to the freshly cloned tables/views.
+func cloneViewsFromTemplate(targetSchema string) error {
+	db, err := getSchemaInitDB()
+	if err != nil {
+		return err
+	}
+
+	views := []string{}
+	rows, qErr := db.NewQuery(
+		fmt.Sprintf("SELECT viewname FROM pg_views WHERE schemaname = '%s' ORDER BY viewname", templateSchemaName),
+	).Rows()
+	if qErr != nil {
+		return qErr
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var viewName string
+		if sErr := rows.Scan(&viewName); sErr != nil {
+			return sErr
+		}
+		views = append(views, viewName)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	// dedicated connection whose search_path points to the target schema
+	// (used for creating the views with correctly resolved relations)
+	cloneDB, cErr := connectToSchema(targetSchema)(core.DBConfig{})
+	if cErr != nil {
+		return cErr
+	}
+	defer cloneDB.Close()
+
+	for _, viewName := range views {
+		var viewDef string
+		if dErr := db.NewQuery(fmt.Sprintf(
+			"SELECT pg_get_viewdef('%s.\"%s\"', true)",
+			templateSchemaName, viewName,
+		)).Row(&viewDef); dErr != nil {
+			return dErr
+		}
+
+		if _, cErr := cloneDB.NewQuery(fmt.Sprintf(
+			"CREATE VIEW \"%s\" AS %s",
+			viewName, viewDef,
+		)).Execute(); cErr != nil {
+			return fmt.Errorf("clone view %s: %w", viewName, cErr)
+		}
+	}
+
+	return nil
 }
 
 // TestApp is a wrapper app instance used for testing.
@@ -337,6 +519,11 @@ func NewTestAppWithConfig(config core.BaseAppConfig) (*TestApp, error) {
 	// avoiding re-running migrations and re-seeding data.
 	if err := cloneSchemaFromTemplate(schemaName); err != nil {
 		return nil, fmt.Errorf("failed to clone template to schema %s: %w", schemaName, err)
+	}
+
+	// Clone the template views as well (view1, view2, numeric_id_view, ...).
+	if err := cloneViewsFromTemplate(schemaName); err != nil {
+		return nil, fmt.Errorf("failed to clone template views to schema %s: %w", schemaName, err)
 	}
 
 	config.DBConnect = connectToSchema(schemaName)

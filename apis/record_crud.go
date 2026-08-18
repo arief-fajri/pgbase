@@ -293,7 +293,23 @@ func recordCreate(responseWriteAfterTx bool, optFinalizer func(data any) error) 
 				k = inflector.Columnify(k) // columnify is just as extra measure in case of custom fields
 				param = "__pb_create__" + k
 				dummyParams[param] = v
-				selects = append(selects, "{:"+param+"} AS [["+k+"]]")
+
+				// Cast the bound value to the field's real column base type.
+				//
+				// Unlike SQLite, PostgreSQL infers a bare "SELECT {:param}"
+				// placeholder as text, so non-text values (numbers, bools,
+				// json, dates) fail to encode ("cannot find encode plan").
+				// The cast propagates the expected type to the parameter and
+				// keeps the dummy column type in sync with the real table so
+				// rules referencing the record's own fields behave the same.
+				colCast := ""
+				if f := collection.Fields.GetByName(k); f != nil {
+					if baseType := strings.Fields(f.ColumnType(e.App)); len(baseType) > 0 {
+						colCast = "::" + baseType[0]
+					}
+				}
+
+				selects = append(selects, "{:"+param+"}"+colCast+" AS [["+k+"]]")
 			}
 
 			// shallow clone the current collection

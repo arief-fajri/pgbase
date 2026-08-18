@@ -15,10 +15,15 @@ import (
 func TestFindLogById(t *testing.T) {
 	t.Parallel()
 
-	app, _ := tests.NewTestApp()
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer app.Cleanup()
 
-	tests.StubLogsData(app)
+	if err := tests.StubLogsData(app); err != nil {
+		t.Fatal(err)
+	}
 
 	scenarios := []struct {
 		id          string
@@ -49,10 +54,15 @@ func TestFindLogById(t *testing.T) {
 func TestLogsStats(t *testing.T) {
 	t.Parallel()
 
-	app, _ := tests.NewTestApp()
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer app.Cleanup()
 
-	tests.StubLogsData(app)
+	if err := tests.StubLogsData(app); err != nil {
+		t.Fatal(err)
+	}
 
 	expected := `[{"date":"2022-05-01 10:00:00.000Z","total":1},{"date":"2022-05-02 10:00:00.000Z","total":1}]`
 
@@ -72,10 +82,15 @@ func TestLogsStats(t *testing.T) {
 func TestDeleteOldLogs(t *testing.T) {
 	t.Parallel()
 
-	app, _ := tests.NewTestApp()
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer app.Cleanup()
 
-	tests.StubLogsData(app)
+	if err := tests.StubLogsData(app); err != nil {
+		t.Fatal(err)
+	}
 
 	scenarios := []struct {
 		date          string

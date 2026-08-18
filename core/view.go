@@ -258,7 +258,7 @@ func (app *BaseApp) FindRecordByViewFile(viewCollectionModelOrIdentifier any, fi
 	} else {
 		query.InnerJoin(
 			fmt.Sprintf(`%s AS {{_je_file}}(value)`, dbutils.JSONEach(cleanFieldName)),
-			dbx.HashExp{"_je_file.value": filename},
+			dbx.NewExp("[[_je_file.value]] = {:filename}", dbx.Params{"filename": filename}),
 		)
 	}
 

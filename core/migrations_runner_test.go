@@ -142,7 +142,7 @@ func TestMigrationsRunnerUpAndDown(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedDownCallsOrder := `["down5","down3"]` // revert in the applied order
+	expectedDownCallsOrder := `["down5","down3"]` // revert most-recently-applied first (up5 reapplied, then up3)
 
 	downCallsOrder, err := json.Marshal(callsOrder)
 	if err != nil {

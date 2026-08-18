@@ -144,6 +144,9 @@ func findRecordByIdentityField(app core.App, collection *core.Collection, field 
 		return nil, errors.New("missing " + field + " unique index constraint")
 	}
 
+	// note: PostgreSQL doesn't store SQLite-style COLLATE metadata on the
+	// indexes, so identity lookups are always case-insensitive (matching the
+	// rest of the auth logic - eg. FindAuthRecordByEmail)
 	expr := dbx.NewExp("LOWER([["+field+"]]) = LOWER({:identity})", dbx.Params{"identity": value})
 
 	record := &core.Record{}

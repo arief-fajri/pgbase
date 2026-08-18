@@ -120,7 +120,13 @@ func (d *DateTime) UnmarshalJSON(b []byte) error {
 }
 
 // Value implements the [driver.Valuer] interface.
+//
+// A zero DateTime is stored as SQL NULL because an empty string is not a
+// valid value for a PostgreSQL TIMESTAMPTZ column (SQLSTATE 22007).
 func (d DateTime) Value() (driver.Value, error) {
+	if d.IsZero() {
+		return nil, nil
+	}
 	return d.String(), nil
 }
 

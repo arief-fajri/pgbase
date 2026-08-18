@@ -112,7 +112,7 @@ func TestFilterDataBuildExpr(t *testing.T) {
 			"nested json no coalesce",
 			"test5.a = test5.b || test5.c != test5.d",
 			false,
-			"((CASE WHEN [[test5]] IS NOT NULL AND jsonb_typeof([[test5]]::jsonb) IS NOT NULL\n\t\t THEN [[test5]]::jsonb #>> '.$.a'\n\t\t ELSE (jsonb_build_object('pb', [[test5]]::text)) #>> '.pb.$.a'\n\t\t END) IS (CASE WHEN [[test5]] IS NOT NULL AND jsonb_typeof([[test5]]::jsonb) IS NOT NULL\n\t\t THEN [[test5]]::jsonb #>> '.$.b'\n\t\t ELSE (jsonb_build_object('pb', [[test5]]::text)) #>> '.pb.$.b'\n\t\t END) OR (CASE WHEN [[test5]] IS NOT NULL AND jsonb_typeof([[test5]]::jsonb) IS NOT NULL\n\t\t THEN [[test5]]::jsonb #>> '.$.c'\n\t\t ELSE (jsonb_build_object('pb', [[test5]]::text)) #>> '.pb.$.c'\n\t\t END) IS DISTINCT FROM (CASE WHEN [[test5]] IS NOT NULL AND jsonb_typeof([[test5]]::jsonb) IS NOT NULL\n\t\t THEN [[test5]]::jsonb #>> '.$.d'\n\t\t ELSE (jsonb_build_object('pb', [[test5]]::text)) #>> '.pb.$.d'\n\t\t END))",
+			"((CASE WHEN [[test5]] IS NOT NULL AND jsonb_typeof([[test5]]::jsonb) IS NOT NULL\n\t\t THEN [[test5]]::jsonb #>> '{a}'\n\t\t ELSE (jsonb_build_object('pb', [[test5]]::text)) #>> '{pb,a}'\n\t\t END) = (CASE WHEN [[test5]] IS NOT NULL AND jsonb_typeof([[test5]]::jsonb) IS NOT NULL\n\t\t THEN [[test5]]::jsonb #>> '{b}'\n\t\t ELSE (jsonb_build_object('pb', [[test5]]::text)) #>> '{pb,b}'\n\t\t END) OR (CASE WHEN [[test5]] IS NOT NULL AND jsonb_typeof([[test5]]::jsonb) IS NOT NULL\n\t\t THEN [[test5]]::jsonb #>> '{c}'\n\t\t ELSE (jsonb_build_object('pb', [[test5]]::text)) #>> '{pb,c}'\n\t\t END) != (CASE WHEN [[test5]] IS NOT NULL AND jsonb_typeof([[test5]]::jsonb) IS NOT NULL\n\t\t THEN [[test5]]::jsonb #>> '{d}'\n\t\t ELSE (jsonb_build_object('pb', [[test5]]::text)) #>> '{pb,d}'\n\t\t END))",
 		},
 		{
 			"macros",
@@ -145,7 +145,7 @@ func TestFilterDataBuildExpr(t *testing.T) {
 			"combination of special literals (null, true, false)",
 			"test1=true && test2 != false && null = test3 || null != test4_sub",
 			false,
-			"([[test1]] = 1 AND [[test2]] != 0 AND ('' = [[test3]] OR [[test3]] IS NULL) OR ('' != [[test4_sub]] AND [[test4_sub]] IS NOT NULL))",
+			"([[test1]] = TRUE AND [[test2]] != FALSE AND ('' = [[test3]] OR [[test3]] IS NULL) OR ('' != [[test4_sub]] AND [[test4_sub]] IS NOT NULL))",
 		},
 		{
 			"all operators",
@@ -251,7 +251,7 @@ func TestFilterDataBuildExprWithParams(t *testing.T) {
 		t.Fatalf("Expected 1 query, got %d", len(calledQueries))
 	}
 
-	expectedQuery := `SELECT * WHERE ([[test1]] = 1 OR [[test2]] = 0 OR [[test3a]] = 123.456 OR [[test3b]] = 123.456 OR ([[test4]] = '' OR [[test4]] IS NULL) OR [[test5]] = '""' OR [[test6]] = 'simple' OR [[test7]] = '''single_quotes''' OR [[test8]] = '"double_quotes"' OR [[test9]] = '''"quote_with_backslash\' OR [[test10]] = '2023-01-01 00:00:00 +0000 UTC' OR [[test11]] = '["a","''quote","\"quote"]' OR [[test12]] = '{"a":123,"b":"quote\""}' OR [[test13]] = 'a`
+	expectedQuery := `SELECT * WHERE ([[test1]] = TRUE OR [[test2]] = FALSE OR [[test3a]] = 123.456 OR [[test3b]] = 123.456 OR ([[test4]] = '' OR [[test4]] IS NULL) OR [[test5]] = '""' OR [[test6]] = 'simple' OR [[test7]] = '''single_quotes''' OR [[test8]] = '"double_quotes"' OR [[test9]] = '''"quote_with_backslash\' OR [[test10]] = '2023-01-01 00:00:00 +0000 UTC' OR [[test11]] = '["a","''quote","\"quote"]' OR [[test12]] = '{"a":123,"b":"quote\""}' OR [[test13]] = 'a`
 	expectedQuery += "\nb')"
 	if expectedQuery != calledQueries[0] {
 		t.Fatalf("Expected query \n%s, \ngot \n%s", expectedQuery, calledQueries[0])
