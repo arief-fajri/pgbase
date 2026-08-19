@@ -608,7 +608,9 @@ func SeedTestData(app core.App) error {
 		if demo4.Fields.GetByName("self_rel_many") == nil {
 			demo4.Fields.Add(&core.RelationField{Name: "self_rel_many", CollectionId: demo4.Id, MaxSelect: 5})
 		}
-		app.Save(demo4)
+		if err := app.Save(demo4); err != nil {
+			return fmt.Errorf("failed to save demo4 relation fields: %w", err)
+		}
 	}
 
 	if demo5 != nil && demo4 != nil {

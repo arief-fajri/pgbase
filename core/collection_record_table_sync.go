@@ -156,6 +156,11 @@ func normalizeSingleVsMultipleFieldChanges(app App, newCollection *Collection, o
 	}
 
 	return app.RunInTransaction(func(txApp App) error {
+		type viewRow struct {
+			Name string `db:"name"`
+			SQL  string `db:"sql"`
+		}
+
 		for _, newField := range newCollection.Fields {
 			// allow to continue even if there is no old field for the cases
 			// when a new field is added and there are already inserted data
@@ -180,20 +185,27 @@ func normalizeSingleVsMultipleFieldChanges(app App, newCollection *Collection, o
 			// -------------------------------------------------------
 
 			// temporary drop all views to prevent reference errors during the columns renaming
-			// (this is used to ensure concurrent table sync safety)
-			views := []struct {
-				Name string `db:"name"`
-				SQL  string `db:"sql"`
-			}{}
-			err := txApp.DB().Select("table_name AS name", "view_definition AS sql").
-				From("information_schema.views").
-				AndWhere(dbx.NewExp("table_schema = 'public'")).
-				All(&views)
+			// (this is used as an "alternative" to the writable_schema PRAGMA)
+			//
+			// note: PostgreSQL, unlike SQLite, strictly enforces view->column and
+			// view->view dependencies. We capture the view definitions ordered by
+			// oid (i.e. creation order, which is a valid dependency order since a
+			// view referencing another is always created after it), drop them with
+			// CASCADE (to also remove interdependent views such as view2 -> view1
+			// regardless of order) and later recreate them in the same order.
+			views := []viewRow{}
+			err := txApp.DB().NewQuery(`
+				SELECT c.relname AS name, pg_get_viewdef(c.oid) AS sql
+				FROM pg_class c
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE c.relkind = 'v' AND n.nspname = current_schema()
+				ORDER BY c.oid
+			`).All(&views)
 			if err != nil {
 				return err
 			}
 			for _, view := range views {
-				err = txApp.DeleteView(view.Name)
+				_, err = txApp.DB().NewQuery(fmt.Sprintf(`DROP VIEW IF EXISTS "%s" CASCADE`, view.Name)).Execute()
 				if err != nil {
 					return err
 				}
@@ -280,9 +292,12 @@ func normalizeSingleVsMultipleFieldChanges(app App, newCollection *Collection, o
 				return err
 			}
 
-			// restore views
+			// restore the views in their captured (ascending oid) order so that
+			// interdependent views are recreated after their dependencies
+			// (e.g. view1 before view2 -> view1). Ordering is required because a
+			// single failed statement would abort the whole PostgreSQL transaction.
 			for _, view := range views {
-				_, err = txApp.DB().NewQuery(view.SQL).Execute()
+				_, err = txApp.DB().NewQuery(fmt.Sprintf(`CREATE VIEW "%s" AS %s`, view.Name, view.SQL)).Execute()
 				if err != nil {
 					return err
 				}

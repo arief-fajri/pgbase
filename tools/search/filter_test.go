@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -18,13 +19,22 @@ import (
 func pgTestDB(t *testing.T) *dbx.DB {
 	t.Helper()
 
-	sqlDB, err := sql.Open("pgx", "host=localhost port=5433 user=test password=test dbname=pgbase_test sslmode=disable")
+	// match createTestDB's per-process schema isolation so nothing is created
+	// in the shared "public" schema.
+	schema := fmt.Sprintf("pb_search_%d", os.Getpid())
+	dsn := fmt.Sprintf("host=localhost port=5433 user=test password=test dbname=pgbase_test sslmode=disable search_path=%s,public", schema)
+	sqlDB, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { sqlDB.Close() })
 
-	return dbx.NewFromDB(sqlDB, "pgx")
+	db := dbx.NewFromDB(sqlDB, "pgx")
+	if _, err := db.NewQuery("CREATE SCHEMA IF NOT EXISTS " + schema).Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	return db
 }
 
 func TestFilterDataBuildExpr(t *testing.T) {

@@ -173,19 +173,38 @@ docker compose -f tests/docker-compose.test.yml up -d
 
 ### Run All Tests
 
+Each test gets its own PostgreSQL database (cloned from a seeded template via
+`CREATE DATABASE ... TEMPLATE`), so packages run in parallel deterministically —
+`-p 1` is **not** required. `-p 4` bounds package parallelism so a single heavy
+package (`core`/`apis`) stays under the per-package test timeout.
+
 ```bash
 PB_POSTGRES_HOST=localhost \
 PB_POSTGRES_PORT=5433 \
 PB_POSTGRES_USER=test \
 PB_POSTGRES_PASSWORD=test \
 PB_POSTGRES_DBNAME=pgbase_test \
-go test ./... -count=1 -timeout=300s
+go test ./... -count=1 -p 4 -timeout=1200s
 ```
 
 ### Run Non-DB Tests Saja
 
 ```bash
 go test ./tools/... ./plugins/ghupdate -count=1
+```
+
+### Cleanup Leftover Test Databases (opsional)
+
+Test databases are dropped automatically, but a per-process template
+(`pb_template_<pid>`) is left behind (and crashed/killed runs may leave
+`pb_test_*`). They are harmless (each test DB is fully isolated) and cleared
+when a future run reuses the PID, but you can reclaim them manually:
+
+```bash
+PGPASSWORD=test psql -h localhost -p 5433 -U test -d pgbase_test -tAc \
+  "SELECT 'DROP DATABASE IF EXISTS '||datname||' WITH (FORCE);' \
+   FROM pg_database WHERE datname LIKE 'pb\_%'" \
+  | PGPASSWORD=test psql -h localhost -p 5433 -U test -d pgbase_test
 ```
 
 ### Cleanup Test Container
