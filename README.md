@@ -1,6 +1,6 @@
 # PG-BASE
 
-PostgreSQL-powered backend as a service — Fork of [PocketBase](https://pocketbase.io).
+PostgreSQL-powered backend as a service — a fork of [PocketBase v0.39.11 (WIP)](https://pocketbase.io).
 
 ## Features
 
@@ -16,34 +16,58 @@ PostgreSQL-powered backend as a service — Fork of [PocketBase](https://pocketb
 ### Docker (Recommended)
 
 ```bash
-docker-compose up
+docker compose up
+```
+
+The API + dashboard are then available at <http://localhost:8090/_/>. Create a
+superuser to log in:
+
+```bash
+docker compose exec pgbase pgbase superuser create admin@example.com "changeme123"
 ```
 
 ### Binary
 
+The runnable entrypoint lives in `examples/base` (the root package is a
+library):
+
 ```bash
-./pgbase serve \
-  --pg-host localhost \
-  --pg-port 5432 \
-  --pg-user pgbase \
-  --pg-password secret \
-  --pg-dbname pgbase
+# Build
+go build -o pgbase ./examples/base
+
+# Run (env vars or --pg-* flags, see below)
+./pgbase serve --http="127.0.0.1:8090"
+```
+
+Then create a superuser and open the dashboard:
+
+```bash
+./pgbase superuser create admin@example.com "changeme123"
+# → http://127.0.0.1:8090/_/
 ```
 
 ### Environment Variables
 
-```bash
-PB_POSTGRES_HOST=localhost
-PB_POSTGRES_PORT=5432
-PB_POSTGRES_USER=pgbase
-PB_POSTGRES_PASSWORD=secret
-PB_POSTGRES_DBNAME=pgbase
-PB_POSTGRES_SSLMODE=disable
-```
+| Variable | CLI flag (equivalent) | Default |
+|----------|----------------------|---------|
+| `PB_POSTGRES_HOST` | `--pg-host` | `localhost` |
+| `PB_POSTGRES_PORT` | `--pg-port` | `5432` |
+| `PB_POSTGRES_USER` | `--pg-user` | — |
+| `PB_POSTGRES_PASSWORD` | `--pg-password` | — |
+| `PB_POSTGRES_DBNAME` | `--pg-dbname` | — |
+| `PB_POSTGRES_SSLMODE` | `--pg-sslmode` | `disable` |
+
+Flags take precedence over environment variables.
 
 ## Configuration
 
-Connection settings are configured via CLI flags or environment variables (not stored in the database).
+Connection settings are configured via CLI flags or environment variables (not
+stored in the database).
+
+## Development
+
+See **[DEV.md](DEV.md)** — the single source of truth for running, testing, and
+contributing locally (PostgreSQL setup, dev servers, migrations, tests, lint).
 
 ## API
 

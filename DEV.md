@@ -1,18 +1,73 @@
 # PG-BASE Development Guide
 
-Step-by-step guide to run PG-BASE in local environment.
+Step-by-step guide to run, test, and contribute to **PG-BASE** in a local environment.
+
+PG-BASE is a PostgreSQL-powered backend-as-a-service and a fork of
+[PocketBase v0.39.11](https://pocketbase.io). It ships a REST API, real-time
+subscriptions, auth, file storage, and a web dashboard.
+
+> **Target audience:** every engineer, from junior to senior. If any step looks
+> confusing or fails, open an issue — this document is meant to be the single
+> source of truth for local development.
+
+---
+
+## Quick Start (TL;DR)
+
+Known-good path in ~5 minutes (uses Docker for PostgreSQL):
+
+```bash
+# 1. Clone the repo and install dependencies
+git clone <repository-url> && cd pgbase
+go mod download
+cd ui && npm install && cd ..
+
+# 2. Start PostgreSQL (Docker)
+docker run -d --name pgbase-pg \
+  -p 5432:5432 \
+  -e POSTGRES_DB=pgbase \
+  -e POSTGRES_USER=pgbase \
+  -e POSTGRES_PASSWORD=secret \
+  postgres:16-alpine
+
+# 3. Start the backend (dev mode)
+PB_POSTGRES_PASSWORD=secret go run ./examples/base serve --http="127.0.0.1:8090" --dev
+```
+
+Open a **second terminal** and create a superuser (required to log into `/_/`):
+
+```bash
+PB_POSTGRES_PASSWORD=secret go run ./examples/base superuser upsert admin@example.com "changeme123"
+```
+
+Then open <http://127.0.0.1:8090/_/> and log in.
+
+**You know your setup works when:**
+
+- `go run ./examples/base serve ...` prints the start banner and stays running
+- `curl http://127.0.0.1:8090/api/health` returns `200` with an `ok` JSON body
+- The dashboard at `http://127.0.0.1:8090/_/` loads and accepts the superuser login
+- `go test ./...` passes after the test database is started (see [Testing](#9-running-tests))
 
 ---
 
 ## Prerequisites
 
-| Tool | Minimal | Check |
-|------|---------|-------|
-| Go | 1.25+ | `go version` |
-| PostgreSQL | 16+ | `psql --version` |
-| Node.js | 18+ | `node --version` |
-| npm | 9+ | `npm --version` |
-| Docker (optional) | 24+ | `docker --version` |
+| Tool | Minimal | Why / Notes | Check |
+|------|---------|-------------|-------|
+| Go | 1.25+ | Matches `go 1.25.0` in `go.mod`; CI uses 1.26.5 | `go version` |
+| Node.js | 22+ (see note) | `ui/` is a Vite app; CI uses Node 24+ | `node --version` |
+| npm | 10+ | Bundled with Node.js | `npm --version` |
+| PostgreSQL | 16+ | Both dev and CI use `postgres:16-alpine` | `psql --version` |
+| Docker | 24+ (optional) | Fastest way to run PostgreSQL and the full stack | `docker --version` |
+
+> [!IMPORTANT]
+> Node.js **18 is EOL** and is too old for this project. Use at least Node 22
+> (LTS); Node 24+, which the CI runs on, is recommended.
+
+> [!NOTE]
+> The PostgreSQL binary itself is only needed if you use **Option B
+> (Postgres.app)** below. With Docker you never need a local `psql`.
 
 ---
 
@@ -22,7 +77,7 @@ Step-by-step guide to run PG-BASE in local environment.
 # Go dependencies
 go mod download
 
-# UI dependencies
+# UI dependencies (Svelte + Vite dashboard)
 cd ui
 npm install
 cd ..
@@ -30,36 +85,56 @@ cd ..
 
 ---
 
-## 2. Setup PostgreSQL
+## 2. Start PostgreSQL
 
-### Option A: Postgres.app (macOS, Recommended)
+Pick **one** option. Option A is recommended for day-to-day development.
 
-1. Open **Postgres.app** → klik **Start**
-2. Buka terminal:
-
-```bash
-# Create database & user for development
-createdb pgbase
-createuser pgbase
-psql -c "ALTER USER pgbase WITH PASSWORD 'secret';"
-
-# Create database & user for tests
-createdb pgbase_test
-createuser test
-psql -c "ALTER USER test WITH PASSWORD 'test';"
-```
-
-PostgreSQL running di `localhost:5432`.
-
-### Option B: Docker
+### Option A: Docker (recommended)
 
 ```bash
 docker run -d --name pgbase-pg \
+  -p 5432:5432 \
   -e POSTGRES_DB=pgbase \
   -e POSTGRES_USER=pgbase \
   -e POSTGRES_PASSWORD=secret \
-  -p 5432:5432 \
   postgres:16-alpine
+```
+
+PostgreSQL is now reachable at `localhost:5432`.
+
+> If the host port `5432` is already in use (e.g. by Postgres.app or another
+> container), map a different port, e.g. `-p 5433:5432`, and set
+> `PB_POSTGRES_PORT=5433` when running the app.
+
+### Option B: Postgres.app (macOS)
+
+1. Open **Postgres.app** → click **Start**.
+2. The default superuser is your **macOS username** (e.g. `volantisfrontend`).
+   All `psql`/`createdb` commands below run as that superuser.
+3. Create the development database, role, and assign them:
+
+```bash
+createdb pgbase
+createuser pgbase
+psql -d pgbase -c "ALTER USER pgbase WITH PASSWORD 'secret';"
+psql -d pgbase -c "ALTER DATABASE pgbase OWNER TO pgbase;"
+```
+
+> [!IMPORTANT]
+> PostgreSQL 15+ removed the public create privilege for non-owner roles. If
+> the `pgbase` role does not **own** the database, you will hit
+> `permission denied for schema public` on the first startup. The
+> `ALTER DATABASE pgbase OWNER TO pgbase;` above prevents that. (For local dev
+> you could also use `createuser -s pgbase` to make it a superuser.)
+
+4. Create the **test** database (used by section [9. Running Tests](#9-running-tests)):
+
+```bash
+createdb pgbase_test
+createuser test
+psql -d pgbase_test -c "ALTER USER test WITH PASSWORD 'test';"
+psql -d pgbase_test -c "ALTER DATABASE pgbase_test OWNER TO test;"
+psql -d pgbase_test -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
 ```
 
 ### Option C: Docker Compose (full stack)
@@ -68,115 +143,246 @@ docker run -d --name pgbase-pg \
 docker compose up
 ```
 
-PostgreSQL + pgbase otomatis running. Langsung ke step 5.
+This builds the image (slow the first time) and runs **PostgreSQL + the PG-BASE
+web app** (`http://localhost:8090/_/`). It is NOT the right choice when you want
+hot-reload UI development — for that, use Option A/B and follow sections 3 & 4.
 
 ---
 
-## 3. Mode Development (Frontend + Backend Terpisah)
+## 3. Run the Backend (Dev Mode)
 
-Cara ini memberikan **hot reload** pada UI dashboard — cocok untuk development.
-
-### Terminal 1: Backend (Go API Server)
+The main entrypoint lives in `examples/base/main.go`. From the project root:
 
 ```bash
-# Dari root project
-PB_POSTGRES_PASSWORD=secret go run . serve --http="127.0.0.1:8090" --dev
+# Start the Go API server in dev mode
+PB_POSTGRES_PASSWORD=secret go run ./examples/base serve --http="127.0.0.1:8090" --dev
 ```
 
-Penjelasan:
+> [!WARNING]
+> Do **not** use `go run .` or `go build -o pgbase .` from the root — the root
+> package is a **library** (`package pgbase`), not a `main` package. Those
+> commands produce errors/archives, not an app. The runnable entrypoint is
+> `./examples/base`.
 
-| Flag | Fungsi |
-|------|--------|
-| `--http="127.0.0.1:8090"` | Port API server |
-| `--dev` | Mode development (log query, dll.) |
-| `PB_POSTGRES_PASSWORD=secret` | Password PostgreSQL (env var) |
+### `serve` flags
 
-> API akan running di `http://127.0.0.1:8090`.
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--http` | `127.0.0.1:8090` | TCP address for the HTTP server |
+| `--https` | – | TCP address for the HTTPS server |
+| `--dev` | `false` | Dev mode: verbose logging, relaxed caching, etc. |
+| `--origins` | `*` | CORS allowed origins list |
 
-### Terminal 2: Frontend (Vite Dev Server)
+### PostgreSQL connection (env vars ↔ flags)
+
+The app connects to PostgreSQL via environment variables **or** CLI flags. Flags
+take precedence when set. All names share the `PB_POSTGRES_` prefix.
+
+| Env variable | CLI flag | Default | Dev value |
+|--------------|----------|---------|-----------|
+| `PB_POSTGRES_HOST` | `--pg-host` | empty → localhost | `localhost` |
+| `PB_POSTGRES_PORT` | `--pg-port` | `5432` | `5432` |
+| `PB_POSTGRES_USER` | `--pg-user` | empty | `pgbase` |
+| `PB_POSTGRES_PASSWORD` | `--pg-password` | empty | `secret` |
+| `PB_POSTGRES_DBNAME` | `--pg-dbname` | empty | `pgbase` |
+| `PB_POSTGRES_SSLMODE` | `--pg-sslmode` | `disable` | `disable` |
+
+Equivalent command using flags only:
+
+```bash
+go run ./examples/base serve \
+  --http="127.0.0.1:8090" \
+  --dev \
+  --pg-host localhost --pg-port 5432 \
+  --pg-user pgbase --pg-password secret --pg-dbname pgbase
+```
+
+> The API will be available at `http://127.0.0.1:8090`.
+> Read more about the API at [PocketBase docs](https://pocketbase.io/docs).
+
+---
+
+## 4. Run the UI (Dev Mode, Hot Reload)
+
+The dashboard is a SPA (Svelte + Vite) located in `ui/`. Run it on a separate
+Vite dev server for hot reload:
 
 ```bash
 cd ui
 npm run dev
 ```
 
-Penjelasan:
+| Setting | Value |
+|---------|-------|
+| UI dev server | `http://localhost:5173` |
+| Backend API URL | `http://127.0.0.1:8090` (from `ui/.env.development`) |
 
-| Perintah | Fungsi |
-|----------|--------|
-| `npm run dev` | Start Vite dev server dengan **hot reload** |
+The UI is a client-side app. It does **not** rely on a Vite proxy — the PocketBase
+JS SDK is initialized with `PB_BACKEND_URL` (`ui/src/pb.js`) and talks to the
+backend **directly** (cross-origin, allowed by the backend's default CORS
+`--origins *`). So **both servers must run at the same time**, and the backend
+must be reachable at the URL in `PB_BACKEND_URL`.
 
-> UI akan running di `http://localhost:5173`.
-> Semua request API (`/api/...`) otomatis di-proxy ke `http://127.0.0.1:8090`
-> (konfigurasi dari `ui/.env.development`).
+To point the UI at a different backend, create `ui/.env.development.local`
+(this file wins over `.env.development`):
 
-### Buka Browser
-
+```env
+PB_BACKEND_URL = "http://127.0.0.1:8090"
 ```
-http://localhost:5173
-```
 
-Edit file di `ui/src/` → browser auto reload.
+Edit files under `ui/src/` → the browser auto-reloads.
+
+Open <http://localhost:5173>.
 
 ---
 
-## 4. Mode Production (Single Binary)
+## 5. Create a Superuser (Dashboard Login)
 
-UI sudah ter-embed langsung di binary (`ui/embed.go`). Tidak perlu Vite server.
+The dashboard at `/_/` requires a superuser account. This only needs PostgreSQL
+to be running (the migrations are applied automatically); the API server does
+not need to be up.
 
 ```bash
-# Build binary
-go build -o pgbase .
+# Create or update (upsert) a superuser
+PB_POSTGRES_PASSWORD=secret go run ./examples/base superuser upsert admin@example.com "changeme123"
+```
 
-# Run
+`superuser` subcommands:
+
+| Command | Purpose |
+|---------|---------|
+| `upsert <email> <password>` | Create, or update if the email already exists |
+| `create <email> <password>` | Create a new superuser (errors if it exists) |
+| `update <email> <password>` | Change a superuser's password |
+| `delete <email>` | Delete a superuser |
+| `otp <email>` | Generate a one-time password for the superuser |
+| `ips <ip/cidr ...>` | Limit superuser logins to specific IPs/subnets |
+
+---
+
+## 6. Production Build (Single Binary)
+
+The UI is embedded into the Go binary at compile time via `ui/embed.go`
+(`//go:embed all:dist`). Therefore the order **matters**:
+
+```bash
+# 1. Build the UI first (also runs dprint fmt + vite build → ui/dist)
+cd ui
+npm run build
+cd ..
+
+# 2. Build the binary (entrypoint: examples/base)
+go build -o pgbase ./examples/base
+
+# 3. Run it
 PB_POSTGRES_PASSWORD=secret ./pgbase serve --http="127.0.0.1:8090"
 ```
 
-Buka browser:
+> [!IMPORTANT]
+> If you change `ui/src/` but don't run `npm run build` before `go build`, the
+> binary will embed the **stale** `ui/dist` — the symptom is a website that
+> doesn't reflect your UI changes.
 
-```
-http://127.0.0.1:8090/_/
-```
+Open <http://127.0.0.1:8090/_/> in the browser.
 
 ---
 
-## 5. Docker (Full Stack)
+## 7. Docker (Full Stack)
 
 ```bash
-# Start semua service
+# Build & start all services (first build is slow)
 docker compose up
 
-# Buka browser
+# Open the dashboard
 http://localhost:8090/_/
 ```
 
-Docker Compose akan menjalankan:
-
-| Service | Port | Fungsi |
-|---------|------|--------|
-| `pgbase` | `8090` | API + UI dashboard |
+| Service | Port | Function |
+|---------|------|----------|
+| `pgbase` | `8090` | API + embedded dashboard UI |
 | `postgres` | `5432` | Database |
+
+The `pgbase` service takes its PostgreSQL connection settings from the
+`PB_POSTGRES_*` environment variables defined in `docker-compose.yml`.
+
+**Create a superuser inside the running stack:**
+
+```bash
+docker compose exec pgbase pgbase superuser create admin@example.com "changeme123"
+```
+
+> [!NOTE]
+> If a local PostgreSQL is already using host port `5432`, change the
+> `ports` mapping in `docker-compose.yml` (e.g. `"5433:5432"`).
 
 ---
 
-## 6. Run Tests
+## 8. Migrations
 
-### Start Test Database
+### System migrations (auto-applied)
+
+Schema/DDL migrations live in `migrations/` (e.g.
+`1778828400_normalize_indexes.go`). Each file `Register`s a migration into
+`core.SystemMigrations` via `init()`:
+
+```go
+func init() {
+    core.SystemMigrations.Register(func(txApp core.App) error {
+        // ...DDL / data changes...
+        return nil
+    })
+}
+```
+
+System migrations run **automatically on every app start**
+(`core.BaseApp.RunSystemMigrations`), so nothing extra is needed to apply them.
+
+### Generating migration files
+
+Along with system migrations, the app also supports user/app migrations
+and automations. The app registers `migratecmd`
+(`examples/base/main.go` → `migratecmd.MustRegister(...)`) which adds a
+`migrate` CLI command:
+
+```bash
+# After building the binary once (section 6)
+./pgbase migrate --help
+```
+
+Use it to scaffold JS/Go migration templates for your own (non-core) app logic.
+
+---
+
+## 9. Running Tests
+
+### Start the test database
 
 ```bash
 # Option A: Docker (recommended)
-docker compose -f tests/docker-compose.test.yml up -d
+docker compose -f tests/docker-compose.test.yml up -d --wait
+#   - listens on host port 5433 (so it never clashes with the dev DB on 5432)
+#   - runs tests/init-test-db.sql on first boot (enables pgcrypto)
 
 # Option B: Postgres.app
-# Pastikan database pgbase_test sudah dibuat
+# Make sure pgbase_test + role "test" exist (see Section 2, Option B step 4).
 ```
 
-### Run All Tests
+### How test isolation works
 
-Each test gets its own PostgreSQL database (cloned from a seeded template via
-`CREATE DATABASE ... TEMPLATE`), so packages run in parallel deterministically —
-`-p 1` is **not** required. `-p 4` bounds package parallelism so a single heavy
-package (`core`/`apis`) stays under the per-package test timeout.
+Each test gets its **own PostgreSQL database**, cloned from a seeded template
+via `CREATE DATABASE ... TEMPLATE` (see `tests/app.go`). Packages therefore run
+in **parallel deterministically** — `-p 1` is **not** required. `-p 4` bounds
+package parallelism so a single heavy package (`core`/`apis`) stays under the
+per-package test timeout.
+
+### Environment variables
+
+- The test harness (`tests/app.go`, `tests/db.go`) reads **`PGTEST_`** vars with
+  defaults matching the compose service: `localhost:5433`,
+  user `test`, password `test`, db `pgbase_test` → usually **no need to set them**.
+- A few raw core tests (`base_test`, `log_printer_test`, `system_alert_test`,
+  `notify_watcher_test`) connect through the production path and read
+  **`PB_POSTGRES_`** vars. Set them to the same test DB as CI does:
 
 ```bash
 PB_POSTGRES_HOST=localhost \
@@ -187,18 +393,28 @@ PB_POSTGRES_DBNAME=pgbase_test \
 go test ./... -count=1 -p 4 -timeout=1200s
 ```
 
-### Run Non-DB Tests Saja
+### Run a single package / specific test
+
+```bash
+# Single package
+go test ./core/... -count=1
+
+# Single test by name (regex)
+go test ./core/... -run TestXxx -count=1 -v
+```
+
+### Run non-DB tests only
 
 ```bash
 go test ./tools/... ./plugins/ghupdate -count=1
 ```
 
-### Cleanup Leftover Test Databases (opsional)
+### Cleanup leftover test databases (optional)
 
 Test databases are dropped automatically, but a per-process template
-(`pb_template_<pid>`) is left behind (and crashed/killed runs may leave
-`pb_test_*`). They are harmless (each test DB is fully isolated) and cleared
-when a future run reuses the PID, but you can reclaim them manually:
+(`pb_template_<pid>`) is left behind, and crashed/killed runs may leave
+`pb_test_*`. They are harmless (each test DB is fully isolated) and are reused
+on the next run, but you can reclaim them manually:
 
 ```bash
 PGPASSWORD=test psql -h localhost -p 5433 -U test -d pgbase_test -tAc \
@@ -207,7 +423,7 @@ PGPASSWORD=test psql -h localhost -p 5433 -U test -d pgbase_test -tAc \
   | PGPASSWORD=test psql -h localhost -p 5433 -U test -d pgbase_test
 ```
 
-### Cleanup Test Container
+### Cleanup test container
 
 ```bash
 docker compose -f tests/docker-compose.test.yml down -v
@@ -215,45 +431,78 @@ docker compose -f tests/docker-compose.test.yml down -v
 
 ---
 
-## 7. Makefile Commands
+## 10. Lint & Formatting
 
-| Command | Fungsi |
-|---------|--------|
-| `make build` | Build binary `pgbase` |
-| `make test` | Start test PG + run tests |
-| `make docker-build` | Build Docker image |
-| `make docker-run` | `docker compose up` |
-| `make docker-stop` | `docker compose down` |
-| `make clean` | Hapus binary + Docker volume |
+```bash
+# Go linter (requires golangci-lint: https://golangci-lint.run/usage/install/)
+make lint
+# → golangci-lint run -c ./golangci.yml ./...
+
+# UI formatting (dprint) — also runs automatically on `npm run build`
+cd ui && npx dprint fmt && cd ..
+
+# Regenerate JS SDK bindings (rarely needed; keep non-deterministic output in
+# mind before committing)
+make jstypes
+```
+
+Run **all** of the above before opening a PR. See `CONTRIBUTING.md` for the PR
+flow.
 
 ---
 
-## 8. Project Structure
+## 11. Makefile Commands
+
+| Command | Description |
+|---------|-------------|
+| `make build` | Build the `pgbase` binary from `examples/base` |
+| `make test` | Start the test PostgreSQL + run the full test suite |
+| `make lint` | Run `golangci-lint` with `./golangci.yml` |
+| `make migrate` | Run `./pgbase migrate` (requires a built binary) |
+| `make superuser` | Run `./pgbase superuser` (requires a built binary) |
+| `make docker-build` | Build the Docker image |
+| `make docker-run` | `docker compose up` |
+| `make docker-stop` | `docker compose down` |
+| `make clean` | Remove the `pgbase` binary + Docker volumes |
+| `make jstypes` | Regenerate JSVM types |
+| `make test-report` | Run tests with coverage + open HTML report |
+
+---
+
+## 12. Project Structure
 
 ```
 pgbase/
-├── apis/              # REST API handlers
-├── cmd/               # CLI commands (serve, superuser)
-├── core/              # Core business logic
-│   ├── base.go        # App bootstrap, DB init
-│   ├── db_connect.go  # PostgreSQL connection
-│   ├── db.go          # Model query helpers
+├── apis/               # REST API handlers, routers, middleware
+├── cmd/                # CLI commands (serve, superuser)
+├── core/               # Core business logic, app bootstrap, DB layer
+│   ├── base.go         # App bootstrap, DB init, migrations runner
+│   ├── db_connect.go   # PostgreSQL connection
+│   ├── db.go           # Model query helpers
 │   └── ...
-├── migrations/        # System migrations (PostgreSQL DDL)
-├── tools/             # Utilities
-│   ├── dbutils/       # SQL dialect, index builder
-│   ├── search/        # Search & filter engine
+├── forms/              # Form/batch validations & actions
+├── migrations/         # System migrations (PostgreSQL DDL)
+├── mails/              # Email templates & mailers
+├── plugins/            # Optional plugins (jsvm, migratecmd, ghupdate, ...)
+├── tools/              # Utilities
+│   ├── dbutils/        # SQL dialect, index builder
+│   ├── search/         # Search & filter engine
 │   └── ...
-├── ui/                # Dashboard frontend (Shablon + Vite)
-│   ├── src/           # Source code
-│   ├── dist/          # Production build (embedded)
-│   ├── embed.go       # Embed dist ke Go binary
+├── ui/                 # Dashboard frontend (Svelte + Vite)
+│   ├── src/            # Source code
+│   ├── dist/           # Production build (embedded into the binary)
+│   ├── embed.go        # Embed ui/dist into the Go binary
 │   └── vite.config.js
-├── tests/             # Test helpers
-│   ├── app.go         # TestApp wrapper
+├── tests/              # Test helpers & fixtures
+│   ├── app.go          # TestApp wrapper (per-test DB isolation)
 │   ├── docker-compose.test.yml
-│   └── data/          # Test fixtures (storage)
-├── pocketbase.go      # Main app struct
+│   ├── init-test-db.sql
+│   └── data/           # Test fixtures (storage)
+├── examples/
+│   └── base/           # Runnable main entrypoint (go run ./examples/base)
+├── third_party/        # Vendored dependencies
+├── .github/workflows/  # CI (lint, tests, releases)
+├── pocketbase.go       # Main app struct (library)
 ├── Dockerfile
 ├── docker-compose.yml
 └── Makefile
@@ -261,22 +510,48 @@ pgbase/
 
 ---
 
-## 9. Troubleshooting
+## 13. Development Workflow (Checklist)
 
-| Error | Penyebab | Solusi |
-|-------|----------|--------|
-| `role "pgbase" does not exist` | User PostgreSQL belum dibuat | `createuser pgbase` |
-| `database "pgbase" does not exist` | Database belum dibuat | `createdb pgbase` |
-| `connection refused` | PostgreSQL belum running | Start Postgres.app / `docker start pgbase-pg` |
-| `getaddrinfo EAI_AGAIN host.docker.internal` | DNS Docker | Gunakan `--add-host` atau `localhost` langsung |
-| UI tidak muncul / error | Backend tidak running atau port salah | Cek `PB_BACKEND_URL` di `ui/.env` / `.env.development` |
-| `gen_random_bytes` not found | Extension pgcrypto belum ada | Auto-dibuat oleh migration pertama |
+1. Create a branch from `master` (`git checkout -b my-feature`).
+2. Make the change where it belongs:
+   - Business logic → `core/`
+   - HTTP endpoints/routes → `apis/`
+   - Validation/actions → `forms/`
+   - Email → `mails/`
+   - Dashboard UI → `ui/src/`
+3. Add or update tests (standard `testing` package; use the `tests.TestApp`
+   harness for anything touching the DB).
+4. Run the relevant tests and `make lint` (sections 9 & 10).
+5. If you changed the UI, run `npm run build` before building the binary.
+6. Open a PR. Follow the contribution notes in `CONTRIBUTING.md`.
+7. Reference upstream behavior via the [PocketBase docs](https://pocketbase.io/docs)
+   — the public API and DB schema are intentionally PocketBase-compatible.
+
+---
+
+## 14. Troubleshooting
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `role "pgbase" does not exist` | Dev role missing | `createuser pgbase` (or recreate the Docker container) |
+| `database "pgbase" does not exist` | Dev DB missing | `createdb pgbase` / recreate container |
+| `permission denied for schema public` | Owner of DB is not the app role (PG 15+) | `ALTER DATABASE pgbase OWNER TO pgbase;` |
+| `Password authentication failed for user "test"` | Wrong test credentials | Set `PGTEST_*` / `PB_POSTGRES_*` to `test` / `test` |
+| `connection refused` | PostgreSQL not running | Start Postgres.app / `docker start pgbase-pg`; check the port matches |
+| `port 5432: bind: address already in use` | Local PG already on 5432 | Use `-p 5433:5432` for Docker and set `PB_POSTGRES_PORT=5433` |
+| `package ... is not a main package` | Ran `go run .` from the root | Use `go run ./examples/base` |
+| Binary `pgbase` is not executable | Built from the root package (`go build -o pgbase .`) | `go build -o pgbase ./examples/base` |
+| Dashboard shows a stale UI after UI changes | `ui/dist` not rebuilt before `go build` | `cd ui && npm run build && cd ..` then rebuild |
+| `getaddrinfo EAI_AGAIN host.docker.internal` | Docker DNS issue | Use `--add-host` or connect to `localhost` directly |
+| UI renders but API calls fail in dev | `PB_BACKEND_URL` wrong / backend down | Check `ui/.env.development` (`http://127.0.0.1:8090`) and that the backend is running |
+| `gen_random_bytes` not found | `pgcrypto` extension missing | Docker (`init-test-db.sql`) or Postgres.app: `psql -d pgbase_test -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"` |
+| Tests time out / hang | Parallelism + heavy packages | Use `-count=1 -p 4 -timeout=1200s` (see section 9) |
 
 ### Port Reference
 
 | Port | Service | Environment |
 |------|---------|-------------|
 | `5432` | PostgreSQL | Development / Production |
-| `5433` | PostgreSQL (test) | Testing (via Docker) |
-| `8090` | pgbase API + UI | Production / Development |
+| `5433` | PostgreSQL (tests) | Testing (via Docker) |
+| `8090` | PG-BASE API + UI | Production / Development |
 | `5173` | Vite dev server (UI) | Development only |
