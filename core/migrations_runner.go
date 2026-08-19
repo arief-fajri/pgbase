@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/arief-fajri/pgbase/tools/osutils"
 	"github.com/fatih/color"
 	"github.com/pocketbase/dbx"
-	"github.com/arief-fajri/pgbase/tools/osutils"
 	"github.com/spf13/cast"
 )
 
@@ -15,6 +15,18 @@ var AppMigrations MigrationsList
 var SystemMigrations MigrationsList
 
 const DefaultMigrationsTable = "_migrations"
+
+// migrationsAdvisoryLockKey is a fixed advisory lock key used by every
+// migration runner so that concurrent processes applying migrations against
+// the same Postgres database (eg. multiple app instances starting at once or
+// the "-p 4" parallel test binaries sharing a test database) serialize their
+// changes.
+//
+// PostgreSQL does not serialize concurrent CREATE/ALTER statements, so without
+// this lock two processes can both pass the "_migrations" applied-check and
+// then crash into a "duplicate key value violates unique constraint
+// 'pg_type_typname_nsp_index'" error while creating the same table/type.
+const migrationsAdvisoryLockKey = 11924226342963
 
 // MigrationsRunner defines a simple struct for managing the execution of db migrations.
 type MigrationsRunner struct {
@@ -75,7 +87,7 @@ func (r *MigrationsRunner) Run(args ...string) error {
 			}
 		}
 
-		names, err := r.lastAppliedMigrations(toRevertCount)
+		names, err := r.lastAppliedMigrations(r.app.DB(), toRevertCount)
 		if err != nil {
 			return err
 		}
@@ -120,50 +132,44 @@ func (r *MigrationsRunner) Run(args ...string) error {
 //
 // On success returns list with the applied migrations file names.
 func (r *MigrationsRunner) Up() ([]string, error) {
-	if err := r.initMigrationsTable(); err != nil {
-		return nil, err
-	}
-
 	applied := []string{}
 
-	err := r.app.AuxRunInTransaction(func(txApp App) error {
-		return txApp.RunInTransaction(func(txApp App) error {
-			for _, m := range r.migrationsList.Items() {
-				// applied migrations check
-				if r.isMigrationApplied(txApp, m.File) {
-					if m.ReapplyCondition == nil {
-						continue // no need to reapply
-					}
-
-					shouldReapply, err := m.ReapplyCondition(txApp, r, m.File)
-					if err != nil {
-						return err
-					}
-					if !shouldReapply {
-						continue
-					}
-
-					// clear previous history stored entry
-					// (it will be recreated after successful execution)
-					r.saveRevertedMigration(txApp, m.File)
+	err := r.runMigrationTx(func(txApp App) error {
+		for _, m := range r.migrationsList.Items() {
+			// applied migrations check
+			if r.isMigrationApplied(txApp, m.File) {
+				if m.ReapplyCondition == nil {
+					continue // no need to reapply
 				}
 
-				// ignore empty Up action
-				if m.Up != nil {
-					if err := m.Up(txApp); err != nil {
-						return fmt.Errorf("failed to apply migration %s: %w", m.File, err)
-					}
+				shouldReapply, err := m.ReapplyCondition(txApp, r, m.File)
+				if err != nil {
+					return err
+				}
+				if !shouldReapply {
+					continue
 				}
 
-				if err := r.saveAppliedMigration(txApp, m.File); err != nil {
-					return fmt.Errorf("failed to save applied migration info for %s: %w", m.File, err)
-				}
-
-				applied = append(applied, m.File)
+				// clear previous history stored entry
+				// (it will be recreated after successful execution)
+				r.saveRevertedMigration(txApp, m.File)
 			}
 
-			return nil
-		})
+			// ignore empty Up action
+			if m.Up != nil {
+				if err := m.Up(txApp); err != nil {
+					return fmt.Errorf("failed to apply migration %s: %w", m.File, err)
+				}
+			}
+
+			if err := r.saveAppliedMigration(txApp, m.File); err != nil {
+				return fmt.Errorf("failed to save applied migration info for %s: %w", m.File, err)
+			}
+
+			applied = append(applied, m.File)
+		}
+
+		return nil
 	})
 
 	if err != nil {
@@ -177,46 +183,40 @@ func (r *MigrationsRunner) Up() ([]string, error) {
 //
 // On success returns list with the reverted migrations file names.
 func (r *MigrationsRunner) Down(toRevertCount int) ([]string, error) {
-	if err := r.initMigrationsTable(); err != nil {
-		return nil, err
-	}
-
 	reverted := make([]string, 0, toRevertCount)
 
-	names, appliedErr := r.lastAppliedMigrations(toRevertCount)
-	if appliedErr != nil {
-		return nil, appliedErr
-	}
+	err := r.runMigrationTx(func(txApp App) error {
+		names, appliedErr := r.lastAppliedMigrations(txApp.DB(), toRevertCount)
+		if appliedErr != nil {
+			return appliedErr
+		}
 
-	err := r.app.AuxRunInTransaction(func(txApp App) error {
-		return txApp.RunInTransaction(func(txApp App) error {
-			for _, name := range names {
-				for _, m := range r.migrationsList.Items() {
-					if m.File != name {
-						continue
-					}
-
-					// revert limit reached
-					if toRevertCount-len(reverted) <= 0 {
-						return nil
-					}
-
-					// ignore empty Down action
-					if m.Down != nil {
-						if err := m.Down(txApp); err != nil {
-							return fmt.Errorf("failed to revert migration %s: %w", m.File, err)
-						}
-					}
-
-					if err := r.saveRevertedMigration(txApp, m.File); err != nil {
-						return fmt.Errorf("failed to save reverted migration info for %s: %w", m.File, err)
-					}
-
-					reverted = append(reverted, m.File)
+		for _, name := range names {
+			for _, m := range r.migrationsList.Items() {
+				if m.File != name {
+					continue
 				}
+
+				// revert limit reached
+				if toRevertCount-len(reverted) <= 0 {
+					return nil
+				}
+
+				// ignore empty Down action
+				if m.Down != nil {
+					if err := m.Down(txApp); err != nil {
+						return fmt.Errorf("failed to revert migration %s: %w", m.File, err)
+					}
+				}
+
+				if err := r.saveRevertedMigration(txApp, m.File); err != nil {
+					return fmt.Errorf("failed to save reverted migration info for %s: %w", m.File, err)
+				}
+
+				reverted = append(reverted, m.File)
 			}
-			return nil
-		})
+		}
+		return nil
 	})
 
 	if err != nil {
@@ -248,18 +248,59 @@ func (r *MigrationsRunner) initMigrationsTable() error {
 		return nil // already inited
 	}
 
+	if err := r.ensureMigrationsTable(r.app.DB()); err != nil {
+		return err
+	}
+
+	r.inited = true
+
+	return nil
+}
+
+// ensureMigrationsTable creates the migrations history table (if missing).
+func (r *MigrationsRunner) ensureMigrationsTable(db dbx.Builder) error {
 	rawQuery := fmt.Sprintf(
 		`CREATE TABLE IF NOT EXISTS "%s" (file VARCHAR(255) PRIMARY KEY NOT NULL, applied BIGINT NOT NULL)`,
 		r.tableName,
 	)
 
-	_, err := r.app.DB().NewQuery(rawQuery).Execute()
-
-	if err == nil {
-		r.inited = true
-	}
+	_, err := db.NewQuery(rawQuery).Execute()
 
 	return err
+}
+
+// lockMigrations acquires a session-scoped advisory lock bound to the current
+// (aux) transaction. It is automatically released when the transaction
+// commits/rollbacks, and because the outer transaction spans the entire
+// migration run (including the nested data transaction and any auxiliary DB
+// DDL), it guarantees that only one process applies migrations to this
+// database at a time.
+func (r *MigrationsRunner) lockMigrations(txApp App) error {
+	_, err := txApp.AuxDB().NewQuery(fmt.Sprintf(
+		"SELECT pg_advisory_xact_lock(%d)",
+		migrationsAdvisoryLockKey,
+	)).Execute()
+
+	return err
+}
+
+// runMigrationTx wraps a migration operation (apply/revert) in the standard
+// nested aux+data transaction and serializes it against concurrent migrators
+// via a PostgreSQL advisory lock.
+func (r *MigrationsRunner) runMigrationTx(fn func(txApp App) error) error {
+	return r.app.AuxRunInTransaction(func(txApp App) error {
+		if err := r.lockMigrations(txApp); err != nil {
+			return err
+		}
+
+		return txApp.RunInTransaction(func(txApp App) error {
+			if err := r.ensureMigrationsTable(txApp.DB()); err != nil {
+				return err
+			}
+
+			return fn(txApp)
+		})
+	})
 }
 
 func (r *MigrationsRunner) isMigrationApplied(txApp App, file string) bool {
@@ -291,7 +332,7 @@ func (r *MigrationsRunner) saveRevertedMigration(txApp App, file string) error {
 	return err
 }
 
-func (r *MigrationsRunner) lastAppliedMigrations(limit int) ([]string, error) {
+func (r *MigrationsRunner) lastAppliedMigrations(db dbx.Builder, limit int) ([]string, error) {
 	var files = make([]string, 0, limit)
 
 	loadedMigrations := r.migrationsList.Items()
@@ -301,7 +342,7 @@ func (r *MigrationsRunner) lastAppliedMigrations(limit int) ([]string, error) {
 		names[i] = migration.File
 	}
 
-	err := r.app.DB().Select("file").
+	err := db.Select("file").
 		From(r.tableName).
 		Where(dbx.Not(dbx.HashExp{"applied": nil})).
 		AndWhere(dbx.HashExp{"file": names}).
