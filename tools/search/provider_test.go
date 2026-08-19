@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -749,13 +750,20 @@ type testDB struct {
 
 // NB! Don't forget to call `db.Close()` at the end of the test.
 func createTestDB() (*testDB, error) {
-	dsn := "host=localhost port=5433 user=test password=test dbname=pgbase_test sslmode=disable"
+	// isolate the fixed "test" table into a per-process schema so it never
+	// collides with other packages in the shared "public" schema.
+	schema := fmt.Sprintf("pb_search_%d", os.Getpid())
+	dsn := fmt.Sprintf("host=localhost port=5433 user=test password=test dbname=pgbase_test sslmode=disable search_path=%s,public", schema)
 	sqlDB, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}
 
 	db := testDB{DB: dbx.NewFromDB(sqlDB, "pgx")}
+
+	if _, err := db.NewQuery("CREATE SCHEMA IF NOT EXISTS " + schema).Execute(); err != nil {
+		return nil, err
+	}
 
 	if _, err := db.NewQuery("DROP TABLE IF EXISTS test").Execute(); err != nil {
 		return nil, err

@@ -7,20 +7,6 @@ on:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: pgbase_test
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd="pg_isready -U test"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
     env:
       flags: ""
       PGTEST_HOST: localhost
@@ -62,8 +48,16 @@ jobs:
       # - name: Generate jsvm types
       #   run: go run ./plugins/jsvm/internal/types/types.go
 
+      - name: Start Postgres
+        run: docker compose -f tests/docker-compose.test.yml up -d --wait
+
       - name: Run tests
-        run: go test ./... -p 1 -count=1
+        # Database-per-test isolation (see tests/app.go) makes parallel package
+        # runs deterministic, so -p 1 is no longer required. -p 4 bounds package
+        # parallelism to keep any single heavy package (core/apis) under the
+        # per-package test timeout even on beefier runners; the extended
+        # -timeout adds margin on slower CI CPUs.
+        run: go test ./... -count=1 -p 4 -timeout=1200s
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6

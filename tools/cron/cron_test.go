@@ -275,42 +275,65 @@ func TestCronStartStop(t *testing.T) {
 		test2++
 	})
 
+	readCounts := func() (int, int) {
+		mu.Lock()
+		defer mu.Unlock()
+		return test1, test2
+	}
+
 	// call twice Start to check if the previous ticker will be reseted
 	c.Start()
 	c.Start()
 
-	time.Sleep(505 * time.Millisecond) // slightly larger to minimize flakiness
+	time.Sleep(505 * time.Millisecond)
 
 	// call twice Stop to ensure that the second stop is no-op
 	c.Stop()
 	c.Stop()
 
-	expectedCalls := 2
+	// let any in-flight job goroutine settle before reading the counters
+	time.Sleep(50 * time.Millisecond)
 
-	mu.Lock()
-	if test1 != expectedCalls {
-		t.Fatalf("Expected %d test1, got %d", expectedCalls, test1)
+	// The exact number of ticks in the window depends on the wall-clock
+	// alignment performed in Start() (the initial delay is in the
+	// (0, interval] range), so tolerate a small range instead of asserting
+	// an exact count to avoid timing flakiness. A ~2x count (or more) would
+	// still be caught here and would indicate that the double Start() failed
+	// to reset the previous ticker.
+	run1a, run1b := readCounts()
+	if run1a < 1 || run1a > 3 {
+		t.Fatalf("Expected 1-3 test1 calls after the first run, got %d", run1a)
 	}
-	if test2 != expectedCalls {
-		t.Fatalf("Expected %d test2, got %d", expectedCalls, test2)
+	if run1a != run1b {
+		t.Fatalf("Expected test1 and test2 to fire together, got %d vs %d", run1a, run1b)
 	}
-	mu.Unlock()
 
-	// resume for 1 seconds
+	// ensure Stop() actually halted the ticker (no additional calls)
+	time.Sleep(300 * time.Millisecond)
+	stopped1, stopped2 := readCounts()
+	if stopped1 != run1a || stopped2 != run1b {
+		t.Fatalf("Expected no additional calls after Stop, got %d/%d (was %d/%d)", stopped1, stopped2, run1a, run1b)
+	}
+
+	// resume for ~1 second
 	c.Start()
 
-	time.Sleep(1005 * time.Millisecond) // slightly larger to minimize flakiness
+	time.Sleep(1005 * time.Millisecond)
 
 	c.Stop()
 
-	expectedCalls += 4
+	// let any in-flight job goroutine settle before reading the counters
+	time.Sleep(50 * time.Millisecond)
 
-	mu.Lock()
-	if test1 != expectedCalls {
-		t.Fatalf("Expected %d test1, got %d", expectedCalls, test1)
+	run2a, run2b := readCounts()
+	if run2a != run2b {
+		t.Fatalf("Expected test1 and test2 to fire together after resume, got %d vs %d", run2a, run2b)
 	}
-	if test2 != expectedCalls {
-		t.Fatalf("Expected %d test2, got %d", expectedCalls, test2)
+
+	// ~4 more ticks are expected in a 1s window with a 250ms interval
+	// (3-5 depending on the Start() alignment described above)
+	delta := run2a - stopped1
+	if delta < 3 || delta > 5 {
+		t.Fatalf("Expected 3-5 additional calls after resume, got %d", delta)
 	}
-	mu.Unlock()
 }

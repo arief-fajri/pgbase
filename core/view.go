@@ -22,8 +22,14 @@ import (
 // NB! Be aware that this method is vulnerable to SQL injection and the
 // "dangerousViewName" argument must come only from trusted input!
 func (app *BaseApp) DeleteView(dangerousViewName string) error {
+	// note: CASCADE is required because, unlike SQLite (which lets a dropped
+	// view's dependents dangle lazily), PostgreSQL strictly refuses to drop a
+	// view while other views depend on it. Any legitimately dependent view is
+	// either being deleted in the same flow (making the cascaded drop a no-op
+	// when its own DeleteView runs) or gets recreated by the post-save
+	// resaveViewsWithChangedFields pass, mirroring the upstream behavior.
 	_, err := app.DB().NewQuery(fmt.Sprintf(
-		"DROP VIEW IF EXISTS \"%s\"",
+		"DROP VIEW IF EXISTS \"%s\" CASCADE",
 		dangerousViewName,
 	)).Execute()
 
