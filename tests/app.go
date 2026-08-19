@@ -39,7 +39,7 @@ func getSchemaInitDB() (*dbx.DB, error) {
 	schemaInitOnce.Do(func() {
 		schemaInitDB, err = core.DefaultDBConnect(core.DBConfig{
 			Host:         getEnvOrDefault("PGTEST_HOST", "localhost"),
-			Port:         5433,
+			Port:         getPortOrDefault("PGTEST_PORT", 5433),
 			User:         getEnvOrDefault("PGTEST_USER", "test"),
 			Password:     getEnvOrDefault("PGTEST_PASSWORD", "test"),
 			DBName:       getEnvOrDefault("PGTEST_DBNAME", "pgbase_test"),
@@ -122,7 +122,7 @@ func connectToSchema(schemaName string) func(cfg core.DBConfig) (*dbx.DB, error)
 		if cfg.Host == "" {
 			cfg.Host = getEnvOrDefault("PGTEST_HOST", "localhost")
 		}
-		cfg.Port = 5433
+		cfg.Port = getPortOrDefault("PGTEST_PORT", 5433)
 		if cfg.User == "" {
 			cfg.User = getEnvOrDefault("PGTEST_USER", "test")
 		}

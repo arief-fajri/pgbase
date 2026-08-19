@@ -2,6 +2,7 @@ package tests
 
 import (
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/pocketbase/dbx"
@@ -15,7 +16,7 @@ func SetupTestDB(t *testing.T) *core.BaseApp {
 		DBConnect: func(config core.DBConfig) (*dbx.DB, error) {
 			return core.DefaultDBConnect(core.DBConfig{
 				Host:         getEnvOrDefault("PGTEST_HOST", "localhost"),
-				Port:         5433,
+				Port:         getPortOrDefault("PGTEST_PORT", 5433),
 				User:         getEnvOrDefault("PGTEST_USER", "test"),
 				Password:     getEnvOrDefault("PGTEST_PASSWORD", "test"),
 				DBName:       getEnvOrDefault("PGTEST_DBNAME", "pgbase_test"),
@@ -56,6 +57,15 @@ func CleanupTestDB(t *testing.T, app core.App) {
 func getEnvOrDefault(key, defaultVal string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return defaultVal
+}
+
+func getPortOrDefault(key string, defaultVal int) int {
+	if v := os.Getenv(key); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			return p
+		}
 	}
 	return defaultVal
 }

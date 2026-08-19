@@ -7,6 +7,13 @@ import (
 func init() {
 	core.SystemMigrations.Add(&core.Migration{
 		Up: func(txApp core.App) error {
+			// ensure pgcrypto extension for gen_random_bytes (mirrors the main init migration);
+			// required because this aux migration can run before the main _init migration on a
+			// fresh database, so the extension may not exist yet
+			if _, err := txApp.AuxDB().NewQuery("CREATE EXTENSION IF NOT EXISTS pgcrypto").Execute(); err != nil {
+				return err
+			}
+
 			_, execErr := txApp.AuxDB().NewQuery(`
 				CREATE TABLE IF NOT EXISTS _logs (
 					id      TEXT PRIMARY KEY DEFAULT ('r'||lower(encode(gen_random_bytes(7), 'hex'))) NOT NULL,
