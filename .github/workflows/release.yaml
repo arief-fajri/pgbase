@@ -14,6 +14,14 @@ jobs:
       PGTEST_USER: test
       PGTEST_PASSWORD: test
       PGTEST_DBNAME: pgbase_test
+      # Raw core.NewBaseApp tests (base_test, log_printer_test, system_alert_test,
+      # notify_watcher_test) use the production DBConnect path (PB_POSTGRES_*),
+      # not the PGTEST_* harness. Point them at the same docker-compose Postgres.
+      PB_POSTGRES_HOST: localhost
+      PB_POSTGRES_PORT: 5433
+      PB_POSTGRES_USER: test
+      PB_POSTGRES_PASSWORD: test
+      PB_POSTGRES_DBNAME: pgbase_test
     steps:
       # re-enable auto-snapshot from goreleaser-action@v3
       # (https://github.com/goreleaser/goreleaser-action-v4-auto-snapshot-example)
