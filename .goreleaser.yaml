@@ -60,8 +60,7 @@ snapshot:
   version_template: '{{ incpatch .Version }}-next'
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - '^examples:'
-      - '^ui:'
+  # Release notes are maintained by hand in CHANGELOG.md (bundled in the archive).
+  # Disabled so the first tag does not auto-pull the entire pre-fork PocketBase
+  # git history into the generated GitHub release notes.
+  disable: true
