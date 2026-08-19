@@ -9,6 +9,9 @@
 # tests coverage
 coverage.out
 
+# local runtime data dir (created on first run)
+/pb_data/
+
 # plaintask todo files
 *.todo
 

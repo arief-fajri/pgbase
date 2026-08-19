@@ -1,4 +1,4 @@
-## v0.1.0 (WIP)
+## v0.1.0
 
 Initial release of **pgbase** — a hard fork of [PocketBase](https://github.com/pocketbase/pocketbase) that replaces the embedded SQLite database with **PostgreSQL** as the sole supported backend.
 
