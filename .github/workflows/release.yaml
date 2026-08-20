@@ -1,8 +1,16 @@
 name: basebuild
 
 on:
+  # Run CI when a PR is opened or updated. A bare push to a feature branch does
+  # NOT trigger a run on its own (that only happens once a PR exists), which
+  # avoids the duplicate push+pull_request runs. Direct pushes still trigger for
+  # `main` (snapshot build) and version tags `v*` (draft release).
   pull_request:
   push:
+    branches:
+      - main
+    tags:
+      - 'v*'
 
 jobs:
   goreleaser:
@@ -37,6 +45,18 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      # On tag pushes, publish the draft release with the latest CHANGELOG.md
+      # section as its body. GoReleaser's own changelog is disabled in
+      # .goreleaser.yaml, so we extract the top-most "## " section and hand it
+      # to GoReleaser via --release-notes. `flags` is empty on tag refs, so this
+      # is the only added flag (--snapshot is used on non-tag pushes instead).
+      # Must run after Checkout so CHANGELOG.md is present in the workspace.
+      - name: Prepare release notes from CHANGELOG.md
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          awk 'f&&/^## /{exit} /^## /{f=1;next} f' CHANGELOG.md > .release-notes.md
+          echo "flags=--release-notes=.release-notes.md" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
