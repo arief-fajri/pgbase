@@ -1,14 +1,12 @@
 name: basebuild
 
 on:
-  # Run CI when a PR is opened or updated. A bare push to a feature branch does
-  # NOT trigger a run on its own (that only happens once a PR exists), which
-  # avoids the duplicate push+pull_request runs. Direct pushes still trigger for
-  # `main` (snapshot build) and version tags `v*` (draft release).
+  # Run CI only when a PR is opened/updated and when a version tag `v*` is
+  # pushed (the tag drives the draft release). Plain pushes to branches —
+  # including `main` — do NOT trigger a run: the PR that introduced the change
+  # already ran CI, so this avoids duplicate/redundant runs.
   pull_request:
   push:
-    branches:
-      - main
     tags:
       - 'v*'
 
@@ -36,11 +34,6 @@ jobs:
       PB_POSTGRES_PASSWORD: test
       PB_POSTGRES_DBNAME: pgbase_test
     steps:
-      # re-enable auto-snapshot from goreleaser-action@v3
-      # (https://github.com/goreleaser/goreleaser-action-v4-auto-snapshot-example)
-      - if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        run: echo "flags=--snapshot" >> $GITHUB_ENV
-
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -49,8 +42,8 @@ jobs:
       # On tag pushes, publish the draft release with the latest CHANGELOG.md
       # section as its body. GoReleaser's own changelog is disabled in
       # .goreleaser.yaml, so we extract the top-most "## " section and hand it
-      # to GoReleaser via --release-notes. `flags` is empty on tag refs, so this
-      # is the only added flag (--snapshot is used on non-tag pushes instead).
+      # to GoReleaser via --release-notes. `flags` starts empty, so this is the
+      # only added flag on tag runs (this step only runs on tags anyway).
       # Must run after Checkout so CHANGELOG.md is present in the workspace.
       - name: Prepare release notes from CHANGELOG.md
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -101,10 +94,10 @@ jobs:
         run: GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build ./...
 
       - name: Run GoReleaser
-        # Skip the release build on pull requests and non-main branch pushes:
-        # they only need the test phase above (this also avoids using the
-        # contents:write token outside release contexts).
-        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
+        # Only build/publish the release on version tags. PR runs just need the
+        # test phase above (this also avoids using the contents:write token
+        # outside release contexts).
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
