@@ -59,8 +59,9 @@ checksum:
 snapshot:
   version_template: '{{ incpatch .Version }}-next'
 
-changelog:
-  # Release notes are maintained by hand in CHANGELOG.md (bundled in the archive).
-  # Disabled so the first tag does not auto-pull the entire pre-fork PocketBase
-  # git history into the generated GitHub release notes.
-  disable: true
+# NOTE: the changelog pipe is intentionally left ENABLED (no `changelog.disable`).
+# The release workflow passes `--release-notes=<top CHANGELOG.md section>`, and
+# GoReleaser loads that file *inside the changelog pipe* — so disabling the pipe
+# would also drop the release notes and leave the GitHub release body empty.
+# With a non-empty `--release-notes`, GoReleaser uses the file verbatim and skips
+# the git-log changelog, so no pre-fork PocketBase history is pulled in.
