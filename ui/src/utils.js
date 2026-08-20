@@ -1766,7 +1766,7 @@ const utils = {
                     item += col.name;
                 } else {
                     // regular identifier
-                    item += '"' + col.name + '"';
+                    item += "\"" + col.name + "\"";
                 }
 
                 if (col.sort) {
