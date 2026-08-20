@@ -132,6 +132,7 @@ type settings struct {
 	TrustedProxy TrustedProxyConfig `form:"trustedProxy" json:"trustedProxy"`
 	Batch        BatchConfig        `form:"batch" json:"batch"`
 	Logs         LogsConfig         `form:"logs" json:"logs"`
+	Audit        AuditConfig        `form:"audit" json:"audit"`
 }
 
 // Settings defines the PocketBase app settings.
@@ -294,6 +295,7 @@ func (s *Settings) PostValidate(ctx context.Context, app App) error {
 		validation.Field(&s.SuperuserIPs, validation.Each(validation.Required, validation.By(validators.IPOrSubnet))),
 		validation.Field(&s.Meta),
 		validation.Field(&s.Logs),
+		validation.Field(&s.Audit),
 		validation.Field(&s.SMTP),
 		validation.Field(&s.S3),
 		validation.Field(&s.Backups),
@@ -570,6 +572,49 @@ func (c LogsConfig) Validate() error {
 	return validation.ValidateStruct(&c,
 		validation.Field(&c.MaxDays, validation.Min(0)),
 	)
+}
+
+// -------------------------------------------------------------------
+
+type AuditConfig struct {
+	// Enabled is the master toggle for the write (create/update/delete) audit trail.
+	Enabled bool `form:"enabled" json:"enabled"`
+
+	// Collections is the allowlist of collection names to audit (by NAME).
+	// Applies to BOTH the write and the read trail.
+	Collections []string `form:"collections" json:"collections"`
+
+	// RetentionDays controls the write-trail retention. 0 = keep forever (manual).
+	RetentionDays int `form:"retentionDays" json:"retentionDays"`
+
+	// LogIP toggles storing the actor IP/user-agent in the write trail.
+	LogIP bool `form:"logIP" json:"logIP"`
+
+	// ReadEnabled is the master toggle for the read (view/list) audit trail.
+	ReadEnabled bool `form:"readEnabled" json:"readEnabled"`
+
+	// ReadRetentionDays controls the read-trail retention. 0 = keep forever (manual).
+	ReadRetentionDays int `form:"readRetentionDays" json:"readRetentionDays"`
+}
+
+// Validate makes AuditConfig validatable by implementing [validation.Validatable] interface.
+func (c AuditConfig) Validate() error {
+	return validation.ValidateStruct(&c,
+		validation.Field(&c.RetentionDays, validation.Min(0)),
+		validation.Field(&c.ReadRetentionDays, validation.Min(0)),
+	)
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (c AuditConfig) MarshalJSON() ([]byte, error) {
+	type alias AuditConfig
+
+	// serialize as empty array
+	if c.Collections == nil {
+		c.Collections = []string{}
+	}
+
+	return json.Marshal(alias(c))
 }
 
 // -------------------------------------------------------------------
