@@ -9,6 +9,34 @@ import (
 	"github.com/arief-fajri/pgbase/tools/types"
 )
 
+// seedTimeBase and seedTimeCounter implement a fixed monotonic seed clock.
+//
+// Seeded records normally get their "created" autodate value from time.Now(),
+// which is stored with millisecond precision. Records saved within the same
+// millisecond end up with identical "created" values and PostgreSQL breaks
+// ORDER BY ties non-deterministically (unlike SQLite which falls back to the
+// rowid insertion order), causing flaky paginated/sorted API tests.
+// Assigning strictly increasing fixed timestamps makes the seed data
+// ordering fully deterministic.
+//
+// The base is an arbitrary old date (no test compares seed "created" values
+// against date boundaries) and dynamically created test records keep using
+// now()-based values, which safely sort after the seeded ones in ascending
+// order (and before them in descending order).
+var seedTimeBase, _ = types.ParseDateTime("2022-01-01 00:00:00.000Z")
+var seedTimeCounter int64
+
+// nextSeedTime returns the next strictly increasing fixed timestamp
+// (10ms apart from the previous one).
+//
+// Note: the clock is shared by the auth and base records seeding loops,
+// so base records always get "newer" created values than auth records.
+// This is currently harmless as no test sorts across collections by created.
+func nextSeedTime() types.DateTime {
+	seedTimeCounter++
+	return seedTimeBase.Add(time.Duration(seedTimeCounter*10) * time.Millisecond)
+}
+
 // SeedTestData creates the standard test collections and records
 // required by the test suite.
 //
@@ -212,7 +240,6 @@ func SeedTestData(app core.App) error {
 	// View collections are created later (see "View collections" section),
 	// after demo1's rel_one/rel_many fields exist, because view1 selects them.
 
-
 	usersCol, err := app.FindCollectionByNameOrId("users")
 	if err != nil {
 		return fmt.Errorf("failed to find users collection: %w", err)
@@ -292,13 +319,13 @@ func SeedTestData(app core.App) error {
 	// deterministic token secrets/durations matching the upstream
 	// tests/data fixtures so that the hardcoded test tokens validate as-is
 	const (
-		testAuthTokenSecret           = "PjVU4hAV7CZIWbCByJHkDcMUlSEWCLI6M5aWSZOpEq0a3rYxKT"
-		testFileTokenSecret           = "4Ax9zDm2Rwtny81dGaGQrJQBnIx5wVOuNe89X6v7NbNzrAZhvn"
-		testVerificationTokenSecret   = "dgGGHlzzdCJ2C5MjXGoondllwSXkJHyL50FuvLvXGHNmBhvGKO"
-		testPasswordResetTokenSecret  = "BC6jYPe4JXpQGGNzu6VXtYw0yhKoH2mh2ezIJClOJQuZYrd4Ol"
-		testEmailChangeTokenSecret    = "eON2TTJZiGCEi7mvUvwMLADj8CMHQzwZN3gmyMjQb24EY08ATP"
-		testSuperuserAuthTokenSecret  = "MyN3nDlzmHnuCjd35vb6cyIdqNr7Os0PmgiPVDMxmbFToSpBvS"
-		testSuperuserFileTokenSecret  = "sjJAjTNPrOcRDmnIKwQm7qY9FyjuXTG5KNcaqw4U1TSDVfu4r9"
+		testAuthTokenSecret                   = "PjVU4hAV7CZIWbCByJHkDcMUlSEWCLI6M5aWSZOpEq0a3rYxKT"
+		testFileTokenSecret                   = "4Ax9zDm2Rwtny81dGaGQrJQBnIx5wVOuNe89X6v7NbNzrAZhvn"
+		testVerificationTokenSecret           = "dgGGHlzzdCJ2C5MjXGoondllwSXkJHyL50FuvLvXGHNmBhvGKO"
+		testPasswordResetTokenSecret          = "BC6jYPe4JXpQGGNzu6VXtYw0yhKoH2mh2ezIJClOJQuZYrd4Ol"
+		testEmailChangeTokenSecret            = "eON2TTJZiGCEi7mvUvwMLADj8CMHQzwZN3gmyMjQb24EY08ATP"
+		testSuperuserAuthTokenSecret          = "MyN3nDlzmHnuCjd35vb6cyIdqNr7Os0PmgiPVDMxmbFToSpBvS"
+		testSuperuserFileTokenSecret          = "sjJAjTNPrOcRDmnIKwQm7qY9FyjuXTG5KNcaqw4U1TSDVfu4r9"
 		testSuperuserVerificationTokenSecret  = "uhr68rXLVjPBWALFtw8uEHeQwDdN4t0MiTLr2pBWVkEQnNICe1"
 		testSuperuserPasswordResetTokenSecret = "fPSpFm9rxjj4mdeWYfyQ5OZQ4UWpyainTO0dqrJe3LHEYEDduq"
 		testSuperuserEmailChangeTokenSecret   = "unYNiYeuIxH7BCV09NIb81abe2bkPgaexMYdDQ6uOOIFh74urD"
@@ -471,6 +498,8 @@ func SeedTestData(app core.App) error {
 		if isNew {
 			record.Set("password", ar.password)
 			record.Set("passwordConfirm", ar.password)
+			// deterministic fixed "created" value (see nextSeedTime)
+			record.SetRaw("created", nextSeedTime())
 		}
 		if err := app.Save(record); err != nil {
 			return fmt.Errorf("failed to create auth record %s/%s: %w", ar.col.Name, ar.id, err)
@@ -517,6 +546,10 @@ func SeedTestData(app core.App) error {
 		}
 		record := core.NewRecord(r.col)
 		record.Id = r.id
+		// deterministic fixed "created" value in baseRecords slice order
+		// (see nextSeedTime); in particular demo1 gets:
+		// 84nmscqy84lsi1t < al1h9ijdeojtsjy < imy661ixudk5izi
+		record.SetRaw("created", nextSeedTime())
 		for k, v := range r.data {
 			record.Set(k, v)
 		}
@@ -666,12 +699,12 @@ func SeedTestData(app core.App) error {
 		"rel_one_cascade":             "7nwo8tuiatetxdm",
 	})
 	setRel(demo4, "qzaqccwrmva4o1n", map[string]any{
-		"rel_one_no_cascade":          "mk5fmymtx4wsprk",
-		"rel_one_no_cascade_required": "lcl9d87w22ml6jy",
-		"rel_one_cascade":             "mk5fmymtx4wsprk",
-		"rel_many_no_cascade":         []string{"mk5fmymtx4wsprk"},
+		"rel_one_no_cascade":           "mk5fmymtx4wsprk",
+		"rel_one_no_cascade_required":  "lcl9d87w22ml6jy",
+		"rel_one_cascade":              "mk5fmymtx4wsprk",
+		"rel_many_no_cascade":          []string{"mk5fmymtx4wsprk"},
 		"rel_many_no_cascade_required": []string{"7nwo8tuiatetxdm", "lcl9d87w22ml6jy"},
-		"rel_many_cascade":            []string{"lcl9d87w22ml6jy"},
+		"rel_many_cascade":             []string{"lcl9d87w22ml6jy"},
 	})
 	// raw SQL fallback for demo4 relations (FindRecordById + SaveNoValidate quirk)
 	app.DB().NewQuery(
@@ -793,12 +826,12 @@ func SeedTestData(app core.App) error {
 
 	extBase := types.NowDateTime().Add(-5 * time.Minute)
 	extAuths := []struct {
-		id           string
-		colRef       string
-		recordRef    string
-		provider     string
-		providerId   string
-		created      types.DateTime
+		id         string
+		colRef     string
+		recordRef  string
+		provider   string
+		providerId string
+		created    types.DateTime
 	}{
 		{"f1z5b3843pzc964", clients.Id, "gk390qegs4y47wn", "google", "test456", extBase},
 		{"dlmflokuq1xl342", usersCol.Id, "4q1xlclmfloku33", "gitlab", "test123", extBase.Add(1 * time.Minute)},
@@ -880,6 +913,51 @@ func SeedTestData(app core.App) error {
 	if demo3mk5 != nil {
 		demo3mk5.SetRaw("files", `["300_JdfBOieXAW.png"]`)
 		app.SaveNoValidate(demo3mk5)
+	}
+
+	// ---------------------------------------------------------------
+	// Deterministic _collections.created normalization
+	// ---------------------------------------------------------------
+
+	// Collections get their "created" value from time.Now() on save
+	// (unconditionally overwritten for new collections by onCollectionSave,
+	// so the model path can't be used to preset it). Same-millisecond ties
+	// make ORDER BY created non-deterministic and can flip the
+	// "?page=2&perPage=2&sort=-created" collections paging test.
+	//
+	// The raw UPDATE below reassigns strictly increasing timestamps
+	// (10ms apart) according to the EXPLICIT creation order below.
+	// NB! The array_position tie-break by name list is required because
+	// the collection ids don't sort lexicographically in creation order,
+	// and sorting by the racy "created" itself could permute the view trio
+	// (view1/view2/numeric_id_view are created back-to-back).
+	//
+	// When adding a new seed collection, append its name to the array
+	// (unknown names sort last and are treated as the newest).
+	if _, err := app.DB().NewQuery(`
+		WITH ordered AS (
+			SELECT id, ROW_NUMBER() OVER (
+				ORDER BY array_position(ARRAY[
+					'_mfas','_otps','_externalAuths','_authOrigins','_superusers','users',
+					'demo1','demo2','demo3','nologin','clients','demo4','demo5',
+					'view1','view2','numeric_id_view'
+				], name) ASC
+			) AS rn
+			FROM _collections
+		)
+		UPDATE _collections AS c
+		SET created = '2022-01-01 00:00:00.000Z'::timestamptz + (ordered.rn * interval '10 milliseconds')
+		FROM ordered
+		WHERE c.id = ordered.id
+	`).Execute(); err != nil {
+		return fmt.Errorf("failed to normalize _collections.created: %w", err)
+	}
+
+	// refresh the collection cache with the normalized values
+	// (not strictly needed for the cloned test apps since they reload the
+	// cache on Bootstrap, but keeps the seeding app state consistent)
+	if err := app.ReloadCachedCollections(); err != nil {
+		return fmt.Errorf("failed to reload cached collections after normalization: %w", err)
 	}
 
 	log.Println("[seed] Test data seeded successfully")
