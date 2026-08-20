@@ -67,6 +67,14 @@ jobs:
         # -timeout adds margin on slower CI CPUs.
         run: go test ./... -count=1 -p 4 -timeout=1200s
 
+      - name: Cross-compile check (32-bit targets)
+        # The test phase only compiles for the runner's native 64-bit
+        # architecture, so 32-bit-only errors (eg. untyped int constants
+        # overflowing the 32-bit int range) would otherwise surface only
+        # ~1 minute into the GoReleaser build. linux/arm (armv7) is the
+        # only 32-bit target in .goreleaser.yaml, so build it upfront here.
+        run: GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build ./...
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:

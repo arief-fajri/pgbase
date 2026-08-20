@@ -26,7 +26,10 @@ const DefaultMigrationsTable = "_migrations"
 // this lock two processes can both pass the "_migrations" applied-check and
 // then crash into a "duplicate key value violates unique constraint
 // 'pg_type_typname_nsp_index'" error while creating the same table/type.
-const migrationsAdvisoryLockKey = 11924226342963
+//
+// NB! Keep the explicit int64 type - as an untyped constant the value exceeds
+// the 32-bit int range and breaks the linux/arm (armv7) release builds.
+const migrationsAdvisoryLockKey int64 = 11924226342963
 
 // MigrationsRunner defines a simple struct for managing the execution of db migrations.
 type MigrationsRunner struct {
