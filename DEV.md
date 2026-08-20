@@ -559,7 +559,7 @@ reviews it before publishing).
 
 | Trigger | What the `basebuild` workflow does |
 |---------|-------------------------------------|
-| PR / branch push | Build the UI, start the test Postgres, run the full test suite + 32-bit cross-compile check. **No release.** |
+| Open / update a PR | Build the UI, start the test Postgres, run the full test suite + 32-bit cross-compile check. **No release.** (A bare push to a feature branch does *not* trigger CI on its own — only once a PR exists.) |
 | Push to `main` (no tag) | The tests above **+** a GoReleaser `--snapshot` build (local artifacts only, nothing published). |
 | Push a `vX.Y.Z` tag | The tests above **+** GoReleaser publishes a **draft** GitHub release whose body is the latest `CHANGELOG.md` section. |
 

@@ -1,8 +1,16 @@
 name: basebuild
 
 on:
+  # Run CI when a PR is opened or updated. A bare push to a feature branch does
+  # NOT trigger a run on its own (that only happens once a PR exists), which
+  # avoids the duplicate push+pull_request runs. Direct pushes still trigger for
+  # `main` (snapshot build) and version tags `v*` (draft release).
   pull_request:
   push:
+    branches:
+      - main
+    tags:
+      - 'v*'
 
 jobs:
   goreleaser:
