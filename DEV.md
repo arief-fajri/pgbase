@@ -55,15 +55,15 @@ Then open <http://127.0.0.1:8090/_/> and log in.
 
 | Tool | Minimal | Why / Notes | Check |
 |------|---------|-------------|-------|
-| Go | 1.25+ | Matches `go 1.25.0` in `go.mod`; CI uses 1.26.5 | `go version` |
-| Node.js | 22+ (see note) | `ui/` is a Vite app; CI uses Node 24+ | `node --version` |
+| Go | 1.25+ | Matches `go 1.25.0` in `go.mod`; CI pins `>=1.26.5` | `go version` |
+| Node.js | 22+ (see note) | `ui/` is a Vite app; CI pins `>=25.2.1` | `node --version` |
 | npm | 10+ | Bundled with Node.js | `npm --version` |
 | PostgreSQL | 16+ | Both dev and CI use `postgres:16-alpine` | `psql --version` |
 | Docker | 24+ (optional) | Fastest way to run PostgreSQL and the full stack | `docker --version` |
 
 > [!IMPORTANT]
 > Node.js **18 is EOL** and is too old for this project. Use at least Node 22
-> (LTS); Node 24+, which the CI runs on, is recommended.
+> (LTS); the CI runs on Node 25+ (`>=25.2.1`).
 
 > [!NOTE]
 > The PostgreSQL binary itself is only needed if you use **Option B
@@ -77,7 +77,7 @@ Then open <http://127.0.0.1:8090/_/> and log in.
 # Go dependencies
 go mod download
 
-# UI dependencies (Svelte + Vite dashboard)
+# UI dependencies (Vite-bundled vanilla-JS dashboard)
 cd ui
 npm install
 cd ..
@@ -173,28 +173,37 @@ PB_POSTGRES_PASSWORD=secret go run ./examples/base serve --http="127.0.0.1:8090"
 | `--dev` | `false` | Dev mode: verbose logging, relaxed caching, etc. |
 | `--origins` | `*` | CORS allowed origins list |
 
-### PostgreSQL connection (env vars ↔ flags)
+### PostgreSQL connection (environment variables)
 
-The app connects to PostgreSQL via environment variables **or** CLI flags. Flags
-take precedence when set. All names share the `PB_POSTGRES_` prefix.
+The app reads its PostgreSQL connection settings from **environment variables**
+only (all sharing the `PB_POSTGRES_` prefix). For the section 2 setup the
+defaults already match the database, so in practice you only need to pass
+`PB_POSTGRES_PASSWORD`.
 
-| Env variable | CLI flag | Default | Dev value |
-|--------------|----------|---------|-----------|
-| `PB_POSTGRES_HOST` | `--pg-host` | empty → localhost | `localhost` |
-| `PB_POSTGRES_PORT` | `--pg-port` | `5432` | `5432` |
-| `PB_POSTGRES_USER` | `--pg-user` | empty | `pgbase` |
-| `PB_POSTGRES_PASSWORD` | `--pg-password` | empty | `secret` |
-| `PB_POSTGRES_DBNAME` | `--pg-dbname` | empty | `pgbase` |
-| `PB_POSTGRES_SSLMODE` | `--pg-sslmode` | `disable` | `disable` |
+| Env variable | Default (if unset) | Value for the section 2 setup |
+|--------------|--------------------|-------------------------------|
+| `PB_POSTGRES_HOST` | `localhost` | `localhost` |
+| `PB_POSTGRES_PORT` | `5432` | `5432` |
+| `PB_POSTGRES_USER` | `pgbase` | `pgbase` |
+| `PB_POSTGRES_PASSWORD` | *(empty — must be set)* | `secret` |
+| `PB_POSTGRES_DBNAME` | `pgbase` | `pgbase` |
 
-Equivalent command using flags only:
+> [!NOTE]
+> SSL is disabled (`sslmode=disable`) by the built-in connector and is not
+> configurable through an env variable in the default build.
+
+> [!WARNING]
+> The `serve` command also *lists* `--pg-host`, `--pg-port`, `--pg-user`,
+> `--pg-password`, `--pg-dbname`, and `--pg-sslmode` flags, but they are **not
+> wired to the database connection** — the app always reads the `PB_POSTGRES_*`
+> variables above. Set those env vars instead of the flags. Also note that
+> `go run` enables `--dev` automatically, so that flag is optional in dev.
+
+Because the defaults already match the section 2 database, the minimal dev
+command only needs the password:
 
 ```bash
-go run ./examples/base serve \
-  --http="127.0.0.1:8090" \
-  --dev \
-  --pg-host localhost --pg-port 5432 \
-  --pg-user pgbase --pg-password secret --pg-dbname pgbase
+PB_POSTGRES_PASSWORD=secret go run ./examples/base serve --http="127.0.0.1:8090"
 ```
 
 > The API will be available at `http://127.0.0.1:8090`.
@@ -204,8 +213,9 @@ go run ./examples/base serve \
 
 ## 4. Run the UI (Dev Mode, Hot Reload)
 
-The dashboard is a SPA (Svelte + Vite) located in `ui/`. Run it on a separate
-Vite dev server for hot reload:
+The dashboard is a single-page app written in vanilla JavaScript (a small
+custom reactive framework — not React/Svelte/Vue) and bundled by Vite, located
+in `ui/`. Run it on a separate Vite dev server for hot reload:
 
 ```bash
 cd ui
@@ -488,7 +498,7 @@ pgbase/
 │   ├── dbutils/        # SQL dialect, index builder
 │   ├── search/         # Search & filter engine
 │   └── ...
-├── ui/                 # Dashboard frontend (Svelte + Vite)
+├── ui/                 # Dashboard frontend (vanilla JS + Vite)
 │   ├── src/            # Source code
 │   ├── dist/           # Production build (embedded into the binary)
 │   ├── embed.go        # Embed ui/dist into the Go binary
@@ -512,7 +522,7 @@ pgbase/
 
 ## 13. Development Workflow (Checklist)
 
-1. Create a branch from `master` (`git checkout -b my-feature`).
+1. Create a branch from `main` (`git checkout -b my-feature`).
 2. Make the change where it belongs:
    - Business logic → `core/`
    - HTTP endpoints/routes → `apis/`
@@ -523,13 +533,85 @@ pgbase/
    harness for anything touching the DB).
 4. Run the relevant tests and `make lint` (sections 9 & 10).
 5. If you changed the UI, run `npm run build` before building the binary.
-6. Open a PR. Follow the contribution notes in `CONTRIBUTING.md`.
-7. Reference upstream behavior via the [PocketBase docs](https://pocketbase.io/docs)
+6. Open a PR against `main` and follow the contribution notes in
+   `CONTRIBUTING.md`.
+7. Once merged, cut a release by updating `CHANGELOG.md` and pushing a version
+   tag (see section 14).
+8. Reference upstream behavior via the [PocketBase docs](https://pocketbase.io/docs)
    — the public API and DB schema are intentionally PocketBase-compatible.
 
 ---
 
-## 14. Troubleshooting
+## 14. Releasing (Tags & Draft Release)
+
+Releases are **git-tag driven** and produced by
+[GoReleaser](https://goreleaser.com) through the `basebuild` workflow
+(`.github/workflows/release.yaml`). Pushing a `vX.Y.Z` tag builds the
+cross-platform binaries and opens a **draft** GitHub release (a draft so a human
+reviews it before publishing).
+
+> [!IMPORTANT]
+> The version printed by `pgbase --version` comes from the git tag (injected at
+> build time via `-ldflags -X ...Version={{ .Version }}`). Only tags that start
+> with `v` (e.g. `v0.2.0`) trigger a release.
+
+### What runs when
+
+| Trigger | What the `basebuild` workflow does |
+|---------|-------------------------------------|
+| PR / branch push | Build the UI, start the test Postgres, run the full test suite + 32-bit cross-compile check. **No release.** |
+| Push to `main` (no tag) | The tests above **+** a GoReleaser `--snapshot` build (local artifacts only, nothing published). |
+| Push a `vX.Y.Z` tag | The tests above **+** GoReleaser publishes a **draft** GitHub release whose body is the latest `CHANGELOG.md` section. |
+
+### Release flow (PR → merge → draft release)
+
+1. **Open a PR** from your feature branch into `main` and get it merged
+   (sections 1–13). CI must be green.
+
+2. **Update `CHANGELOG.md`** on `main`: add a new top section `## vX.Y.Z`
+   describing the release. This is the single source of the release notes —
+   GoReleaser copies the **top-most** section into the draft release body, so it
+   must be updated *before* you tag.
+
+3. **Create an annotated tag** on the up-to-date `main` and push it:
+
+   ```bash
+   git checkout main && git pull
+   git tag -a v0.2.0 -m "v0.2.0"
+   git push origin v0.2.0
+   ```
+
+4. **Wait for the workflow.** `basebuild` runs the tests, then GoReleaser builds
+   every target and creates a **draft** release with the `## v0.2.0` changelog
+   section as its body.
+
+5. **Review & publish.** Open the draft under *GitHub → Releases*, verify the
+   notes and assets, then click **Publish**.
+
+> [!WARNING]
+> Tags are shared references others may pull, so double-check the tag name and
+> that `CHANGELOG.md` is updated **before** pushing. To remove a mistaken
+> *local* tag: `git tag -d v0.2.0`. Deleting an already-pushed tag
+> (`git push origin :refs/tags/v0.2.0`) also removes the draft release — avoid
+> unless truly necessary.
+
+### How the draft release notes are generated
+
+`.goreleaser.yaml` keeps GoReleaser's auto-changelog **disabled**
+(`changelog.disable: true`) so the pre-fork PocketBase history is never pulled
+in, and `release.draft: true` makes every release a draft. Instead of an
+auto-changelog, the workflow extracts the newest `CHANGELOG.md` section into a
+file and hands it to GoReleaser via `--release-notes`:
+
+```bash
+# runs in CI on tag pushes — prints the body of the first "## " section
+awk 'f&&/^## /{exit} /^## /{f=1;next} f' CHANGELOG.md > .release-notes.md
+goreleaser release --clean --release-notes=.release-notes.md
+```
+
+---
+
+## 15. Troubleshooting
 
 | Error | Cause | Fix |
 |-------|-------|-----|
