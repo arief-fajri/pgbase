@@ -44,12 +44,15 @@ jobs:
       # .goreleaser.yaml, so we extract the top-most "## " section and hand it
       # to GoReleaser via --release-notes. `flags` starts empty, so this is the
       # only added flag on tag runs (this step only runs on tags anyway).
+      # Write the notes to $RUNNER_TEMP (outside the repo) so the working tree
+      # stays clean — `goreleaser release --clean` aborts on any dirty/untracked
+      # file (https://goreleaser.com/errors/dirty).
       # Must run after Checkout so CHANGELOG.md is present in the workspace.
       - name: Prepare release notes from CHANGELOG.md
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         run: |
-          awk 'f&&/^## /{exit} /^## /{f=1;next} f' CHANGELOG.md > .release-notes.md
-          echo "flags=--release-notes=.release-notes.md" >> "$GITHUB_ENV"
+          awk 'f&&/^## /{exit} /^## /{f=1;next} f' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          echo "flags=--release-notes=$RUNNER_TEMP/release-notes.md" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
