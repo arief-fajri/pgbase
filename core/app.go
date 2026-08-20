@@ -387,6 +387,14 @@ type App interface {
 
 	// ---------------------------------------------------------------
 
+	// AuditQuery returns a new Audit select query.
+	AuditQuery() *dbx.SelectQuery
+
+	// FindAuditById finds a single Audit entry by its id.
+	FindAuditById(id string) (*Audit, error)
+
+	// ---------------------------------------------------------------
+
 	// CollectionQuery returns a new Collection select query.
 	CollectionQuery() *dbx.SelectQuery
 
