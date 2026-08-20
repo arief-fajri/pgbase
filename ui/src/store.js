@@ -68,6 +68,11 @@ window.app.store = store({
             label: "Logs",
         },
         {
+            href: "#/audits",
+            icon: "ri-history-line",
+            label: "Audits",
+        },
+        {
             href: "#/settings",
             icon: "ri-settings-3-line",
             label: "Settings",
@@ -101,6 +106,11 @@ window.app.store = store({
                 href: "#/settings/crons",
                 icon: "ri-time-line",
                 label: "Crons",
+            },
+            {
+                href: "#/settings/audit",
+                icon: "ri-history-line",
+                label: "Audit logs",
             },
         ],
         Sync: [
