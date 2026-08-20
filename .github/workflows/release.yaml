@@ -7,6 +7,11 @@ on:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    permissions:
+      # goreleaser creates the (draft) GitHub release for tags;
+      # without this the default "contents: read" token fails with
+      # "403 Resource not accessible by integration" on POST /releases.
+      contents: write
     env:
       flags: ""
       PGTEST_HOST: localhost
@@ -76,6 +81,10 @@ jobs:
         run: GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build ./...
 
       - name: Run GoReleaser
+        # Skip the release build on pull requests and non-main branch pushes:
+        # they only need the test phase above (this also avoids using the
+        # contents:write token outside release contexts).
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
