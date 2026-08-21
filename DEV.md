@@ -266,6 +266,24 @@ Edit files under `ui/src/` → the browser auto-reloads.
 
 Open <http://localhost:5173>.
 
+### Stop / kill the dev servers
+
+Normally press **Ctrl+C** in each terminal (backend and UI). If a terminal is
+gone and a server is left orphaned — with `go run` the compiled binary lives in
+the Go build cache and can reparent to PID 1, so it keeps `:8090` bound and the
+next start fails with `address already in use` — stop it by port instead:
+
+```bash
+# Backend on :8090 (SIGTERM, equivalent to Ctrl+C)
+lsof -ti tcp:8090 -sTCP:LISTEN | xargs kill
+
+# Vite UI dev server on :5173 (if it was running)
+lsof -ti tcp:5173 -sTCP:LISTEN | xargs kill
+```
+
+> If a process refuses to exit, force it with `-9`, e.g.
+> `lsof -ti tcp:8090 -sTCP:LISTEN | xargs kill -9`.
+
 ---
 
 ## 5. Create a Superuser (Dashboard Login)
