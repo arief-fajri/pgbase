@@ -22,12 +22,15 @@ git clone <repository-url> && cd pgbase
 go mod download
 cd ui && npm install && cd ..
 
-# 2. Start PostgreSQL (Docker)
+# 2. Start PostgreSQL (Docker). Run from the repo root: the docker/init mount
+#    pre-installs the pgcrypto extension on first boot, without which the very
+#    first startup deadlocks while bootstrapping (see Troubleshooting).
 docker run -d --name pgbase-pg \
   -p 5432:5432 \
   -e POSTGRES_DB=pgbase \
   -e POSTGRES_USER=pgbase \
   -e POSTGRES_PASSWORD=secret \
+  -v "$(pwd)/docker/init:/docker-entrypoint-initdb.d:ro" \
   postgres:16-alpine
 
 # 3. Start the backend (dev mode)
@@ -97,10 +100,22 @@ docker run -d --name pgbase-pg \
   -e POSTGRES_DB=pgbase \
   -e POSTGRES_USER=pgbase \
   -e POSTGRES_PASSWORD=secret \
+  -v "$(pwd)/docker/init:/docker-entrypoint-initdb.d:ro" \
   postgres:16-alpine
 ```
 
 PostgreSQL is now reachable at `localhost:5432`.
+
+> [!IMPORTANT]
+> The `-v .../docker/init:/docker-entrypoint-initdb.d` mount runs
+> `docker/init/01_pgcrypto.sql` on the **first** boot, pre-installing the
+> `pgcrypto` extension. This is required: without it the first
+> `serve`/`superuser` **deadlocks** while bootstrapping the aux + data
+> migrations on an empty database (the startup hangs and `:8090` never opens).
+> If you already started the container **without** the mount (or reuse an old
+> volume — init scripts only run on an empty data dir), install it once
+> instead:
+> `docker exec pgbase-pg psql -U pgbase -d pgbase -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"`
 
 > If the host port `5432` is already in use (e.g. by Postgres.app or another
 > container), map a different port, e.g. `-p 5433:5432`, and set
@@ -118,7 +133,14 @@ createdb pgbase
 createuser pgbase
 psql -d pgbase -c "ALTER USER pgbase WITH PASSWORD 'secret';"
 psql -d pgbase -c "ALTER DATABASE pgbase OWNER TO pgbase;"
+psql -d pgbase -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
 ```
+
+> [!IMPORTANT]
+> The `CREATE EXTENSION ... pgcrypto` line is required. Without it the first
+> `serve`/`superuser` deadlocks while bootstrapping the aux + data migrations
+> (see Troubleshooting) — the Docker option pre-installs it via `docker/init`,
+> but with Postgres.app you must create it yourself.
 
 > [!IMPORTANT]
 > PostgreSQL 15+ removed the public create privilege for non-owner roles. If
@@ -630,6 +652,7 @@ goreleaser release --clean --release-notes=.release-notes.md
 | `getaddrinfo EAI_AGAIN host.docker.internal` | Docker DNS issue | Use `--add-host` or connect to `localhost` directly |
 | UI renders but API calls fail in dev | `PB_BACKEND_URL` wrong / backend down | Check `ui/.env.development` (`http://127.0.0.1:8090`) and that the backend is running |
 | `gen_random_bytes` not found | `pgcrypto` extension missing | Docker (`init-test-db.sql`) or Postgres.app: `psql -d pgbase_test -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"` |
+| First `serve`/`superuser` hangs on a fresh DB (stalls right after the first `_migrations` log line, `:8090` never opens) | `pgcrypto` not pre-installed → the aux + data bootstrap transactions deadlock on `CREATE EXTENSION` | Provision `pgcrypto` **before** first boot: mount `docker/init` (Section 2 A) or `docker compose` (already mounts it); Postgres.app / existing container: `docker exec pgbase-pg psql -U pgbase -d pgbase -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"` |
 | Tests time out / hang | Parallelism + heavy packages | Use `-count=1 -p 4 -timeout=1200s` (see section 9) |
 
 ### Port Reference
