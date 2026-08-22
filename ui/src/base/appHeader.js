@@ -56,7 +56,7 @@ export function appHeader() {
                 },
             ),
             t.div({ className: "flex-fill app-header-separator" }),
-            colorSchemeButton(),
+            // colorSchemeButton(),
             t.button(
                 {
                     type: "button",

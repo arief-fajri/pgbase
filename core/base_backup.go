@@ -80,7 +80,26 @@ func (app *BaseApp) CreateBackup(ctx context.Context, name string) error {
 		// run in transaction to temporary block other writes (transactions uses the NonconcurrentDB connection)
 		// ---
 		tempPath := filepath.Join(localTempDir, "pb_backup_"+security.PseudorandomString(6))
+
+		// dump the live PostgreSQL database into a portable, v0.23-format SQLite
+		// "data.db" at the pb_data root so the produced archive bundles the full
+		// database (not just the storage filesystem). This makes every native
+		// backup engine-portable and lets the restore path (which already detects
+		// a bundled data.db) rebuild the schema, records and settings.
+		dbDumpPath := filepath.Join(e.App.DataDir(), sqliteBackupDBName)
+		defer os.Remove(dbDumpPath)
+
 		createErr := e.App.RunInTransaction(func(txApp App) error {
+			// export within the write-blocking transaction so the SQLite dump and
+			// the archived storage filesystem are a single consistent snapshot
+			bapp, ok := txApp.(*BaseApp)
+			if !ok {
+				return errors.New("unexpected transaction app type for the database export")
+			}
+			if err := bapp.ExportToSQLiteFile(e.Context, dbDumpPath); err != nil {
+				return fmt.Errorf("failed to export the database snapshot: %w", err)
+			}
+
 			return txApp.AuxRunInTransaction(func(txApp App) error {
 				return archive.Create(txApp.DataDir(), tempPath, e.Exclude...)
 			})
@@ -241,6 +260,26 @@ func (app *BaseApp) RestoreBackup(ctx context.Context, name string) error {
 		entries, readErr := os.ReadDir(extractedDataDir)
 		if readErr != nil || len(entries) == 0 {
 			return fmt.Errorf("the backup archive is empty or invalid: %w", readErr)
+		}
+
+		// A legacy SQLite-based PocketBase backup bundles its whole database as
+		// a single "data.db" file. Since this fork stores everything in a
+		// separate PostgreSQL server, the plain pb_data file-swap below would
+		// only copy that file as dead weight and never touch Postgres. Detect
+		// it and branch to a dedicated importer that converts the SQLite data
+		// into the current Postgres-backed app instead.
+		if _, statErr := os.Stat(filepath.Join(extractedDataDir, sqliteBackupDBName)); statErr == nil {
+			if importErr := app.ImportFromSQLiteDir(e.Context, extractedDataDir); importErr != nil {
+				return fmt.Errorf("failed to import the legacy SQLite backup: %w", importErr)
+			}
+
+			// restart so the collection cache and settings are reloaded from
+			// the freshly imported data
+			if err := e.App.Restart(); err != nil {
+				return fmt.Errorf("failed to restart the app process after the SQLite import: %w", err)
+			}
+
+			return nil
 		}
 
 		oldTempDataDir := filepath.Join(localTempDir, "old_pb_data_"+security.PseudorandomString(8))
