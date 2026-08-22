@@ -96,24 +96,108 @@
 /* ---------------------------------------------------------------  */
 
 .page-audit-settings {
-    .audit-collections-list {
-        max-height: 320px;
-        overflow-y: auto;
+    .audit-settings-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--smSpacing);
+    }
+
+    /* card */
+    .audit-card {
+        padding-bottom: var(--spacing);
+        /* border: 1px solid var(--baseAlt2Color); */
+        /* border-radius: var(--borderRadius); */
+    }
+    .audit-card-head {
+        display: flex;
+        align-items: center;
+        gap: var(--smSpacing);
+        .field {
+            width: auto;
+            margin: 0;
+        }
+        /* the trail title now lives inside the toggle label */
+        .txt {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+    }
+    .audit-card-divider {
+        margin: var(--smSpacing) 0;
+    }
+
+    /* card body — retention field (left) + description/hint (right) */
+    .audit-card-body {
+        margin-top: var(--smSpacing);
+        align-items: flex-start;
+        .field {
+            margin-bottom: 0;
+        }
+    }
+    .audit-card-info {
+        display: flex;
+        flex-direction: column;
+        gap: var(--xsSpacing);
+        .field-help {
+            margin: 0;
+        }
+    }
+
+    /* collections allowlist */
+    .audit-collections {
+        margin: 0;
+    }
+    .audit-collections-header {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--xsSpacing);
+        margin-bottom: var(--xsSpacing);
+    }
+    .audit-collections-heading {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .audit-collections-title {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 5px;
+        font-weight: 600;
+    }
+    .audit-collections-count {
+        color: var(--txtHintColor);
+        font-weight: normal;
+    }
+    .audit-collections-subtitle {
+        line-height: 1.3;
+    }
+    .audit-collections-body {
+        display: flex;
+        flex-direction: column;
+        gap: var(--xsSpacing);
+    }
+    .audit-collections-box {
         border: 1px solid var(--baseAlt2Color);
         border-radius: var(--borderRadius);
-        .list-item {
-            padding: var(--xsSpacing) var(--smSpacing);
-            border-bottom: 1px solid var(--baseAlt1Color);
-            &:last-child {
-                border-bottom: 0;
-            }
-            .field {
-                margin: 0;
-            }
+        overflow: hidden;
+    }
+    .audit-collections-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: var(--xsSpacing) var(--smSpacing);
+        max-height: 300px;
+        overflow-y: auto;
+        padding: var(--xsSpacing);
+        .audit-collection-item {
+            margin: 0;
             .label.sm {
                 margin-left: 5px;
             }
         }
+    }
+    .audit-collections-empty {
+        padding: var(--smSpacing);
+        text-align: center;
     }
 }
 

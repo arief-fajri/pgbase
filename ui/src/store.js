@@ -44,14 +44,14 @@ window.app.store = store({
     creditLinks: [
         {
             // optional: isActive
-            href: import.meta.env.PB_DOCS_URL,
+            href: `${import.meta.env.PB_REPO_URL}#readme`,
             icon: "ri-book-open-line",
             label: "Docs",
         },
         {
-            href: import.meta.env.PB_RELEASES,
+            href: import.meta.env.PB_REPO_URL,
             icon: "ri-github-line",
-            label: `PocketBase ${import.meta.env.PB_VERSION}`,
+            label: `PG-Base ${import.meta.env.PB_VERSION}`,
         },
     ],
 

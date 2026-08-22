@@ -63,7 +63,7 @@ export function logsList(logsSettings) {
 
             const result = await app.pb.logs.getList(page, perPage, {
                 skipTotal: 1,
-                sort: "-@rowid",
+                sort: "-created",
                 requestKey: "logs_list",
                 filter: normalizedFilter
                     .filter(Boolean)

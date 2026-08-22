@@ -112,6 +112,7 @@
 
     --spacing: 30px;
     --smSpacing: 20px;
+    --xsSpacing: 10px;
 
     --inputPadding: 13px;
     --inputBorderRadius: var(--borderRadius);
