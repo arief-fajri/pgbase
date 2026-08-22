@@ -130,6 +130,9 @@ func verifyBackupContent(app core.App, path string) error {
 		"storage",
 		".gitignore",
 		".gitkeep",
+		// the native backup now bundles a portable v0.23-format SQLite dump
+		// of the PostgreSQL database (see BaseApp.ExportToSQLiteFile)
+		"data.db",
 	}
 
 	entries, err := os.ReadDir(dir)
