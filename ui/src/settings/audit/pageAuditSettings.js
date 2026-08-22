@@ -9,6 +9,7 @@ export function pageAuditSettings() {
         isLoading: false,
         isSaving: false,
         collections: [],
+        filter: "",
         formSettings: null,
         originalFormSettings: null,
         get originalFormSettingsHash() {
@@ -123,7 +124,7 @@ export function pageAuditSettings() {
         }
     }
 
-    function switchField(key, label, description) {
+    function switchField(key, label) {
         const id = uniqueId + "_" + key;
         return t.div(
             { className: "field" },
@@ -138,82 +139,178 @@ export function pageAuditSettings() {
             t.label(
                 { htmlFor: id },
                 t.span({ className: "txt" }, label),
-                description
-                    ? t.i({
-                        className: "ri-information-line link-hint",
-                        ariaDescription: app.attrs.tooltip(description),
-                    })
-                    : undefined,
             ),
         );
     }
 
-    function retentionField(key, label) {
+    function retentionField(key, enabledKey) {
         const id = uniqueId + "_" + key;
         return t.div(
             { className: "field" },
-            t.label({ htmlFor: id }, t.span({ className: "txt" }, label)),
+            t.label({ htmlFor: id }, t.span({ className: "txt" }, "Retention (days)")),
             t.input({
                 id: id,
                 name: "audit." + key,
                 type: "number",
                 min: 0,
-                placeholder: "Keep forever",
+                placeholder: "0 = keep forever",
+                disabled: () => !data.formSettings[enabledKey],
                 value: () => data.formSettings[key] || "",
                 oninput: (e) => (data.formSettings[key] = e.target.value << 0),
             }),
-            t.div({ className: "help-block" }, t.small({ className: "txt-hint" }, "Days to keep. 0 = keep forever.")),
+        );
+    }
+
+    function trailCard(enabledKey, title, description, retentionKey) {
+        return t.div(
+            { className: "audit-card" },
+            t.div(
+                { className: "audit-card-head" },
+                switchField(enabledKey, title),
+            ),
+            t.div(
+                { className: "grid audit-card-body" },
+                t.div(
+                    { className: "col-sm-5 col-lg-4" },
+                    retentionField(retentionKey, enabledKey),
+                ),
+                t.div(
+                    { className: "col-sm-7 col-lg-8 audit-card-info" },
+                    t.div({ className: "txt-sm txt-hint" }, description),
+                    t.div({ className: "field-help" }, "0 = keep forever"),
+                ),
+            ),
+        );
+    }
+
+    function allowlistWarning() {
+        const trailOn = data.formSettings.enabled || data.formSettings.readEnabled;
+        if (!trailOn || data.totalSelected > 0) {
+            return undefined;
+        }
+        return t.div(
+            { className: "alert warning m-b-sm" },
+            t.i({ className: "ri-error-warning-line" }),
+            t.div(
+                { className: "content" },
+                "One or more trails are enabled but no collections are selected — nothing will be recorded. Select at least one collection below.",
+            ),
         );
     }
 
     function collectionsList() {
         return t.div(
-            { className: "field" },
-            t.label(null, t.span({ className: "txt" }, "Audited collections")),
+            { className: "audit-collections" },
+            t.div(
+                { className: "audit-collections-header" },
+                t.div(
+                    { className: "audit-collections-heading" },
+                    t.div(
+                        { className: "audit-collections-title" },
+                        t.span({ className: "txt" }, "Audited collections"),
+                        () =>
+                            t.span(
+                                { className: "audit-collections-count" },
+                                "(" + data.totalSelected + " / " + data.collections.length + ")",
+                            ),
+                    ),
+                    t.div(
+                        { className: "audit-collections-subtitle txt-sm txt-hint" },
+                        "The collection allowlist below applies to both trails.",
+                    ),
+                ),
+                t.div({ className: "flex-fill" }),
+                t.button(
+                    {
+                        type: "button",
+                        className: "btn sm secondary transparent",
+                        disabled: () => !data.collections.length,
+                        onclick: () => toggleSelectAll(),
+                    },
+                    () => t.span({ className: "txt" }, data.areAllSelected ? "Clear all" : "Select all"),
+                ),
+            ),
             () => {
                 if (!data.collections.length) {
                     return t.div({ className: "txt-hint" }, "No auditable collections found.");
                 }
 
                 return t.div(
-                    { className: "audit-collections-list" },
+                    { className: "audit-collections-body" },
                     t.div(
-                        { className: "list-item" },
+                        { className: "audit-collections-search fields searchbar" },
+                        t.div(
+                            { className: "field addon p-r-0" },
+                            t.i({ className: "ri-search-line txt-hint", ariaHidden: true }),
+                        ),
                         t.div(
                             { className: "field" },
                             t.input({
-                                id: uniqueId + "_select_all",
-                                type: "checkbox",
-                                className: "no-error",
-                                checked: () => data.areAllSelected,
-                                onchange: () => toggleSelectAll(),
+                                className: "p-l-5",
+                                type: "text",
+                                placeholder: "Search collections...",
+                                value: () => data.filter,
+                                oninput: (e) => (data.filter = e.target.value),
                             }),
-                            t.label({ htmlFor: uniqueId + "_select_all" }, t.strong(null, "Select all")),
                         ),
-                    ),
-                    data.collections.map((collection) => {
-                        const cbId = uniqueId + "_c_" + collection.id;
-                        return t.div(
-                            { className: "list-item" },
-                            t.div(
-                                { className: "field" },
-                                t.input({
-                                    id: cbId,
-                                    type: "checkbox",
-                                    className: "no-error",
-                                    checked: () => isCollectionSelected(collection.name),
-                                    onchange: (e) => toggleCollection(collection.name, e.target.checked),
-                                }),
-                                t.label(
-                                    { htmlFor: cbId },
-                                    t.span({ className: "txt" }, collection.name),
-                                    collection.type == "auth"
-                                        ? t.span({ className: "label sm" }, "auth")
-                                        : undefined,
+                        () => {
+                            if (!data.filter.length) {
+                                return undefined;
+                            }
+                            return t.div(
+                                { className: "field addon p-l-0 p-r-5 gap-0" },
+                                t.button(
+                                    {
+                                        type: "button",
+                                        className: "btn sm circle transparent secondary",
+                                        ariaDescription: app.attrs.tooltip("Clear", "left"),
+                                        onclick: () => (data.filter = ""),
+                                    },
+                                    t.i({ className: "ri-close-line", ariaHidden: true }),
                                 ),
-                            ),
-                        );
-                    }),
+                            );
+                        },
+                    ),
+                    t.div(
+                        { className: "audit-collections-box" },
+                        () => {
+                            const term = data.filter.trim().toLowerCase();
+                            const filtered = term
+                                ? data.collections.filter((c) => c.name.toLowerCase().includes(term))
+                                : data.collections;
+
+                            if (!filtered.length) {
+                                return t.div(
+                                    { className: "audit-collections-empty txt-hint" },
+                                    "No collections match \"" + data.filter + "\".",
+                                );
+                            }
+
+                            return t.div(
+                                { className: "audit-collections-grid" },
+                                filtered.map((collection) => {
+                                    const cbId = uniqueId + "_c_" + collection.id;
+                                    return t.div(
+                                        { className: "field audit-collection-item" },
+                                        t.input({
+                                            id: cbId,
+                                            type: "checkbox",
+                                            className: "no-error",
+                                            checked: () => isCollectionSelected(collection.name),
+                                            onchange: (e) => toggleCollection(collection.name, e.target.checked),
+                                        }),
+                                        t.label(
+                                            { htmlFor: cbId },
+                                            t.span({ className: "txt" }, collection.name),
+                                            collection.type == "auth"
+                                                ? t.span({ className: "label sm" }, "auth")
+                                                : undefined,
+                                        ),
+                                    );
+                                }),
+                            );
+                        },
+                    ),
                 );
             },
         );
@@ -243,74 +340,56 @@ export function pageAuditSettings() {
                 return t.form(
                     {
                         pbEvent: "auditSettingsForm",
-                        className: "grid",
+                        className: "audit-settings-form",
                         inert: () => data.isSaving,
                         onsubmit: (e) => {
                             e.preventDefault();
                             save();
                         },
                     },
-                    t.div(
-                        { className: "col-lg-12" },
-                        t.div({ className: "section-title" }, "Data changes trail"),
-                        t.div(
-                            { className: "txt-sm txt-hint m-b-sm" },
-                            "Records the create/update/delete operations (with field diffs and snapshots) for the selected collections.",
-                        ),
+                    trailCard(
+                        "enabled",
+                        "Data changes trail",
+                        "Records the create/update/delete operations (with field diffs and snapshots) for the selected collections.",
+                        "retentionDays",
                     ),
-                    t.div({ className: "col-lg-8" }, switchField("enabled", "Enable data changes trail")),
-                    t.div({ className: "col-lg-4" }, retentionField("retentionDays", "Retention (days)")),
-                    t.div(
-                        { className: "col-lg-12" },
-                        switchField(
-                            "logIP",
-                            "Store actor IP and User-Agent",
-                            "When enabled, the request IP and User-Agent of the acting user are stored in the trail.",
-                        ),
+                    trailCard(
+                        "readEnabled",
+                        "Read access trail",
+                        "Records the view/list access (metadata only — filter/sort/page, never record content) for the selected collections. Best-effort and non-blocking, but can be high-volume on busy collections.",
+                        "readRetentionDays",
                     ),
-                    t.div({ className: "col-lg-12" }, t.hr()),
                     t.div(
-                        { className: "col-lg-12" },
-                        t.div({ className: "section-title" }, "Read access trail"),
+                        { className: "audit-card" },
+                        switchField("logIP", "Store actor IP and User-Agent"),
                         t.div(
-                            { className: "txt-sm txt-hint m-b-sm" },
-                            "Records the view/list access (metadata only — filter/sort/page, never record content) for the selected collections. Best-effort and non-blocking, but can be high-volume on busy collections.",
+                            { className: "field-help" },
+                            "When enabled, the request IP and User-Agent of the acting user are stored in both trails.",
                         ),
-                    ),
-                    t.div({ className: "col-lg-8" }, switchField("readEnabled", "Enable read access trail")),
-                    t.div({ className: "col-lg-4" }, retentionField("readRetentionDays", "Retention (days)")),
-                    t.div({ className: "col-lg-12" }, t.hr()),
-                    t.div(
-                        { className: "col-lg-12" },
-                        t.div(
-                            { className: "txt-sm txt-hint m-b-sm" },
-                            "The collection allowlist below applies to both trails.",
-                        ),
+                        t.hr({ className: "audit-card-divider" }),
+                        () => allowlistWarning(),
                         collectionsList(),
                     ),
-                    t.div({ className: "col-lg-12" }, t.hr()),
+                    t.hr({ style: "margin:0" }),
                     t.div(
-                        { className: "col-lg-12" },
-                        t.div(
-                            { className: "flex" },
-                            t.div({ className: "m-r-auto" }),
-                            t.button(
-                                {
-                                    type: "button",
-                                    className: "btn transparent secondary",
-                                    disabled: () => data.isSaving,
-                                    hidden: () => !data.hasChanges,
-                                    onclick: reset,
-                                },
-                                t.span({ className: "txt" }, "Cancel"),
-                            ),
-                            t.button(
-                                {
-                                    className: () => `btn expanded-lg ${data.isSaving ? "loading" : ""}`,
-                                    disabled: () => !data.hasChanges || data.isSaving,
-                                },
-                                t.span({ className: "txt" }, "Save changes"),
-                            ),
+                        { className: "flex audit-actions" },
+                        t.div({ className: "m-r-auto" }),
+                        t.button(
+                            {
+                                type: "button",
+                                className: "btn transparent secondary",
+                                disabled: () => data.isSaving,
+                                hidden: () => !data.hasChanges,
+                                onclick: reset,
+                            },
+                            t.span({ className: "txt" }, "Cancel"),
+                        ),
+                        t.button(
+                            {
+                                className: () => `btn expanded-lg ${data.isSaving ? "loading" : ""}`,
+                                disabled: () => !data.hasChanges || data.isSaving,
+                            },
+                            t.span({ className: "txt" }, "Save changes"),
                         ),
                     ),
                 );
