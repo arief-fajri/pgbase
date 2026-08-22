@@ -1,6 +1,8 @@
 ## v0.2.0
 
-Adds a built-in **audit trails** subsystem for tracking data changes and read access.
+Adds a built-in **audit trails** subsystem for tracking data changes and read access, and rebrands the dashboard to **PG-Base**.
+
+### Audit trails
 
 - **Data changes trail** (`_audits`): records `create`/`update`/`delete` operations for an allowlist of collections, including per-field diffs (`changes`) and a full record `snapshot`.
 
@@ -15,6 +17,16 @@ Adds a built-in **audit trails** subsystem for tracking data changes and read ac
 - **Superuser API**: `GET /api/audits`, `GET /api/audits/{id}` and `GET /api/audits/reads` for querying the trails.
 
 - **Dashboard UI**: a new *Audits* page (with *Data changes* / *Read access* tabs, search/filter and detail preview) and an *Audit logs* settings page.
+
+### Dashboard
+
+- **Rebranded to PG-Base**: the footer now shows the fork version (`PG-Base v{version}`) and links to the fork repository, and the *Docs* link points to the project README.
+
+- Reworked the *Audit logs* settings page into stacked per-trail cards with a searchable collections allowlist and a clearer actions layout.
+
+### Fixes
+
+- Request logs are now ordered newest-first by `created`. The previous ordering relied on `@rowid`, which maps to a random-string id in the PostgreSQL fork and produced a scrambled order.
 
 ## v0.1.0
 
