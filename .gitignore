@@ -20,3 +20,10 @@ README.html
 CHANGELOG.html
 LICENSE.html
 .feature-plan
+
+# SQLite sidecar files created when tests open a committed .db fixture
+# (WAL index / rollback journal). Never committed; keep the tree clean so
+# `goreleaser release --clean` doesn't abort on a dirty state.
+*.db-shm
+*.db-wal
+*.db-journal
