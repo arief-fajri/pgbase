@@ -140,6 +140,10 @@ func TestBackupsCreate(t *testing.T) {
 			Headers: map[string]string{
 				"Authorization": "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6InN5d2JoZWNuaDQ2cmhtMCIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoicGJjXzMxNDI2MzU4MjMiLCJleHAiOjI1MjQ2MDQ0NjEsInJlZnJlc2hhYmxlIjp0cnVlfQ.UXgO3j-0BumcugrFjbd7j0M4MQvbrLggLlcu_YNGjoY",
 			},
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, e *core.ServeEvent) {
+				// keep the export hermetic (no external pg_dump client needed)
+				app.Settings().Backups.Format = core.BackupFormatSQLite
+			},
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				files, err := getBackupFiles(app)
 				if err != nil {
@@ -186,6 +190,10 @@ func TestBackupsCreate(t *testing.T) {
 			Body:   strings.NewReader(`{"name":"test.zip"}`),
 			Headers: map[string]string{
 				"Authorization": "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6InN5d2JoZWNuaDQ2cmhtMCIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoicGJjXzMxNDI2MzU4MjMiLCJleHAiOjI1MjQ2MDQ0NjEsInJlZnJlc2hhYmxlIjp0cnVlfQ.UXgO3j-0BumcugrFjbd7j0M4MQvbrLggLlcu_YNGjoY",
+			},
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, e *core.ServeEvent) {
+				// keep the export hermetic (no external pg_dump client needed)
+				app.Settings().Backups.Format = core.BackupFormatSQLite
 			},
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				files, err := getBackupFiles(app)
@@ -833,6 +841,10 @@ func TestBackupsRestore(t *testing.T) {
 
 func createTestBackups(app core.App) error {
 	ctx := context.Background()
+
+	// use the portable SQLite dump format so these helper backups don't
+	// require an external pg_dump client (keeps the API tests hermetic).
+	app.Settings().Backups.Format = core.BackupFormatSQLite
 
 	if err := app.CreateBackup(ctx, "test1.zip"); err != nil {
 		return err

@@ -1,3 +1,27 @@
+## v0.4.0
+
+Makes **native PostgreSQL `pg_dump` / `pg_restore` the default backup format** — a faithful, full-database snapshot — and demotes the portable SQLite dump to an opt-in legacy format. Adds offline `backup` / `restore` CLI commands.
+
+### Backups
+
+- **Native PostgreSQL dump by default**: `CreateBackup` now bundles a custom-format `pg_dump` archive (`pgdata.dump`) covering the *entire* database — schema, all record tables, `_collections`, `_params`, `_migrations`, `_superusers`, request `_logs` and the partitioned `_audits` / `_audit_reads` — as an exact-replica disaster-recovery snapshot (no `--exclude-table`).
+
+- **Native restore**: `RestoreBackup` auto-detects a bundled `pgdata.dump` and restores it into the live database with `pg_restore --clean --if-exists` before swapping in the backup's storage files. Success is gated by a post-restore sanity check (non-empty `_collections`) rather than the noisy `pg_restore` exit code.
+
+- **Opt-in portable SQLite dump**: the previous v0.23-format SQLite `data.db` export is still available for cross-engine portability and older tooling. Select it via the `Backups.Format` setting (`"pg"` default, `"sqlite"` legacy) or, per run, the `--format` CLI flag. Restore auto-detects either bundled format (`pgdata.dump` → native, `data.db` → legacy).
+
+- **CLI `backup` / `restore` commands**: `backup [name] [--format pg|sqlite]` creates a backup, and `restore <name>` performs an **offline** restore that does *not* restart the process (safe to run while the server is stopped); (re)start the app afterwards to load the restored data.
+
+### Dashboard
+
+- The *Backup options* settings form now has a **Backup format** selector (Native PostgreSQL / Portable SQLite) bound to `Backups.Format`, so the default format for dashboard- and cron-generated backups can be chosen from the UI.
+
+### Requirements
+
+- Native backups shell out to the `pg_dump` / `pg_restore` client binaries. They must be available on `PATH` at runtime, and the client major version must be **>= the PostgreSQL server major** (`pg_dump` refuses to dump a newer server). The release image already ships the v16 client.
+
+- Override the binary locations with the `PB_PG_DUMP_BIN` / `PB_PG_RESTORE_BIN` environment variables. If the client is unavailable, switch `Backups.Format` (or `--format`) to `sqlite`.
+
 ## v0.3.0
 
 Turns native backups into **engine-portable full snapshots** and adds **legacy SQLite backup import**, so archives from upstream PocketBase (or an older SQLite-based deployment) can be restored directly into PostgreSQL.

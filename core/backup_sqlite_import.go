@@ -129,7 +129,7 @@ func (app *BaseApp) ImportFromSQLiteDir(ctx context.Context, extractedDir string
 		)
 	}
 
-	if err := app.importSQLiteStorage(ctx, extractedDir); err != nil {
+	if err := app.importBackupStorage(ctx, extractedDir); err != nil {
 		return fmt.Errorf("failed to import the storage files: %w", err)
 	}
 
@@ -850,7 +850,10 @@ func (app *BaseApp) importSQLiteSettings(ctx context.Context, db *sql.DB) error 
 
 // importSQLiteStorage copies the backup's "storage/" files into the app
 // filesystem (local pb_data/storage or the configured S3 bucket).
-func (app *BaseApp) importSQLiteStorage(ctx context.Context, extractedDir string) error {
+// importBackupStorage copies the "storage/" directory from an extracted backup
+// (extractedDir) into the app filesystem (local or S3). It is shared by the
+// legacy SQLite import and the native pg_restore import paths.
+func (app *BaseApp) importBackupStorage(ctx context.Context, extractedDir string) error {
 	srcStorage := filepath.Join(extractedDir, LocalStorageDirName)
 
 	info, err := os.Stat(srcStorage)
@@ -898,7 +901,7 @@ func (app *BaseApp) importSQLiteStorage(ctx context.Context, extractedDir string
 		return walkErr
 	}
 
-	app.Logger().Info("[SQLite import] Imported storage files", slog.Int("count", count))
+	app.Logger().Info("[Backup] Imported storage files", slog.Int("count", count))
 
 	return nil
 }

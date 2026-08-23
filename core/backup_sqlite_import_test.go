@@ -276,6 +276,9 @@ func TestSQLiteImportBackupLifecycle(t *testing.T) {
 	// We assert both are present: the storage file AND the DB dump.
 	// -----------------------------------------------------------------
 	const backupName = "lifecycle_snapshot.zip"
+	// opt into the portable SQLite dump so the assertions below (and this
+	// hermetic test) don't require an external pg_dump client.
+	app.Settings().Backups.Format = core.BackupFormatSQLite
 	if err := app.CreateBackup(ctx, backupName); err != nil {
 		t.Fatalf("step 3 CreateBackup: %v", err)
 	}

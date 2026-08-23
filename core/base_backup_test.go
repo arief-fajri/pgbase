@@ -25,6 +25,11 @@ func TestCreateBackup(t *testing.T) {
 	// set some long app name with spaces and special characters
 	app.Settings().Meta.AppName = "test @! " + strings.Repeat("a", 100)
 
+	// exercise the portable SQLite dump format so this test stays hermetic
+	// (no external pg_dump client needed); the native "pg" default is covered
+	// by the skip-guarded TestPGDumpExportImportRoundTrip.
+	app.Settings().Backups.Format = core.BackupFormatSQLite
+
 	expectedAppNamePrefix := "test_" + strings.Repeat("a", 45)
 
 	// test pending error
@@ -89,6 +94,11 @@ func TestRestoreBackup(t *testing.T) {
 	app, _ := tests.NewTestApp()
 	defer app.Cleanup()
 
+	// use the portable SQLite dump format so the setup backups below don't
+	// require an external pg_dump client (this test only exercises the
+	// pending/missing error paths, not a successful restore).
+	app.Settings().Backups.Format = core.BackupFormatSQLite
+
 	// create a initial test backup to ensure that there are at least 1
 	// backup file and that the generated zip doesn't contain the backups dir
 	if err := app.CreateBackup(context.Background(), "initial"); err != nil {
@@ -130,8 +140,10 @@ func verifyBackupContent(app core.App, path string) error {
 		"storage",
 		".gitignore",
 		".gitkeep",
-		// the native backup now bundles a portable v0.23-format SQLite dump
-		// of the PostgreSQL database (see BaseApp.ExportToSQLiteFile)
+		// with Backups.Format = "sqlite" the backup bundles a portable
+		// v0.23-format SQLite dump of the PostgreSQL database as "data.db"
+		// (see BaseApp.ExportToSQLiteFile). The native "pg" default instead
+		// bundles a "pgdata.dump" pg_restore archive.
 		"data.db",
 	}
 

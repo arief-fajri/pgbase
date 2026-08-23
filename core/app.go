@@ -127,6 +127,16 @@ type App interface {
 	// NB! This feature is experimental and currently is expected to work only on UNIX based systems.
 	RestoreBackup(ctx context.Context, name string) error
 
+	// RestoreBackupWithoutRestart is like [App.RestoreBackup] but it does NOT
+	// restart the application process after a successful restore.
+	//
+	// It is intended for offline, one-shot restores (e.g. the "restore" CLI
+	// command). After it returns, (re)start the app normally to load the
+	// restored data.
+	//
+	// NB! This feature is experimental and currently is expected to work only on UNIX based systems.
+	RestoreBackupWithoutRestart(ctx context.Context, name string) error
+
 	// Restart restarts (aka. replaces) the current running application process.
 	//
 	// NB! It relies on execve which is supported only on UNIX based systems.

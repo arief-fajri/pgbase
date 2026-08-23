@@ -22,7 +22,15 @@ type DBConfig struct {
 	MaxIdleConns int
 }
 
-func DefaultDBConnect(config DBConfig) (*dbx.DB, error) {
+// ResolveDBConfig fills any unset DBConfig field from the PB_POSTGRES_* env
+// vars (falling back to the built-in defaults).
+//
+// It is shared by DefaultDBConnect and by the native pg_dump/pg_restore backup
+// path so the two always agree on how host/port/user/password/sslmode are
+// resolved. Note that DBName may still be overridden by a custom DBConnect
+// closure (see the test harness), so the backup path re-reads the effective
+// database name from the live connection rather than relying on this value.
+func ResolveDBConfig(config DBConfig) DBConfig {
 	if config.Host == "" {
 		config.Host = getEnvOrDefault("PB_POSTGRES_HOST", "localhost")
 	}
@@ -43,12 +51,21 @@ func DefaultDBConnect(config DBConfig) (*dbx.DB, error) {
 	if config.DBName == "" {
 		config.DBName = getEnvOrDefault("PB_POSTGRES_DBNAME", "pgbase")
 	}
+	if config.SSLMode == "" {
+		config.SSLMode = getEnvOrDefault("PB_POSTGRES_SSLMODE", "disable")
+	}
 	if config.MaxOpenConns == 0 {
 		config.MaxOpenConns = 100
 	}
 	if config.MaxIdleConns == 0 {
 		config.MaxIdleConns = 10
 	}
+
+	return config
+}
+
+func DefaultDBConnect(config DBConfig) (*dbx.DB, error) {
+	config = ResolveDBConfig(config)
 
 	db, err := dbx.Open("pgx", buildDSN(config))
 	if err != nil {

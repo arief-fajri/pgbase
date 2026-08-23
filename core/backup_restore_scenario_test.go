@@ -183,6 +183,10 @@ func TestBackupRestoreScenario(t *testing.T) {
 	// "data.db" (the fix for Gap B: native backups used to be storage-only).
 	// -----------------------------------------------------------------
 	const backupName = "scenario_snapshot.zip"
+	// opt into the portable SQLite dump so this hermetic scenario test does
+	// not require an external pg_dump client (the native "pg" default is
+	// covered by TestPGDumpExportImportRoundTrip).
+	app.Settings().Backups.Format = core.BackupFormatSQLite
 	if err := app.CreateBackup(ctx, backupName); err != nil {
 		t.Fatalf("step 4 CreateBackup: %v", err)
 	}

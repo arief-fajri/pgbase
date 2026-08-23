@@ -80,6 +80,27 @@ jobs:
       - name: Start Postgres
         run: docker compose -f tests/docker-compose.test.yml up -d --wait
 
+      # The native PostgreSQL backup/restore path shells out to pg_dump /
+      # pg_restore. Install the v16 client so it matches the postgres:16-alpine
+      # test server (pg_dump refuses to dump a newer server, so the client major
+      # must be >= the server major). Without this, TestPGDumpExportImportRoundTrip
+      # skips instead of exercising the native default format.
+      - name: Install PostgreSQL 16 client (pg_dump / pg_restore)
+        run: |
+          set -euo pipefail
+          if ! sudo apt-get update && sudo apt-get install -y postgresql-client-16; then
+            # fall back to the official PGDG apt repo if the base image no
+            # longer ships postgresql-client-16 in its default repositories
+            curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+              | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+            echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+              | sudo tee /etc/apt/sources.list.d/pgdg.list
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client-16
+          fi
+          pg_dump --version
+          pg_restore --version
+
       - name: Run tests
         # Database-per-test isolation (see tests/app.go) makes parallel package
         # runs deterministic, so -p 1 is no longer required. -p 4 bounds package
