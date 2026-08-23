@@ -502,6 +502,13 @@ type BackupsConfig struct {
 
 	// S3 is an optional S3 storage config specifying where to store the app backups.
 	S3 S3Config `form:"s3" json:"s3"`
+
+	// Format specifies the database format used when creating new backups:
+	//   - "" or "pg" : native PostgreSQL pg_dump archive (default, full fidelity)
+	//   - "sqlite"   : portable SQLite "data.db" (engine-portable, legacy)
+	//
+	// It only affects backup creation; restore auto-detects the bundled format.
+	Format string `form:"format" json:"format"`
 }
 
 // Validate makes BackupsConfig validatable by implementing [validation.Validatable] interface.
@@ -513,6 +520,10 @@ func (c BackupsConfig) Validate() error {
 			&c.CronMaxKeep,
 			validation.When(c.Cron != "", validation.Required),
 			validation.Min(1),
+		),
+		validation.Field(
+			&c.Format,
+			validation.In("", BackupFormatPG, BackupFormatSQLite),
 		),
 	)
 }
