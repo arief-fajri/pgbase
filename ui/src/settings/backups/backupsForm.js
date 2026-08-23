@@ -12,6 +12,11 @@ export function backupsForm(propsArg = {}) {
         { cron: "0 0 1 * *", label: "Every first day of the month at 00:00h" },
     ];
 
+    const formatOptions = [
+        { value: "pg", label: "Native PostgreSQL - pg_dump (recommended)" },
+        { value: "sqlite", label: "Portable SQLite (legacy)" },
+    ];
+
     const data = store({
         showForm: false,
         isLoading: false,
@@ -129,6 +134,34 @@ export function backupsForm(propsArg = {}) {
                     }
 
                     return [
+                        t.div(
+                            { className: "col-lg-12" },
+                            t.div(
+                                { className: "field" },
+                                t.label({ htmlFor: "backups.format" }, "Backup format"),
+                                app.components.select({
+                                    id: "backups.format",
+                                    name: "backups.format",
+                                    required: true,
+                                    options: formatOptions,
+                                    value: () => data.formSettings.backups.format || "pg",
+                                    onchange: (selected) => {
+                                        data.formSettings.backups.format = selected?.[0]?.value;
+                                    },
+                                }),
+                            ),
+                            t.div(
+                                { className: "field-help" },
+                                t.div(
+                                    null,
+                                    "Native PostgreSQL uses pg_dump/pg_restore for a full-fidelity snapshot of the entire database. It requires the pg_dump/pg_restore client binaries (matching the server major version) to be available on the server.",
+                                ),
+                                t.div(
+                                    null,
+                                    "Portable SQLite is a legacy, engine-portable export kept for cross-engine restore and older tooling.",
+                                ),
+                            ),
+                        ),
                         t.div(
                             { className: "col-lg-12" },
                             t.div(
