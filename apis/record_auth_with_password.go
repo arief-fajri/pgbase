@@ -146,8 +146,16 @@ func findRecordByIdentityField(app core.App, collection *core.Collection, field 
 
 	// note: PostgreSQL doesn't store SQLite-style COLLATE metadata on the
 	// indexes, so identity lookups are always case-insensitive (matching the
-	// rest of the auth logic - eg. FindAuthRecordByEmail)
-	expr := dbx.NewExp("LOWER([["+field+"]]) = LOWER({:identity})", dbx.Params{"identity": value})
+	// rest of the auth logic - eg. FindAuthRecordByEmail).
+	//
+	// The extra [[field]] <> '' predicate mirrors the partial functional unique
+	// index (eg. LOWER("email") WHERE "email" <> '') so PostgreSQL can use an
+	// index scan; it never changes the result because a non-empty identity can
+	// only match a non-empty stored value.
+	expr := dbx.NewExp(
+		"LOWER([["+field+"]]) = LOWER({:identity}) AND [["+field+"]] <> ''",
+		dbx.Params{"identity": value},
+	)
 
 	record := &core.Record{}
 

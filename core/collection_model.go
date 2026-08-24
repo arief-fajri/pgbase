@@ -1048,9 +1048,16 @@ func (c *Collection) initEmailField() {
 	}
 
 	// ensure that there is a unique index for the email field
+	//
+	// The index is functional (LOWER("email")) so the case-insensitive auth
+	// lookups (LOWER(email) = LOWER(?)) can use an index scan instead of a
+	// sequential scan, and so that case-variant duplicate emails are rejected.
+	// The partial WHERE keeps optional-email collections able to hold multiple
+	// empty-email records; auth lookups add the same "email" <> '' predicate so
+	// the planner can still use this partial index.
 	if _, ok := dbutils.FindSingleColumnUniqueIndex(c.Indexes, FieldNameEmail); !ok {
 		c.Indexes = append(c.Indexes, fmt.Sprintf(
-			`CREATE UNIQUE INDEX "%s" ON "%s" ("%s") WHERE "%s" <> ''`,
+			`CREATE UNIQUE INDEX "%s" ON "%s" (LOWER("%s")) WHERE "%s" <> ''`,
 			c.fieldIndexName(FieldNameEmail),
 			c.Name,
 			FieldNameEmail,
