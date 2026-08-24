@@ -30,9 +30,17 @@ import (
 )
 
 const (
-	DefaultDataMaxOpenConns int           = 120
+	// Connection-pool defaults. The effective single-instance ceiling is
+	// DefaultDataMaxOpenConns + DefaultAuxMaxOpenConns (= 90), kept below the
+	// stock Postgres max_connections=100 with headroom for superuser/maintenance
+	// sessions. Raise via the PB_POSTGRES_*_CONNS env vars (or BaseAppConfig)
+	// when the server max_connections is raised; see DEV.md for the sizing
+	// formula and PgBouncer guidance. NB: pushing many more than a few dozen
+	// active connections at Postgres usually hurts (server-side contention)
+	// rather than helps - front it with PgBouncer instead.
+	DefaultDataMaxOpenConns int           = 80
 	DefaultDataMaxIdleConns int           = 15
-	DefaultAuxMaxOpenConns  int           = 20
+	DefaultAuxMaxOpenConns  int           = 10
 	DefaultAuxMaxIdleConns  int           = 3
 	DefaultQueryTimeout     time.Duration = 30 * time.Second
 
@@ -204,20 +212,31 @@ func NewBaseApp(config BaseAppConfig) *BaseApp {
 	}
 
 	// apply config defaults
+	//
+	// The connection-pool sizes fall back to (in order of precedence):
+	//   1. the explicit BaseAppConfig value (e.g. set via pocketbase.Config),
+	//   2. the matching PB_POSTGRES_*_CONNS env var (operator override without a
+	//      rebuild), then
+	//   3. the built-in Default*Conns constants.
+	//
+	// NB: the effective single-instance ceiling is Data+Aux open conns. Keep it
+	// below the Postgres server "max_connections" (minus a superuser reserve),
+	// divided by the number of app instances. See DEV.md for the sizing formula
+	// and PgBouncer guidance.
 	if app.config.DBConnect == nil {
 		app.config.DBConnect = DefaultDBConnect
 	}
 	if app.config.DataMaxOpenConns <= 0 {
-		app.config.DataMaxOpenConns = DefaultDataMaxOpenConns
+		app.config.DataMaxOpenConns = getEnvIntOrDefault("PB_POSTGRES_DATA_MAX_OPEN_CONNS", DefaultDataMaxOpenConns)
 	}
 	if app.config.DataMaxIdleConns <= 0 {
-		app.config.DataMaxIdleConns = DefaultDataMaxIdleConns
+		app.config.DataMaxIdleConns = getEnvIntOrDefault("PB_POSTGRES_DATA_MAX_IDLE_CONNS", DefaultDataMaxIdleConns)
 	}
 	if app.config.AuxMaxOpenConns <= 0 {
-		app.config.AuxMaxOpenConns = DefaultAuxMaxOpenConns
+		app.config.AuxMaxOpenConns = getEnvIntOrDefault("PB_POSTGRES_AUX_MAX_OPEN_CONNS", DefaultAuxMaxOpenConns)
 	}
 	if app.config.AuxMaxIdleConns <= 0 {
-		app.config.AuxMaxIdleConns = DefaultAuxMaxIdleConns
+		app.config.AuxMaxIdleConns = getEnvIntOrDefault("PB_POSTGRES_AUX_MAX_IDLE_CONNS", DefaultAuxMaxIdleConns)
 	}
 	if app.config.QueryTimeout <= 0 {
 		app.config.QueryTimeout = DefaultQueryTimeout

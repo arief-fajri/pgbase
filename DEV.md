@@ -231,6 +231,39 @@ PB_POSTGRES_PASSWORD=secret go run ./examples/base serve --http="127.0.0.1:8090"
 > The API will be available at `http://127.0.0.1:8090`.
 > Read more about the API at [PocketBase docs](https://pocketbase.io/docs).
 
+### Connection pool sizing (high concurrency / multiple instances)
+
+The app keeps two connection pools: a **data** pool (application queries) and a
+smaller **aux** pool (logs). Their sizes are tunable via env vars (no rebuild):
+
+| Env variable | Default | Pool |
+|--------------|---------|------|
+| `PB_POSTGRES_DATA_MAX_OPEN_CONNS` | `80` | data — max open connections |
+| `PB_POSTGRES_DATA_MAX_IDLE_CONNS` | `15` | data — max idle connections |
+| `PB_POSTGRES_AUX_MAX_OPEN_CONNS`  | `10` | aux — max open connections |
+| `PB_POSTGRES_AUX_MAX_IDLE_CONNS`  | `3`  | aux — max idle connections |
+| `PB_POSTGRES_CONN_MAX_LIFETIME`   | `30m` | max lifetime before a conn is recycled |
+| `PB_POSTGRES_CONN_MAX_IDLE_TIME`  | `3m`  | max idle time before an idle conn is closed |
+
+> [!IMPORTANT]
+> The effective per-instance ceiling is **`DATA_MAX_OPEN + AUX_MAX_OPEN`**
+> (default **90**). This must stay below the PostgreSQL server
+> `max_connections`, leaving headroom for superuser/maintenance sessions and
+> dividing across every app instance:
+>
+> ```
+> (DATA_MAX_OPEN + AUX_MAX_OPEN) × instances  ≤  max_connections − reserved
+> ```
+>
+> The default 90 fits under the stock Postgres `max_connections=100`. If you run
+> **multiple instances** or raise the pool env vars, raise `max_connections`
+> accordingly (`postgres -c max_connections=...`; the bundled
+> `docker-compose.yml` sets `200`) — and note that pushing many more than a few
+> dozen *active* connections at Postgres usually hurts (server-side contention).
+> For high fan-out, front Postgres with **PgBouncer** in *transaction* pooling
+> mode and keep each app pool small; PgBouncer multiplexes them onto a handful
+> of real server connections.
+
 ---
 
 ## 4. Run the UI (Dev Mode, Hot Reload)

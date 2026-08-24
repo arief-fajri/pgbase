@@ -74,7 +74,13 @@ func DefaultDBConnect(config DBConfig) (*dbx.DB, error) {
 
 	db.DB().SetMaxOpenConns(config.MaxOpenConns)
 	db.DB().SetMaxIdleConns(config.MaxIdleConns)
-	db.DB().SetConnMaxIdleTime(3 * time.Minute)
+	db.DB().SetConnMaxIdleTime(getEnvDurationOrDefault("PB_POSTGRES_CONN_MAX_IDLE_TIME", 3*time.Minute))
+
+	// Cap the total lifetime of a pooled connection so long-lived connections
+	// are periodically recycled. This helps clients gracefully pick up
+	// server-side changes (e.g. a rolling Postgres restart, failover to a new
+	// primary, or a PgBouncer redeploy) instead of clinging to stale sockets.
+	db.DB().SetConnMaxLifetime(getEnvDurationOrDefault("PB_POSTGRES_CONN_MAX_LIFETIME", 30*time.Minute))
 
 	return db, nil
 }
@@ -99,6 +105,28 @@ func buildDSN(config DBConfig) string {
 func getEnvOrDefault(key, defaultVal string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return defaultVal
+}
+
+// getEnvIntOrDefault returns the positive integer value of the given env var,
+// or defaultVal when the var is unset or is not a positive integer.
+func getEnvIntOrDefault(key string, defaultVal int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return defaultVal
+}
+
+// getEnvDurationOrDefault returns the time.Duration parsed from the given env
+// var (e.g. "30m", "1h30m", "90s"), or defaultVal when unset/invalid.
+func getEnvDurationOrDefault(key string, defaultVal time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
 	}
 	return defaultVal
 }
