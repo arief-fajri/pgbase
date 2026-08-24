@@ -1,10 +1,10 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/pocketbase/dbx"
@@ -101,37 +101,78 @@ func (app *BaseApp) expandRecords(records []*Record, expandPath string, fetchFun
 		}
 
 		// add the related id(s) as a dynamic relation field value to
-		// allow further expand checks at later stage in a more unified manner
+		// allow further expand checks at later stage in a more unified manner.
+		//
+		// The child ids for all parent records are fetched with a single
+		// query (instead of one query per parent) and then grouped back per
+		// parent id. A per-parent ROW_NUMBER cap preserves the previous
+		// upper bound on the number of relations loaded for each record.
 		prepErr := func() error {
-			q := app.ConcurrentDB().Select("id").
-				From(indirectRel.Name).
-				Limit(1000) // the limit is arbitrary chosen and may change in the future
+			// collect the unique parent ids and build a parameterized IN list
+			inParams := dbx.Params{}
+			inPlaceholders := make([]string, 0, len(records))
+			seen := make(map[string]struct{}, len(records))
+			for _, record := range records {
+				if _, ok := seen[record.Id]; ok {
+					continue
+				}
+				seen[record.Id] = struct{}{}
 
+				key := "pid" + strconv.Itoa(len(inPlaceholders))
+				inPlaceholders = append(inPlaceholders, "{:"+key+"}")
+				inParams[key] = record.Id
+			}
+			if len(inPlaceholders) == 0 {
+				return nil
+			}
+			inList := strings.Join(inPlaceholders, ",")
+
+			// the per-parent limit is arbitrary chosen and may change in the future
+			const maxPerParent = 1000
+
+			var rawSQL string
 			if indirectRelField.IsMultiple() {
-				q.AndWhere(dbx.Exists(dbx.NewExp(fmt.Sprintf(
-					"SELECT 1 FROM %s AS je(value) WHERE je.value = {:id}",
-					dbutils.JSONEach(indirectRelField.Name),
-				))))
+				rawSQL = fmt.Sprintf(
+					"SELECT [[id]], [[parentId]] FROM ("+
+						"SELECT {{%s}}.[[id]] AS [[id]], je.value AS [[parentId]], "+
+						"ROW_NUMBER() OVER (PARTITION BY je.value ORDER BY {{%s}}.[[id]]) AS [[rn]] "+
+						"FROM {{%s}}, %s AS je(value) WHERE je.value IN (%s)"+
+						") [[__expand]] WHERE [[rn]] <= %d",
+					indirectRel.Name, indirectRel.Name, indirectRel.Name,
+					dbutils.JSONEach(indirectRelField.Name), inList, maxPerParent,
+				)
 			} else {
-				q.AndWhere(dbx.NewExp("[[" + indirectRelField.Name + "]] = {:id}"))
+				rawSQL = fmt.Sprintf(
+					"SELECT [[id]], [[parentId]] FROM ("+
+						"SELECT [[id]], [[%s]] AS [[parentId]], "+
+						"ROW_NUMBER() OVER (PARTITION BY [[%s]] ORDER BY [[id]]) AS [[rn]] "+
+						"FROM {{%s}} WHERE [[%s]] IN (%s)"+
+						") [[__expand]] WHERE [[rn]] <= %d",
+					indirectRelField.Name, indirectRelField.Name, indirectRel.Name,
+					indirectRelField.Name, inList, maxPerParent,
+				)
 			}
 
-			pq := q.Build().Prepare()
+			var rows []struct {
+				Id       string `db:"id"`
+				ParentId string `db:"parentId"`
+			}
+			if err := app.ConcurrentDB().NewQuery(rawSQL).Bind(inParams).All(&rows); err != nil {
+				return err
+			}
+
+			grouped := make(map[string][]string, len(records))
+			for _, row := range rows {
+				grouped[row.ParentId] = append(grouped[row.ParentId], row.Id)
+			}
 
 			for _, record := range records {
-				var relIds []string
-
-				err := pq.Bind(dbx.Params{"id": record.Id}).Column(&relIds)
-				if err != nil {
-					return errors.Join(err, pq.Close())
-				}
-
-				if len(relIds) > 0 {
+				if relIds := grouped[record.Id]; len(relIds) > 0 {
 					record.Set(parts[0], relIds)
 				}
 			}
 
-			return pq.Close()
+			return nil
 		}()
 		if prepErr != nil {
 			return prepErr
