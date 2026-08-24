@@ -37,6 +37,14 @@ func NewRouter(app core.App) (*router.Router[*core.RequestEvent], error) {
 
 	// API routes
 	apiGroup := pbRouter.Group("/api")
+
+	// gzip the textual API responses (mostly JSON); the streaming and
+	// already-compressed binary endpoints (realtime SSE, file and backup
+	// downloads) opt out individually via Unbind(DefaultGzipMiddlewareId)
+	// since buffering would break SSE and gzip drops Content-Length/range
+	// support and only wastes CPU on already-compressed payloads.
+	apiGroup.Bind(GzipWithConfig(GzipConfig{MinLength: 1024}))
+
 	bindSettingsApi(app, apiGroup)
 	bindCollectionApi(app, apiGroup)
 	bindRecordCrudApi(app, apiGroup)

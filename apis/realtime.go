@@ -34,7 +34,8 @@ const RealtimeClientIPKey = "pbRealtimeClientIP"
 // bindRealtimeApi registers the realtime api endpoints.
 func bindRealtimeApi(app core.App, rg *router.RouterGroup[*core.RequestEvent]) {
 	sub := rg.Group("/realtime")
-	sub.GET("", realtimeConnect).Bind(SkipSuccessActivityLog())
+	// exclude gzip: the SSE stream must not be buffered by the compressor
+	sub.GET("", realtimeConnect).Bind(SkipSuccessActivityLog()).Unbind(DefaultGzipMiddlewareId)
 	sub.POST("", realtimeSetSubscriptions)
 
 	bindRealtimeEvents(app)
