@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1362,25 +1363,51 @@ func (app *BaseApp) initLogger() error {
 				return nil
 			}
 
-			// write the accumulated logs
-			// (note: based on several local tests there is no significant performance difference between small number of separate write queries vs 1 big INSERT)
-			app.AuxRunInTransaction(func(txApp App) error {
-				model := &Log{}
-				for _, l := range logs {
-					model.MarkAsNew()
-					model.Id = GenerateDefaultRandomId()
-					model.Level = int(l.Level)
-					model.Message = l.Message
-					model.Data = l.Data
-					model.Created, _ = types.ParseDateTime(l.Time)
+			// Persist the accumulated logs with a single multi-row INSERT per
+			// chunk, so each flush is effectively one round-trip to PostgreSQL.
+			// The previous per-row AuxSave loop was a SQLite-era pattern (where
+			// round-trips are free); on PostgreSQL it cost up to BatchSize
+			// network round-trips per flush.
+			//
+			// Chunked to keep every statement comfortably under PostgreSQL's
+			// 65535 bind-parameter limit (logInsertColumns params per row).
+			const maxRowsPerInsert = 1000
 
-					if err := txApp.AuxSave(model); err != nil {
-						log.Println("Failed to write log", model, err)
+			err := app.AuxRunInTransaction(func(txApp App) error {
+				for start := 0; start < len(logs); start += maxRowsPerInsert {
+					end := min(start+maxRowsPerInsert, len(logs))
+
+					var sb strings.Builder
+					sb.WriteString("INSERT INTO ")
+					sb.WriteString(LogsTableName)
+					sb.WriteString(` ("id", "level", "message", "data", "created") VALUES `)
+
+					params := dbx.Params{}
+					for i, l := range logs[start:end] {
+						suffix := strconv.Itoa(i)
+						if i > 0 {
+							sb.WriteString(",")
+						}
+						sb.WriteString("({:id" + suffix + "},{:level" + suffix + "},{:message" + suffix + "},{:data" + suffix + "}::jsonb,{:created" + suffix + "}::timestamptz)")
+
+						created, _ := types.ParseDateTime(l.Time)
+						params["id"+suffix] = GenerateDefaultRandomId()
+						params["level"+suffix] = int(l.Level)
+						params["message"+suffix] = l.Message
+						params["data"+suffix] = l.Data
+						params["created"+suffix] = created
+					}
+
+					if _, err := txApp.AuxDB().NewQuery(sb.String()).Bind(params).Execute(); err != nil {
+						return err
 					}
 				}
 
 				return nil
 			})
+			if err != nil {
+				log.Println("Failed to write logs", err)
+			}
 
 			return nil
 		},
