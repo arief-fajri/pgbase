@@ -54,11 +54,14 @@ func ResolveDBConfig(config DBConfig) DBConfig {
 	if config.SSLMode == "" {
 		config.SSLMode = getEnvOrDefault("PB_POSTGRES_SSLMODE", "disable")
 	}
+	// keep the zero-config fallback in sync with the app-level pool defaults
+	// (base.go) so the CLI/raw connection paths never silently exceed the
+	// aligned single-instance ceiling; still overridable via generic env vars
 	if config.MaxOpenConns == 0 {
-		config.MaxOpenConns = 100
+		config.MaxOpenConns = getEnvIntOrDefault("PB_POSTGRES_MAX_OPEN_CONNS", DefaultDataMaxOpenConns)
 	}
 	if config.MaxIdleConns == 0 {
-		config.MaxIdleConns = 10
+		config.MaxIdleConns = getEnvIntOrDefault("PB_POSTGRES_MAX_IDLE_CONNS", DefaultDataMaxIdleConns)
 	}
 
 	return config
