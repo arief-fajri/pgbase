@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pocketbase/dbx"
@@ -623,6 +625,32 @@ func realtimeBroadcastRecord(app core.App, action string, record *core.Record, d
 		accessCheckApp = optAccessCheckApp[0]
 	}
 
+	// Memoize the access-check result for the duration of this single
+	// broadcast to avoid re-running the same rule query once per subscriber.
+	// The record is fixed here, so the decision only depends on the access
+	// rule and the per-subscription request info (see realtimeAccessCacheKey).
+	// The cache is shared across the chunk goroutines, hence the mutex.
+	accessMemo := make(map[string]bool)
+	var accessMemoMu sync.Mutex
+	canAccess := func(rec *core.Record, requestInfo *core.RequestInfo, rule *string) bool {
+		key := realtimeAccessCacheKey(rule, requestInfo)
+
+		accessMemoMu.Lock()
+		cached, ok := accessMemo[key]
+		accessMemoMu.Unlock()
+		if ok {
+			return cached
+		}
+
+		allowed := realtimeCanAccessRecord(accessCheckApp, rec, requestInfo, rule)
+
+		accessMemoMu.Lock()
+		accessMemo[key] = allowed
+		accessMemoMu.Unlock()
+
+		return allowed
+	}
+
 	for _, chunk := range chunks {
 		group.Go(routine.SafeWrap(func() error {
 			var clientAuth *core.Record
@@ -648,7 +676,7 @@ func realtimeBroadcastRecord(app core.App, action string, record *core.Record, d
 							Auth:    clientAuth,
 						}
 
-						if !realtimeCanAccessRecord(accessCheckApp, record, requestInfo, rule) {
+						if !canAccess(record, requestInfo, rule) {
 							continue
 						}
 
@@ -692,7 +720,7 @@ func realtimeBroadcastRecord(app core.App, action string, record *core.Record, d
 							// for auth owner, superuser or manager
 							if collection.IsAuth() {
 								if isSameAuth(clientAuth, cleanRecord) ||
-									realtimeCanAccessRecord(accessCheckApp, cleanRecord, requestInfo, collection.ManageRule) {
+									canAccess(cleanRecord, requestInfo, collection.ManageRule) {
 									cleanRecord.IgnoreEmailVisibility(true)
 								}
 							}
@@ -851,6 +879,57 @@ func isSameAuth(authA, authB *core.Record) bool {
 	}
 
 	return authA.Id == authB.Id && authA.Collection().Id == authB.Collection().Id
+}
+
+// realtimeAccessCacheKey builds a key that fully captures every input that
+// realtimeCanAccessRecord's result depends on for a fixed record within a
+// single broadcast: the access rule and the per-subscription request info
+// (auth, query and headers, which the rule/filter may reference).
+//
+// The auth record is keyed by its pointer identity on purpose: the same
+// pointer guarantees identical field values, so a cache hit can never reuse a
+// decision computed for a different auth state (clients authed as the same
+// record are synced to a shared instance in realtimeUpdateClientsAuth, and a
+// live pointer is never reused mid-broadcast). Distinct in-memory copies of
+// the same identity simply fall back to a separate, correct evaluation.
+func realtimeAccessCacheKey(rule *string, requestInfo *core.RequestInfo) string {
+	var b strings.Builder
+
+	if rule == nil {
+		b.WriteByte(0)
+	} else {
+		b.WriteByte(1)
+		b.WriteString(*rule)
+	}
+	b.WriteByte(0x1f)
+
+	fmt.Fprintf(&b, "%p", requestInfo.Auth)
+	b.WriteByte(0x1f)
+
+	writeSortedStringMap(&b, requestInfo.Query)
+	b.WriteByte(0x1f)
+	writeSortedStringMap(&b, requestInfo.Headers)
+
+	return b.String()
+}
+
+func writeSortedStringMap(b *strings.Builder, m map[string]string) {
+	if len(m) == 0 {
+		return
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(m[k])
+		b.WriteByte(0x1e)
+	}
 }
 
 // realtimeCanAccessRecord checks if the subscription client has access to the specified record model.
