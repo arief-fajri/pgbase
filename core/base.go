@@ -1296,11 +1296,17 @@ func (app *BaseApp) registerBaseHooks() {
 		Priority: 999,
 	})
 
-	app.Cron().Add("__pbDBVacuum__", "0 0 * * *", func() {
-		if execErr := app.Vacuum(); execErr != nil {
-			app.Logger().Warn("Failed to run periodic VACUUM for the main database", slog.String("error", execErr.Error()))
-		}
-	})
+	// Periodic VACUUM of the main database. PostgreSQL's autovacuum normally
+	// keeps tables healthy on its own, so this is mostly a safety net inherited
+	// from the SQLite era. The schedule is configurable via PB_DB_VACUUM_CRON
+	// and can be turned off entirely by setting it to an empty value or "off".
+	if vacuumSchedule := getEnvOrDefault("PB_DB_VACUUM_CRON", "0 0 * * *"); vacuumSchedule != "" && !strings.EqualFold(vacuumSchedule, "off") {
+		app.Cron().Add("__pbDBVacuum__", vacuumSchedule, func() {
+			if execErr := app.Vacuum(); execErr != nil {
+				app.Logger().Warn("Failed to run periodic VACUUM for the main database", slog.String("error", execErr.Error()))
+			}
+		})
+	}
 
 	app.registerSettingsHooks()
 	app.registerAutobackupHooks()
