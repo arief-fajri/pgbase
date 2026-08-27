@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tools/router"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 const (
@@ -44,7 +44,7 @@ func runSQL(e *core.RequestEvent) error {
 
 	result, err := executeQuery(e.App, form.Query, runSQLMaxRows)
 	if err != nil {
-		return firstApiError(err, e.BadRequestError("Failed to execute query. Raw error:\n"+err.Error(), nil))
+		return firstApiError(err, e.BadRequestError(runSQLErrorMessage(e.App, err), nil))
 	}
 
 	return e.JSON(http.StatusOK, result)
@@ -73,9 +73,30 @@ type runSQLResult struct {
 	Rows         [][]any              `json:"rows"`
 }
 
-var knownWriteQueryPrefixes = []string{
-	"INSERT", "CREATE", "UPDATE", "DELETE",
-	"DROP", "ALTER",
+var knownReadQueryPrefixes = []string{
+	"SELECT",
+	"WITH",
+	"SHOW",
+	"EXPLAIN",
+}
+
+func runSQLErrorMessage(app core.App, err error) string {
+	if app.IsDev() {
+		return "Failed to execute query. Raw error:\n" + err.Error()
+	}
+
+	app.Logger().Warn("Failed to execute SQL console query", slog.String("error", err.Error()))
+	return "Failed to execute query."
+}
+
+func isSQLConsoleReadQuery(query string) bool {
+	ucQuery := strings.ToUpper(strings.TrimLeft(query, " \t\r\n"))
+	for _, prefix := range knownReadQueryPrefixes {
+		if ucQuery == prefix || strings.HasPrefix(ucQuery, prefix+" ") || strings.HasPrefix(ucQuery, prefix+"\t") || strings.HasPrefix(ucQuery, prefix+"\n") {
+			return true
+		}
+	}
+	return false
 }
 
 func executeQuery(app core.App, query string, maxRows int) (*runSQLResult, error) {
@@ -84,18 +105,10 @@ func executeQuery(app core.App, query string, maxRows int) (*runSQLResult, error
 		return nil, errors.New("empty query")
 	}
 
-	var isPossibleWriteQuery bool
-
-	// loosely check the query type
-	ucQuery := strings.ToUpper(query)
-	if !strings.HasPrefix(ucQuery, "SELECT") {
-		for _, prefix := range knownWriteQueryPrefixes {
-			if strings.HasPrefix(ucQuery, prefix) {
-				isPossibleWriteQuery = true
-				break
-			}
-		}
-	}
+	// Fail safer for ambiguous SQL console statements: only known row-returning
+	// statements use Rows(); everything else is executed in a transaction so
+	// write statements such as TRUNCATE/CALL/DO/VACUUM are not misclassified.
+	isPossibleWriteQuery := !isSQLConsoleReadQuery(query)
 
 	// note: don't extend the request context to minimize the risk of
 	// causing integrity issues with custom non-transaction mutations

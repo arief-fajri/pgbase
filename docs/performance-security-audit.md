@@ -193,3 +193,15 @@ Residual risk yang masih perlu follow-up: CORS allow-list environment-specific, 
 - [ ] Backup terenkripsi, diuji restore, dan akses backup memakai least privilege.
 - [ ] Audit log untuk superuser actions, SQL console, backup/restore, settings changes.
 - [ ] SBOM dan vulnerability scan di CI/CD.
+
+## Update audit lanjutan - SQL console hardening (2026-08-27)
+
+Audit ulang pada branch ini menemukan gap tambahan pada klasifikasi `/api/sql`: hanya prefix write umum (`INSERT`, `CREATE`, `UPDATE`, `DELETE`, `DROP`, `ALTER`) yang dieksekusi melalui transaksi, sementara statement PostgreSQL lain seperti `TRUNCATE`, `CALL`, `DO`, `VACUUM`, atau statement ambigu dapat jatuh ke jalur `Rows()`. Selain itu, error database mentah selalu dikirim ke client walaupun aplikasi berjalan non-dev.
+
+Perbaikan yang diterapkan:
+
+- Mengubah klasifikasi SQL console menjadi fail-safer: hanya statement yang jelas row-returning (`SELECT`, `WITH`, `SHOW`, `EXPLAIN`) yang memakai jalur read; statement lain dieksekusi melalui transaksi agar mutasi/administrative command tidak salah diklasifikasikan.
+- Meredaksi raw database error untuk mode non-dev dan tetap mencatat detail ke logger aplikasi; raw error tetap tersedia di mode dev untuk debugging lokal.
+- Menambah unit test klasifikasi agar prefix palsu seperti `selection` tidak dianggap `SELECT`, sementara statement ambigu/mutasi diperlakukan sebagai write-safe path.
+
+Risiko residual: endpoint SQL tetap privileged-superuser by design. Deployment regulated tetap disarankan menambahkan mode read-only/disabled, audit trail query, dan limit byte response.
