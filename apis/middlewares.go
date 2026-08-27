@@ -290,12 +290,19 @@ func securityHeaders() *hook.Handler[*core.RequestEvent] {
 		Id:       DefaultSecurityHeadersMiddlewareId,
 		Priority: DefaultSecurityHeadersMiddlewarePriority,
 		Func: func(e *core.RequestEvent) error {
-			e.Response.Header().Set("X-XSS-Protection", "1; mode=block")
-			e.Response.Header().Set("X-Content-Type-Options", "nosniff")
-			e.Response.Header().Set("X-Frame-Options", "SAMEORIGIN")
+			header := e.Response.Header()
 
-			// @todo consider a default HSTS?
-			// (see also https://webkit.org/blog/8146/protecting-against-hsts-abuse/)
+			// Disable the legacy reflected-XSS auditor. Modern browsers either ignore
+			// this header or can expose bypass quirks when it is enabled.
+			header.Set("X-XSS-Protection", "0")
+			header.Set("X-Content-Type-Options", "nosniff")
+			header.Set("X-Frame-Options", "SAMEORIGIN")
+			header.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			header.Set("Permissions-Policy", "accelerometer=(), ambient-light-sensor=(), autoplay=(), battery=(), camera=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(self), screen-wake-lock=(), sync-xhr=(), usb=(), xr-spatial-tracking=()")
+
+			if e.Request.TLS != nil {
+				header.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+			}
 
 			return e.Next()
 		},

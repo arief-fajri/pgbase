@@ -152,6 +152,16 @@ Audit menemukan beberapa kontrol keamanan yang sudah baik: endpoint SQL dibatasi
 - Static file handler melakukan cleaning path dan explicit traversal check.
 - SQL endpoint dibatasi superuser dan query memiliki timeout 3 menit serta limit row 1000.
 
+## Remediasi yang diterapkan pada patch ini
+
+- **SEC-01 mitigated by default:** `$os` binding untuk JS hooks/migrations kini gated oleh `jsvm.Config.EnableOSBindings`; contoh binary menambahkan flag `--hooksAllowOS` yang default `false`, sehingga command execution dan mutasi filesystem dari JS runtime tidak lagi aktif tanpa opt-in eksplisit.
+- **SEC-02 mitigated for new installs:** `RateLimits.Enabled` default diubah menjadi `true`, sehingga rule baseline auth/create/batch/API langsung aktif pada instalasi baru.
+- **SEC-04 partially mitigated:** security middleware menambahkan `Referrer-Policy`, `Permissions-Policy`, HSTS untuk request TLS, dan menonaktifkan legacy `X-XSS-Protection`.
+- **SEC-06 partially mitigated:** Dockerfile kini memakai build args untuk versi Go/Alpine, runtime Alpine yang lebih baru, dan user non-root `pgbase`.
+- **PERF-01 mitigated:** server timeout default lebih ketat (`ReadHeaderTimeout` 10 detik, `Read/WriteTimeout` 2 menit, `IdleTimeout` 2 menit) dan shutdown grace dinaikkan ke 30 detik agar lebih aman untuk drain produksi.
+
+Residual risk yang masih perlu follow-up: CORS allow-list environment-specific, SQL console read-only/disable mode, byte cap untuk SQL response, dan observability batch belum diimplementasikan di patch ini.
+
 ## Rekomendasi roadmap
 
 ### 0-30 hari

@@ -13,14 +13,14 @@ import (
 	"sync"
 	"time"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
-	"github.com/pocketbase/ozzo-validation/v4/is"
 	"github.com/arief-fajri/pgbase/core/validators"
 	"github.com/arief-fajri/pgbase/tools/cron"
 	"github.com/arief-fajri/pgbase/tools/hook"
 	"github.com/arief-fajri/pgbase/tools/mailer"
 	"github.com/arief-fajri/pgbase/tools/security"
 	"github.com/arief-fajri/pgbase/tools/types"
+	validation "github.com/pocketbase/ozzo-validation/v4"
+	"github.com/pocketbase/ozzo-validation/v4/is"
 )
 
 const (
@@ -176,7 +176,7 @@ func newDefaultSettings() *Settings {
 				Timeout:     3,
 			},
 			RateLimits: RateLimitsConfig{
-				Enabled: false, // @todo once tested enough enable by default for new installations
+				Enabled: true,
 				Rules: []RateLimitRule{
 					{Label: "*:auth", MaxRequests: 2, Duration: 3},
 					{Label: "*:create", MaxRequests: 20, Duration: 5},

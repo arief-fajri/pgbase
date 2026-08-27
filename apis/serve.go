@@ -12,12 +12,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tools/hook"
 	"github.com/arief-fajri/pgbase/tools/list"
 	"github.com/arief-fajri/pgbase/tools/routine"
 	"github.com/arief-fajri/pgbase/ui"
+	"github.com/fatih/color"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -148,10 +148,13 @@ func Serve(app core.App, config ServeConfig) error {
 			GetCertificate: certManager.GetCertificate,
 			NextProtos:     []string{acme.ALPNProto},
 		},
-		// higher defaults to accommodate large file uploads/downloads
-		WriteTimeout:      5 * time.Minute,
-		ReadTimeout:       5 * time.Minute,
-		ReadHeaderTimeout: 1 * time.Minute,
+		// Default server-level timeouts are intentionally conservative for
+		// production. Larger upload/download flows should be handled by route-level
+		// limits or a reverse proxy instead of keeping generic connections open.
+		WriteTimeout:      2 * time.Minute,
+		ReadTimeout:       2 * time.Minute,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
 		Addr:              mainAddr,
 		BaseContext: func(l net.Listener) context.Context {
 			return baseCtx
@@ -173,7 +176,7 @@ func Serve(app core.App, config ServeConfig) error {
 		Func: func(te *core.TerminateEvent) error {
 			cancelBaseCtx()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			wg.Add(1)

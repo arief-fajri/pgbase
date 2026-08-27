@@ -47,6 +47,14 @@ func main() {
 		"the total prewarm goja.Runtime instances for the JS app hooks execution",
 	)
 
+	var hooksAllowOS bool
+	app.RootCmd.PersistentFlags().BoolVar(
+		&hooksAllowOS,
+		"hooksAllowOS",
+		false,
+		"allow JS hooks and migrations to use the unsafe $os bindings",
+	)
+
 	var migrationsDir string
 	app.RootCmd.PersistentFlags().StringVar(
 		&migrationsDir,
@@ -87,10 +95,11 @@ func main() {
 
 	// load jsvm (pb_hooks and pb_migrations)
 	jsvm.MustRegister(app, jsvm.Config{
-		MigrationsDir: migrationsDir,
-		HooksDir:      hooksDir,
-		HooksWatch:    hooksWatch,
-		HooksPoolSize: hooksPool,
+		MigrationsDir:    migrationsDir,
+		HooksDir:         hooksDir,
+		HooksWatch:       hooksWatch,
+		HooksPoolSize:    hooksPool,
+		EnableOSBindings: hooksAllowOS,
 	})
 
 	// migrate command (with js templates)

@@ -24,6 +24,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/arief-fajri/pgbase/core"
+	"github.com/arief-fajri/pgbase/plugins/jsvm/internal/types/generated"
+	"github.com/arief-fajri/pgbase/tools/routine"
+	"github.com/arief-fajri/pgbase/tools/template"
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/buffer"
 	"github.com/dop251/goja_nodejs/console"
@@ -31,10 +35,6 @@ import (
 	"github.com/dop251/goja_nodejs/require"
 	"github.com/fatih/color"
 	"github.com/fsnotify/fsnotify"
-	"github.com/arief-fajri/pgbase/core"
-	"github.com/arief-fajri/pgbase/plugins/jsvm/internal/types/generated"
-	"github.com/arief-fajri/pgbase/tools/routine"
-	"github.com/arief-fajri/pgbase/tools/template"
 )
 
 const typesFileName = "types.d.ts"
@@ -88,6 +88,12 @@ type Config struct {
 	// Zero or negative value means that it will create a new goja.Runtime
 	// on every fired goroutine.
 	HooksPoolSize int
+
+	// EnableOSBindings exposes the $os namespace to JS hooks and migrations.
+	//
+	// Keep this disabled for production unless all hook and migration files are
+	// fully trusted because it allows command execution and filesystem mutation.
+	EnableOSBindings bool
 
 	// MigrationsDir specifies the JS migrations directory.
 	//
@@ -207,7 +213,9 @@ func (p *plugin) registerMigrations() error {
 		BindCore(vm)
 		BindDbx(vm)
 		BindSecurity(vm)
-		BindOS(vm)
+		if p.config.EnableOSBindings {
+			BindOS(vm)
+		}
 		BindFilepath(vm)
 		BindHTTP(vm)
 		BindFilesystem(vm)
@@ -295,7 +303,9 @@ func (p *plugin) registerHooks() error {
 		BindCore(vm)
 		BindDbx(vm)
 		BindSecurity(vm)
-		BindOS(vm)
+		if p.config.EnableOSBindings {
+			BindOS(vm)
+		}
 		BindFilepath(vm)
 		BindHTTP(vm)
 		BindFilesystem(vm)
