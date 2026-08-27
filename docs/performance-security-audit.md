@@ -18,6 +18,8 @@ Audit menemukan beberapa kontrol keamanan yang sudah baik: endpoint SQL dibatasi
 
 ## Scope dan bukti pemeriksaan
 
+- Validasi ulang dilakukan dengan membaca/scanning seluruh file teks repository yang dapat didekode UTF-8: **931 file**, **213.989 baris**, **10.391.851 byte**; 39 file binary/non-UTF8 dilewati sebagai aset biner.
+- Fokus review manual kemudian diperdalam pada jalur security/performance berisiko: `apis/`, `core/`, `plugins/jsvm/`, `tools/filesystem/`, `Dockerfile`, `go.mod`, dan `ui/package*.json`.
 - Bahasa utama: Go 1.25, modul `github.com/arief-fajri/pgbase`.
 - UI: Vite-based admin UI dengan dependencies `leaflet`, `pocketbase`, `vite`, `dprint`.
 - Container: multi-stage Docker build menghasilkan binary `pgbase` dan menjalankan `serve --http 0.0.0.0:8090`.
@@ -39,6 +41,29 @@ Audit menemukan beberapa kontrol keamanan yang sudah baik: endpoint SQL dibatasi
 | PERF-01 | HTTP server lifecycle | Medium | N/A | NIST SC-5, CP-10 | `ReadTimeout`/`WriteTimeout` 5 menit dan `ReadHeaderTimeout` 1 menit; shutdown context hanya 1 detik. | Long-lived slow clients dan upload besar dapat menahan goroutine lebih lama; shutdown produksi bisa memutus transaksi/request aktif. | Evaluasi timeout per route, turunkan header timeout, pakai idle timeout eksplisit, dan shutdown grace 10-30 detik configurable. |
 | PERF-02 | Batch processing | Medium | N/A | OWASP API4; NIST SC-5 | Batch default mendukung sampai 50 request dan max body fallback 128 MiB, diproses dalam satu transaksi dengan goroutine dan timeout. | Memori/CPU/DB lock dapat meningkat pada batch besar, terutama multipart file upload. | Tambahkan observability per batch item, limit body per item, concurrency policy, dan circuit breaker untuk endpoint mahal. |
 | PERF-03 | SQL result memory | Low | N/A | OWASP API4 | SQL endpoint membatasi max 1000 rows, tetapi data hasil tetap dikumpulkan dalam memory sebelum respons. | Superuser query dengan row/kolom besar dapat meningkatkan penggunaan memori. | Tambahkan batas byte response, streaming pagination untuk admin SQL, dan warning saat truncation. |
+
+## Validasi mendalam per temuan
+
+### Matriks validasi
+
+| ID | Status validasi | Bukti kode utama yang sudah dicek | Kesimpulan setelah validasi ulang |
+|---|---|---|---|
+| SEC-01 | Confirmed, conditional exploitability | `plugins/jsvm/binds.go:813-836` | Binding OS memang diekspos eksplisit. Risiko bukan dari remote unauthenticated request langsung, tetapi dari supply-chain/plugin/hook write compromise atau konfigurasi deployment yang memberi akses tulis ke hooks. Severity tetap High untuk deployment yang menjalankan hooks dari volume writable. |
+| SEC-02 | Confirmed | `core/settings_model.go:173-181`; `apis/middlewares_rate_limit.go` | Batch dan rate-limit rule ada, tetapi rate limit default `Enabled: false`. Ini adalah hardening gap, bukan vulnerability implementasi limiter. |
+| SEC-03 | Confirmed | `apis/serve.go:61-80`; `apis/middlewares_cors.go:122-266` | Default wildcard origin benar adanya. Middleware tidak otomatis mengaktifkan credentials, sehingga risiko default adalah exposure/cross-origin readability untuk resource yang memang bisa dibaca browser, bukan credentialed CORS takeover. |
+| SEC-04 | Confirmed | `apis/middlewares.go:288-300`; `apis/serve.go:91-94`; `apis/extensions.go:31-35`; `tools/filesystem/filesystem.go:469` | Header dasar tersedia, CSP ada untuk admin UI dan file response tertentu, tetapi tidak ada HSTS/referrer/permissions policy global. |
+| SEC-05 | Confirmed, admin-only | `apis/sql.go:16-24`, `apis/sql.go:58-130` | SQL console guarded oleh superuser auth, tetapi tetap arbitrary SQL by design. Risk rating disesuaikan sebagai privileged abuse/blast-radius control. |
+| SEC-06 | Confirmed config risk | `Dockerfile:1-14`, `go.mod`, `ui/package-lock.json` | Dockerfile memakai `alpine:3.19`; vulnerability scan online gagal karena 403 sehingga status CVE spesifik belum terverifikasi. Tetap valid sebagai supply-chain hygiene issue. |
+| PERF-01 | Confirmed | `apis/serve.go:145-180`, `apis/serve.go:297-304` | Timeout server dan shutdown grace sesuai temuan. Perlu tuning production per route/reverse proxy. |
+| PERF-02 | Confirmed | `apis/batch.go:95-111`, `apis/batch.go:193-215` | Batch memproses request dalam transaksi dengan fallback body 128 MiB. Endpoint disabled default, tetapi bila diaktifkan perlu limit operasional. |
+| PERF-03 | Confirmed | `apis/sql.go:69-73`, `apis/sql.go:143-176` | Rows disimpan dalam slice sebelum response, dibatasi 1000 row tetapi tanpa byte cap eksplisit. Risiko terbatas pada superuser. |
+
+### Catatan false-positive dan pembatasan audit
+
+- Banyak match `os.RemoveAll`/`os.WriteFile` berada di test atau cleanup internal; yang diklasifikasikan High hanya ekspor primitive OS ke runtime JS karena menjadi capability untuk kode hook.
+- Beberapa pemakaian `ParseUnverifiedJWT` sudah diikuti validasi token/signature pada alur terkait; item tersebut tidak dinaikkan menjadi temuan tersendiri setelah validasi ulang.
+- `safeHTTPClient` untuk OAuth2/file remote sudah memitigasi SSRF loopback/private/link-local/multicast dan DNS rebinding setelah koneksi; tidak dinaikkan sebagai issue, hanya tetap direkomendasikan whitelist tambahan bila URL berasal dari input tidak tepercaya.
+- Test dan vulnerability scan dependency tidak bisa memberi hasil final karena dependensi environment eksternal diblokir/tidak tersedia; laporan tidak mengklaim status bebas CVE.
 
 ## Detail temuan keamanan
 
