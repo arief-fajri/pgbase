@@ -363,6 +363,52 @@ lookup — the actual hot path — is index-served.
 
 ---
 
+## 3c. Cross-instance realtime (outbox)
+
+By default realtime is **single-instance**: record broadcasts are fanned out to
+the subscribers connected to the instance that performed the write. To fan a
+write out to subscribers on *other* app instances (a **multi-instance**
+deployment sharing one database), enable the DB-backed event outbox:
+
+```bash
+PB_REALTIME_OUTBOX=1
+```
+
+When enabled, each record write appends an event row to `_realtime_outbox`
+(`action`, `collection`, `record_id`, `snapshot`) and sends a PostgreSQL
+`NOTIFY pb_realtime_outbox` wake-up. Every other instance `LISTEN`s on that
+channel (dedicated pgx-native connection), reads the pending events, and
+re-broadcasts them to its own local subscribers.
+
+### Design notes
+
+- **Create/update** events store only identifiers; the receiver re-fetches the
+  record by id, so the broadcast always carries the latest committed state
+  (last-write-wins is automatic — no manual field merge).
+- **Delete** events store the **full serialized record snapshot** taken before
+  the delete, because a re-fetch is impossible after the delete commits; the
+  receiver re-evaluates its local access rules against that snapshot.
+- **Broadcast queue, not competing consumers**: every instance processes every
+  row for its own local fanout, deduplicating per event id in memory. Rows are
+  not ack-marked (a per-row ack would let one instance "consume" an event
+  before another read it); stale rows are removed by the hourly TTL cleanup.
+- The listener reconnects with a backoff and re-polls pending events after a
+  reconnect (catch-up), so brief disconnects do not lose broadcasts to the
+  local subscribers.
+
+### Operational notes
+
+- `PB_REALTIME_OUTBOX` defaults to **off**: single-instance deployments have
+  zero outbox reads, zero NOTIFY listeners and zero extra rows (the write path
+  is unchanged).
+- The listener needs a dedicated PostgreSQL connection (LISTEN is not
+  multi-plexed by a transaction-pooling proxy); connect it directly or via a
+  session-pooling front.
+- The outbox table is small (event rows, TTL-cleaned). With the listener
+  disabled the rows are not produced at all.
+
+---
+
 ## 4. Run the UI (Dev Mode, Hot Reload)
 
 The dashboard is a single-page app written in vanilla JavaScript (a small
