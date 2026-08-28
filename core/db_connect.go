@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pocketbase/dbx"
 )
 
 type DBConfig struct {
@@ -226,6 +226,14 @@ func quoteParamValue(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
+// getEnvBool returns whether the given env var is set to a truthy value
+// ("1", "true", "yes", "on"), case-insensitive.
+func getEnvBool(key string) bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
+// getEnvOrDefault returns the given env var value, or defaultVal if unset/empty.
 func getEnvOrDefault(key, defaultVal string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

@@ -431,6 +431,8 @@ func bindRealtimeEvents(app core.App) {
 						slog.String("collectionName", record.Collection().Name),
 						slog.String("error", err.Error()),
 					)
+				} else {
+					publishRealtimeEvent(app, "create", record, nil)
 				}
 			}
 
@@ -451,6 +453,8 @@ func bindRealtimeEvents(app core.App) {
 						slog.String("collectionName", record.Collection().Name),
 						slog.String("error", err.Error()),
 					)
+				} else {
+					publishRealtimeEvent(app, "update", record, nil)
 				}
 			}
 
@@ -467,14 +471,17 @@ func bindRealtimeEvents(app core.App) {
 				// note: use the outside scoped app instance for the access checks so that the API rules
 				// are performed out of the delete transaction ensuring that they would still work even if
 				// a cascade-deleted record's API rule relies on an already deleted parent record
-				err := realtimeBroadcastRecord(e.App, "delete", record, true, app)
-				if err != nil {
+				if err := realtimeBroadcastRecord(e.App, "delete", record, true, app); err != nil {
 					app.Logger().Debug(
 						"Failed to dry cache record delete",
 						slog.String("id", record.Id),
 						slog.String("collectionName", record.Collection().Name),
 						slog.String("error", err.Error()),
 					)
+				} else {
+					// snapshot the record BEFORE it is deleted so other instances can
+					// re-evaluate their local subscribers after the delete commits
+					publishRealtimeEvent(app, "delete", record, record)
 				}
 			}
 
@@ -881,6 +888,21 @@ func isSameAuth(authA, authB *core.Record) bool {
 	}
 
 	return authA.Id == authB.Id && authA.Collection().Id == authB.Collection().Id
+}
+
+// publishRealtimeEvent appends a cross-instance realtime outbox event
+// best-effort (the publisher also needs the broadcast to have succeeded, to
+// keep outbox writes consistent with local fanout).
+func publishRealtimeEvent(app core.App, action string, record *core.Record, snapshot *core.Record) {
+	if err := app.PublishRealtimeEvent(action, record.Collection().Name, record.Id, snapshot); err != nil {
+		app.Logger().Debug(
+			"Failed to publish realtime outbox event",
+			slog.String("action", action),
+			slog.String("id", record.Id),
+			slog.String("collectionName", record.Collection().Name),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
 // realtimeAccessCacheKey builds a key that fully captures every input that

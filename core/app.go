@@ -303,6 +303,13 @@ type App interface {
 	// AuxAnalyze updates the query planner statistics on the auxiliary database.
 	AuxAnalyze() error
 
+	// PublishRealtimeEvent appends a cross-instance realtime outbox event
+	// (no-op unless the realtime outbox is enabled - see PB_REALTIME_OUTBOX).
+	PublishRealtimeEvent(action string, collectionName string, recordId string, snapshot *Record) error
+
+	// CleanupStaleRealtimeEvents removes processed/stale realtime outbox events.
+	CleanupStaleRealtimeEvents(staleAge time.Duration) error
+
 	// ---------------------------------------------------------------
 
 	// ModelQuery creates a new preconfigured select query with preset
