@@ -153,8 +153,9 @@ func (app *BaseApp) SyncRecordTableSchema(newCollection *Collection, oldCollecti
 		return txErr
 	}
 
-	// run analyze to update query planner statistics
-	if analyzeErr := app.Analyze(); analyzeErr != nil {
+	// run analyze to update query planner statistics for the changed table only
+	// (scoping to the table avoids re-analyzing the entire database - IDX-5)
+	if analyzeErr := app.AnalyzeTable(newCollection.Name); analyzeErr != nil {
 		app.Logger().Warn("Failed to run ANALYZE after record table sync", slog.String("error", analyzeErr.Error()))
 	}
 

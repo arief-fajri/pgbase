@@ -77,7 +77,10 @@ func (app *BaseApp) registerInstanceHeartbeatGuard() {
 	})
 
 	app.Cron().MustAdd(instanceHeartbeatsCleanupCronKey, "2 * * * *", func() {
-		if err := guard.purgeStaleRows(); err != nil {
+		err := guard.app.runWithCronLock(instanceHeartbeatsCleanupCronKey, app.Logger(), func() error {
+			return guard.purgeStaleRows()
+		})
+		if err != nil {
 			app.Logger().Warn("Failed to purge stale instance heartbeats", slog.String("error", err.Error()))
 		}
 	})

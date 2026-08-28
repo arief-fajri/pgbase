@@ -1311,8 +1311,11 @@ func (app *BaseApp) registerBaseHooks() {
 	// "off" keeps it disabled.
 	if vacuumSchedule := getEnvOrDefault("PB_DB_VACUUM_CRON", ""); vacuumSchedule != "" && !strings.EqualFold(vacuumSchedule, "off") {
 		app.Cron().Add("__pbDBVacuum__", vacuumSchedule, func() {
-			if execErr := app.Vacuum(); execErr != nil {
-				app.Logger().Warn("Failed to run periodic VACUUM for the main database", slog.String("error", execErr.Error()))
+			err := app.runWithCronLock("__pbDBVacuum__", app.Logger(), func() error {
+				return app.Vacuum()
+			})
+			if err != nil {
+				app.Logger().Warn("Failed to run periodic VACUUM for the main database", slog.String("error", err.Error()))
 			}
 		})
 	}
@@ -1517,9 +1520,11 @@ func (app *BaseApp) initLogger() error {
 
 	// cleanup old logs
 	app.Cron().Add("__pbLogsCleanup__", "0 */6 * * *", func() {
-		deleteErr := app.DeleteOldLogs(time.Now().AddDate(0, 0, -1*app.Settings().Logs.MaxDays))
-		if deleteErr != nil {
-			app.Logger().Warn("Failed to delete old logs", "error", deleteErr)
+		err := app.runWithCronLock("__pbLogsCleanup__", app.Logger(), func() error {
+			return app.DeleteOldLogs(time.Now().AddDate(0, 0, -1*app.Settings().Logs.MaxDays))
+		})
+		if err != nil {
+			app.Logger().Warn("Failed to delete old logs", "error", err)
 		}
 	})
 

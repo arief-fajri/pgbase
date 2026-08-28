@@ -296,6 +296,10 @@ type App interface {
 	// Analyze updates the query planner statistics on the main database.
 	Analyze() error
 
+	// AnalyzeTable updates the query planner statistics for a single table
+	// only, avoiding a whole-database ANALYZE after a collection schema change.
+	AnalyzeTable(tableName string) error
+
 	// AuxAnalyze updates the query planner statistics on the auxiliary database.
 	AuxAnalyze() error
 
