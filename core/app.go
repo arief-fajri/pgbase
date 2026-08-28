@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/cron"
 	"github.com/arief-fajri/pgbase/tools/filesystem"
@@ -309,6 +310,15 @@ type App interface {
 
 	// CleanupStaleRealtimeEvents removes processed/stale realtime outbox events.
 	CleanupStaleRealtimeEvents(staleAge time.Duration) error
+
+	// RealtimeOutboxPendingEvents returns unprocessed realtime outbox events.
+	RealtimeOutboxPendingEvents(limit int) ([]RealtimeOutboxEvent, error)
+
+	// RealtimeOutboxEnabled reports whether the realtime outbox is enabled.
+	RealtimeOutboxEnabled() bool
+
+	// OpenRealtimeOutboxListener opens a dedicated pgx-native LISTEN connection.
+	OpenRealtimeOutboxListener(connectCtx context.Context) (*pgx.Conn, error)
 
 	// ---------------------------------------------------------------
 

@@ -41,6 +41,7 @@ func bindRealtimeApi(app core.App, rg *router.RouterGroup[*core.RequestEvent]) {
 	sub.POST("", realtimeSetSubscriptions)
 
 	bindRealtimeEvents(app)
+	registerRealtimeOutboxListener(app)
 }
 
 func realtimeConnect(e *core.RequestEvent) error {
