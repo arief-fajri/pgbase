@@ -247,6 +247,7 @@ smaller **aux** pool (logs). Their sizes are tunable via env vars (no rebuild):
 | `PB_POSTGRES_STATEMENT_TIMEOUT`   | `60s` | role-level `statement_timeout` (`ALTER ROLE CURRENT_USER` on boot; `off`/`0` resets) |
 | `PB_POSTGRES_LOCK_TIMEOUT`        | `30s` | role-level `lock_timeout` (`ALTER ROLE CURRENT_USER` on boot; `off`/`0` resets) |
 | `PB_POSTGRES_DEFAULT_QUERY_EXEC_MODE` | *unset* | pgx client-side query exec mode (`exec`/`simple_protocol` for PgBouncer transaction pooling; see warning above) |
+| `PB_DB_VACUUM_CRON` | *unset (off)* | daily whole-DB `VACUUM` cron schedule (eg. `0 0 * * *`) — **off by default**; PostgreSQL autovacuum covers it. `off`/empty keeps it disabled |
 
 > [!IMPORTANT]
 > The effective per-instance ceiling is **`DATA_MAX_OPEN + AUX_MAX_OPEN`**
