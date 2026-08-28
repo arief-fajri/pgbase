@@ -440,6 +440,50 @@ PB_POSTGRES_PASSWORD=secret go run ./examples/base superuser upsert admin@exampl
 
 ---
 
+## 5b. Schema & data-model notes
+
+### Manual `CREATE INDEX CONCURRENTLY` (IDX-4 escape hatch)
+
+Collection schema changes run inside a transaction, so plain `CREATE INDEX` on a
+large populated table takes a `SHARE` lock that blocks **writes** for the build
+duration. Post-index-diff, only genuinely changed/added indexes trigger a
+rebuild, so this is usually a short window. For exceptional cases (a huge hot
+table), a DBA can build the index out-of-band to avoid the write stall:
+
+```sql
+CREATE UNIQUE INDEX CONCURRENTLY "idx_foo" ON "my_table" (LOWER("username")) WHERE "username" <> '';
+```
+
+Notes:
+- `CONCURRENTLY` cannot run inside a transaction; run it directly via `psql`.
+- It may leave an `INVALID` index on failure; drop it before retrying
+  (`DROP INDEX ...`).
+- After building, the index must also be declared in the collection's
+  `indexes` JSON so the schema sync treats it as managed (or it will be
+  re-created by the sync instead of reused).
+
+### Legacy SQLite-format backup export (TX-1 tradeoff)
+
+The default backup format (`pg`) runs `pg_dump` as an external process with its
+own consistent snapshot and is fully safe. The legacy opt-in format
+(`Backups.Format = "sqlite"`) wraps its reads in a single transaction to keep
+them snapshot-consistent. On PostgreSQL this does **not** block writes (MVCC),
+but the transaction pins the xmin horizon for the export duration, which can
+slow autovacuum cluster-wide on very large databases, and holds one data-pool
+connection. Use the default `pg` format; the legacy format is kept for
+SQLite-tooling interoperability.
+
+### Record primary keys (IDX-6, awareness only)
+
+Record ids are random 15-char lowercase strings (fallback `gen_random_bytes`).
+As TEXT primary keys they are **not monotonic**, which causes B-tree page
+splits on insert, slightly larger relation columns/indexes, and no
+time-ordering (the earlier `-@rowid`→`-created` logs bug). This is an
+upstream/architectural tradeoff, kept for id-format compatibility; no change is
+planned.
+
+---
+
 ## 6. Production Build (Single Binary)
 
 The UI is embedded into the Go binary at compile time via `ui/embed.go`
