@@ -75,7 +75,7 @@ func (app *BaseApp) PublishRealtimeEvent(action string, collectionName string, r
 	db := app.NonconcurrentDB()
 
 	insertSQL := fmt.Sprintf(
-		`INSERT INTO "%s" ("action", "collection", "record_id", "snapshot") VALUES ({:action}, {:collection}, {:recordId}, {:snapshot})`,
+		`INSERT INTO "%s" ("action", "collection", "record_id", "snapshot", "origin") VALUES ({:action}, {:collection}, {:recordId}, {:snapshot}, {:origin})`,
 		RealtimeOutboxTableName,
 	)
 	if _, err := db.NewQuery(insertSQL).
@@ -84,6 +84,7 @@ func (app *BaseApp) PublishRealtimeEvent(action string, collectionName string, r
 			"collection": collectionName,
 			"recordId":   recordId,
 			"snapshot":   snapshotJSON,
+			"origin":     app.realtimeOutboxOrigin,
 		}).
 		Execute(); err != nil {
 		return fmt.Errorf("failed to append realtime outbox event: %w", err)
@@ -123,6 +124,13 @@ const realtimeOutboxStabilityLag = 1 * time.Second
 // after the (afterCreated, afterId) cursor, in (created, id) order. A zero
 // cursor returns the oldest settled events.
 //
+// Rows published by THIS instance are excluded (origin = app's own id): the
+// publisher already broadcasts to its local clients synchronously at write
+// time, so re-delivering its own rows here would double-broadcast. Rows with a
+// NULL origin (legacy/unknown publisher) are always returned. Since the filter
+// lives in the WHERE clause, self rows never consume a LIMIT slot and never
+// stall the cursor.
+//
 // Each listener advances its own cursor as it processes, so the read window
 // always moves forward. This replaces a fixed LIMIT-from-oldest read, which
 // stalls permanently once the (never-immediately-deleted) backlog exceeds the
@@ -148,6 +156,7 @@ func (app *BaseApp) RealtimeOutboxEventsAfter(afterCreated time.Time, afterId st
 		 FROM "%s"
 		 WHERE ("created", "id") > ({:afterCreated}::timestamptz, {:afterId})
 		   AND "created" <= NOW() - {:lag}::interval
+		   AND "origin" IS DISTINCT FROM {:self}
 		 ORDER BY "created", "id" LIMIT {:limit}`,
 		RealtimeOutboxTableName,
 	)).
@@ -155,6 +164,7 @@ func (app *BaseApp) RealtimeOutboxEventsAfter(afterCreated time.Time, afterId st
 			"afterCreated": afterCreated,
 			"afterId":      afterId,
 			"lag":          realtimeOutboxStabilityLag.String(),
+			"self":         app.realtimeOutboxOrigin,
 			"limit":        limit,
 		}).
 		All(&rows)

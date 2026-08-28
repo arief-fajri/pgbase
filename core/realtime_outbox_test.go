@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pocketbase/dbx"
 )
 
 func newRealtimeOutboxTestApp(t *testing.T) *BaseApp {
@@ -302,5 +304,47 @@ func TestRealtimeOutboxTailCursor(t *testing.T) {
 	}
 	if created.IsZero() {
 		t.Fatal("expected a non-zero created for the tail cursor")
+	}
+}
+
+// TestRealtimeOutboxEventsAfterExcludesOwnOrigin proves the double-broadcast fix:
+// rows stamped with THIS instance's origin are withheld from the reader (the
+// publisher already broadcast them to its local clients synchronously), while
+// foreign-origin and legacy NULL-origin rows are still delivered.
+func TestRealtimeOutboxEventsAfterExcludesOwnOrigin(t *testing.T) {
+	t.Setenv("PB_REALTIME_OUTBOX", "1")
+
+	app := newRealtimeOutboxTestApp(t)
+
+	if _, err := app.DB().NewQuery(`DELETE FROM "_realtime_outbox"`).Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	// three settled rows: our own origin, a foreign instance, and a legacy
+	// NULL origin. Only the foreign + legacy rows should come back.
+	_, err := app.DB().NewQuery(`
+		INSERT INTO "_realtime_outbox" ("id", "action", "collection", "record_id", "snapshot", "created", "origin") VALUES
+			('self',    'create', 'c', 'r-self',    NULL, NOW() - interval '10 seconds', {:self}),
+			('foreign', 'create', 'c', 'r-foreign', NULL, NOW() - interval '9 seconds',  '@other-instance'),
+			('legacy',  'create', 'c', 'r-legacy',  NULL, NOW() - interval '8 seconds',  NULL)
+	`).Bind(dbx.Params{"self": app.realtimeOutboxOrigin}).Execute()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	events, err := app.RealtimeOutboxEventsAfter(time.Time{}, "", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	seen := map[string]bool{}
+	for _, e := range events {
+		seen[e.Id] = true
+	}
+	if seen["self"] {
+		t.Fatal("expected the reader to skip its own-origin row, but it was returned")
+	}
+	if !seen["foreign"] || !seen["legacy"] {
+		t.Fatalf("expected foreign + legacy(NULL)-origin rows to be delivered, got %+v", events)
 	}
 }

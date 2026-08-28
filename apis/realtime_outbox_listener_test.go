@@ -33,9 +33,18 @@ func TestRealtimeOutboxListenerRebroadcasts(t *testing.T) {
 			client.Subscribe("demo2/0yxhwia2amd8gec")
 			app.SubscriptionsBroker().Register(client)
 
-			// simulate an event written by ANOTHER instance for a demo2 record
-			if err := app.PublishRealtimeEvent(core.RealtimeActionCreate, "demo2", "0yxhwia2amd8gec", nil); err != nil {
-				t.Fatalf("failed to publish realtime event: %v", err)
+			// Simulate an event written by ANOTHER instance: a foreign-origin
+			// row (our own listener skips rows it published itself). Backdate it
+			// past the stability lag so it is immediately settled, then NOTIFY to
+			// wake the listener without waiting for the safety poll.
+			if _, err := app.DB().NewQuery(`
+				INSERT INTO "_realtime_outbox" ("action", "collection", "record_id", "snapshot", "created", "origin")
+				VALUES ('create', 'demo2', '0yxhwia2amd8gec', NULL, NOW() - interval '2 seconds', '@peer-instance')
+			`).Execute(); err != nil {
+				t.Fatalf("failed to seed foreign realtime outbox event: %v", err)
+			}
+			if _, err := app.DB().NewQuery("SELECT pg_notify('" + core.RealtimeOutboxNotifyChannel() + "', '')").Execute(); err != nil {
+				t.Fatalf("failed to notify realtime outbox listener: %v", err)
 			}
 		},
 		AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {

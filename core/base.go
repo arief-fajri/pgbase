@@ -23,6 +23,7 @@ import (
 	"github.com/arief-fajri/pgbase/tools/logger"
 	"github.com/arief-fajri/pgbase/tools/mailer"
 	"github.com/arief-fajri/pgbase/tools/routine"
+	"github.com/arief-fajri/pgbase/tools/security"
 	"github.com/arief-fajri/pgbase/tools/store"
 	"github.com/arief-fajri/pgbase/tools/subscriptions"
 	"github.com/arief-fajri/pgbase/tools/types"
@@ -94,6 +95,13 @@ type BaseApp struct {
 
 	// instanceHeartbeatGuard tracks multi-instance presence (R-1b) once wired.
 	instanceHeartbeatGuard *instanceHeartbeatGuard
+
+	// realtimeOutboxOrigin is this process's stable per-instance identity. It
+	// is stamped on every published outbox row so this instance's own listener
+	// can skip its own events (the publisher already broadcasts to its local
+	// clients synchronously; re-broadcasting the row it just wrote would double-
+	// deliver). Set once in NewBaseApp so it is race-free and never empty.
+	realtimeOutboxOrigin string
 
 	// app event hooks
 	onBootstrap     *hook.Hook[*BootstrapEvent]
@@ -213,6 +221,9 @@ func NewBaseApp(config BaseAppConfig) *BaseApp {
 		cron:                cron.New(),
 		subscriptionsBroker: subscriptions.NewBroker(),
 		config:              &config,
+
+		// stable per-process identity for the cross-instance realtime outbox
+		realtimeOutboxOrigin: "@" + security.PseudorandomString(10),
 	}
 
 	// apply config defaults
