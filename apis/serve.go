@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -290,6 +291,17 @@ func Serve(app core.App, config ServeConfig) error {
 		} else {
 			regular.Printf("├─ REST API:  %s\n", color.CyanString("%s/api/", baseURL))
 			regular.Printf("└─ Dashboard: %s\n", color.CyanString("%s/_/", baseURL))
+		}
+
+		// Security notice (PGB-M02): settings secrets (SMTP/S3/OAuth2
+		// credentials) are stored base64-encoded but UNENCRYPTED at rest
+		// unless an encryption key is provided via --encryptionEnv. Warn once
+		// on start so operators can harden production deployments.
+		if os.Getenv(app.EncryptionEnv()) == "" {
+			warn := color.New(color.FgYellow)
+			warn.Printf(
+				"⚠ Settings secrets are stored UNENCRYPTED at rest. Set --encryptionEnv=<ENV_VAR> (32-char key) to encrypt them (see DEV.md).\n",
+			)
 		}
 	}
 

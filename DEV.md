@@ -612,6 +612,14 @@ production:
   `--https`) — do not serve plaintext HTTP publicly.
 - **Settings encryption:** run with `--encryptionEnv <ENV_VAR>` so SMTP/S3/
   OAuth2/JWT secrets are encrypted at rest (see section on settings below).
+  Without it those secrets are stored base64-encoded but **unencrypted**; the
+  server prints a one-line warning on start when no encryption key is set.
+- **Editor (rich-text) fields:** `editor`-type field values are stored as raw
+  HTML (matching upstream PocketBase). The dashboard renders them through a
+  sandboxed editor, but the REST/records API returns the raw HTML verbatim.
+  Any client app that injects that HTML into the DOM **must** sanitize it first
+  (e.g. DOMPurify) to avoid stored XSS — treat editor content as untrusted
+  whenever the collection's create/update API rules allow non-superuser writes.
 - **Connection pool:** size `(data+aux)×instances` under the DB's
   `max_connections` (see the connection-pool sizing section), and front large
   fan-out with PgBouncer.
