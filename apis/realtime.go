@@ -786,9 +786,11 @@ func realtimeBroadcastRecord(app core.App, action string, record *core.Record, d
 							}
 							client.Set(dryCacheKey, messages)
 						} else {
-							routine.FireAndForget(func() {
-								client.Send(msg)
-							})
+							// direct non-blocking send: the client channel is buffered and
+							// drops when full, so we don't need a goroutine per message
+							// (which previously caused heavy goroutine churn under large
+							// fanout) just to tolerate a slow consumer - RT-1.
+							client.Send(msg)
 						}
 					}
 				}
@@ -886,12 +888,13 @@ func isSameAuth(authA, authB *core.Record) bool {
 // single broadcast: the access rule and the per-subscription request info
 // (auth, query and headers, which the rule/filter may reference).
 //
-// The auth record is keyed by its pointer identity on purpose: the same
-// pointer guarantees identical field values, so a cache hit can never reuse a
-// decision computed for a different auth state (clients authed as the same
-// record are synced to a shared instance in realtimeUpdateClientsAuth, and a
-// live pointer is never reused mid-broadcast). Distinct in-memory copies of
-// the same identity simply fall back to a separate, correct evaluation.
+// The auth record is only included when the rule can actually reference it
+// (contains "@request.auth"). When a rule does not depend on the caller's auth
+// we omit the auth pointer so the memoized decision is shared across all
+// subscribers with the same rule+query+headers — this is the multi-user fanout
+// win (RT-2). For rules that do reference @request.auth, the pointer identity
+// is used on purpose: the same pointer guarantees identical field values (a
+// cache hit can never reuse a decision computed for a different auth state).
 func realtimeAccessCacheKey(rule *string, requestInfo *core.RequestInfo) string {
 	var b strings.Builder
 
@@ -903,8 +906,12 @@ func realtimeAccessCacheKey(rule *string, requestInfo *core.RequestInfo) string 
 	}
 	b.WriteByte(0x1f)
 
-	fmt.Fprintf(&b, "%p", requestInfo.Auth)
-	b.WriteByte(0x1f)
+	ruleReferencesAuth := rule != nil && strings.Contains(*rule, "@request.auth")
+
+	if ruleReferencesAuth {
+		fmt.Fprintf(&b, "%p", requestInfo.Auth)
+		b.WriteByte(0x1f)
+	}
 
 	writeSortedStringMap(&b, requestInfo.Query)
 	b.WriteByte(0x1f)

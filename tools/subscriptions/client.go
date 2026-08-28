@@ -88,12 +88,18 @@ type DefaultClient struct {
 	isDiscarded   bool
 }
 
+// clientChannelBufferSize is the size of the per-client message queue.
+// A bounded buffer absorbs a slow consumer (the SSE writer) without forcing a
+// blocking send (and a per-message goroutine) in the broadcast path; once full,
+// new messages are dropped for that client only (RT-1).
+const clientChannelBufferSize = 32
+
 // NewDefaultClient creates and returns a new DefaultClient instance.
 func NewDefaultClient() *DefaultClient {
 	return &DefaultClient{
 		id:            security.RandomString(40),
 		store:         map[string]any{},
-		channel:       make(chan Message),
+		channel:       make(chan Message, clientChannelBufferSize),
 		subscriptions: map[string]SubscriptionOptions{},
 	}
 }
@@ -271,6 +277,12 @@ func (c *DefaultClient) IsDiscarded() bool {
 }
 
 // Send sends the specified message to the client's channel (if not discarded).
+//
+// The channel is buffered (see clientChannelBufferSize); a full buffer drops the
+// message for this client only instead of blocking the caller (the broadcast
+// path) on a slow consumer. This is the deliberate slow-client isolation:
+// slow readers are not allowed to stall the fanout, they just miss messages
+// when the buffer overflows (RT-1).
 func (c *DefaultClient) Send(m Message) {
 	if c.IsDiscarded() {
 		return
@@ -281,5 +293,9 @@ func (c *DefaultClient) Send(m Message) {
 		recover()
 	}()
 
-	c.channel <- m
+	select {
+	case c.channel <- m:
+	default:
+		// buffer full -> drop for this client only
+	}
 }
