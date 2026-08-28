@@ -41,7 +41,7 @@ func newCaseSensitiveAuthCollection(t *testing.T, app core.App, name, indexName 
 		`CREATE UNIQUE INDEX "` + indexName + `" ON "` + name + `" (email) WHERE email <> ''`,
 	}
 
-	if err := app.Save(c); err != nil {
+	if err := app.SaveNoValidate(c); err != nil {
 		t.Fatalf("failed to save %q auth collection: %v", name, err)
 	}
 

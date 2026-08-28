@@ -55,16 +55,23 @@ func (app *BaseApp) SyncRecordTableSchema(newCollection *Collection, oldCollecti
 
 		needTableRename := !strings.EqualFold(oldTableName, newTableName)
 
-		var needIndexesUpdate bool
-		if needTableRename ||
-			oldFields.String() != newFields.String() ||
-			oldCollection.Indexes.String() != newCollection.Indexes.String() {
-			needIndexesUpdate = true
-		}
+		// Select the index-sync strategy (v1 conservative):
+		//   - structural field change (add/drop/rename/column type/single-multiple)
+		//     -> rebuild all indexes (legacy behavior, safe fallback)
+		//   - only the index definitions changed
+		//     -> rebuild only the affected indexes (diff)
+		//   - otherwise (pure rename / cosmetic field change)
+		//     -> no index DDL
+		structuralFieldChange := hasStructuralFieldChanges(txApp, oldFields, newFields)
+		indexesChanged := !indexDefinitionsEquivalent(oldCollection, newCollection)
 
-		if needIndexesUpdate {
+		if structuralFieldChange {
 			// drop old indexes (if any)
 			if err := dropCollectionIndexes(txApp, oldCollection); err != nil {
+				return err
+			}
+		} else if indexesChanged {
+			if err := applyIndexDiffDrop(txApp, oldCollection, newCollection); err != nil {
 				return err
 			}
 		}
@@ -132,8 +139,12 @@ func (app *BaseApp) SyncRecordTableSchema(newCollection *Collection, oldCollecti
 			return err
 		}
 
-		if needIndexesUpdate {
+		if structuralFieldChange {
 			return createCollectionIndexes(txApp, newCollection)
+		}
+
+		if indexesChanged {
+			return applyIndexDiffCreate(txApp, oldCollection, newCollection)
 		}
 
 		return nil
@@ -374,4 +385,161 @@ func createCollectionIndexes(app App, collection *Collection) error {
 
 		return nil
 	})
+}
+
+// hasStructuralFieldChanges reports whether the old and new fields differ in a
+// way that affects the physical column layout (added/removed field, renamed
+// column, changed column type or single/multiple toggle). Changes limited to
+// field options that do not alter the column definition (eg. labels,
+// validation ranges, autogenerate patterns) are NOT considered structural.
+func hasStructuralFieldChanges(app App, oldFields, newFields FieldsList) bool {
+	if len(oldFields) != len(newFields) {
+		return true
+	}
+
+	for _, oldField := range oldFields {
+		newField := newFields.GetById(oldField.GetId())
+		if newField == nil {
+			return true
+		}
+
+		if !strings.EqualFold(oldField.GetName(), newField.GetName()) {
+			return true
+		}
+
+		if oldField.ColumnType(app) != newField.ColumnType(app) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// indexDefKey returns a canonical definition of an index that ignores the
+// schema/table identifiers but preserves everything that changes the physical
+// index shape (unique flag, columns/expressions, collations, sort order and
+// the WHERE predicate).
+func indexDefKey(parsed dbutils.Index) string {
+	var b strings.Builder
+
+	if parsed.Unique {
+		b.WriteString("unique|")
+	} else {
+		b.WriteString("nonunique|")
+	}
+
+	for _, col := range parsed.Columns {
+		b.WriteString(strings.TrimSpace(col.Name))
+		b.WriteString(";")
+		b.WriteString(strings.ToUpper(strings.TrimSpace(col.Collate)))
+		b.WriteString(";")
+		b.WriteString(strings.ToUpper(strings.TrimSpace(col.Sort)))
+		b.WriteString("|")
+	}
+
+	b.WriteString("where=")
+	b.WriteString(strings.TrimSpace(parsed.Where))
+
+	return b.String()
+}
+
+// indexDefMap maps each index name to its normalized definition key.
+func indexDefMap(indexes []string) map[string]string {
+	result := make(map[string]string, len(indexes))
+
+	for _, raw := range indexes {
+		parsed := dbutils.ParseIndex(raw)
+		if parsed.IndexName == "" {
+			continue
+		}
+		result[parsed.IndexName] = indexDefKey(parsed)
+	}
+
+	return result
+}
+
+// indexDefinitionsEquivalent reports whether the old and new collections have
+// the same index definitions (compared by index name and normalized shape,
+// ignoring schema/table identifiers).
+func indexDefinitionsEquivalent(oldCollection, newCollection *Collection) bool {
+	oldMap := indexDefMap(oldCollection.Indexes)
+	newMap := indexDefMap(newCollection.Indexes)
+
+	if len(oldMap) != len(newMap) {
+		return false
+	}
+
+	for name, oldKey := range oldMap {
+		if newMap[name] != oldKey {
+			return false
+		}
+	}
+
+	return true
+}
+
+// applyIndexDiffDrop drops the old indexes that have been removed or whose
+// definition changed in the new collection. Indexes whose name and definition
+// are unchanged are left untouched.
+func applyIndexDiffDrop(app App, oldCollection, newCollection *Collection) error {
+	newMap := indexDefMap(newCollection.Indexes)
+
+	for _, raw := range oldCollection.Indexes {
+		parsed := dbutils.ParseIndex(raw)
+		if parsed.IndexName == "" {
+			continue
+		}
+
+		newKey, exists := newMap[parsed.IndexName]
+		if exists && newKey == indexDefKey(parsed) {
+			continue // unchanged
+		}
+
+		if _, err := app.DB().NewQuery(fmt.Sprintf("DROP INDEX IF EXISTS \"%s\"", parsed.IndexName)).Execute(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// applyIndexDiffCreate creates only the new indexes that are missing or whose
+// definition changed compared to the old collection. It mirrors the validation
+// error handling of createCollectionIndexes.
+func applyIndexDiffCreate(app App, oldCollection, newCollection *Collection) error {
+	oldMap := indexDefMap(oldCollection.Indexes)
+
+	errs := validation.Errors{}
+	for i, raw := range newCollection.Indexes {
+		parsed := dbutils.ParseIndex(raw)
+
+		oldKey, exists := oldMap[parsed.IndexName]
+		if exists && oldKey == indexDefKey(parsed) {
+			continue // unchanged
+		}
+
+		parsed.TableName = newCollection.Name
+
+		if !parsed.IsValid() {
+			errs[strconv.Itoa(i)] = validation.NewError(
+				"validation_invalid_index_expression",
+				"Invalid CREATE INDEX expression.",
+			)
+			continue
+		}
+
+		if _, err := app.DB().NewQuery(parsed.Build()).Execute(); err != nil {
+			errs[strconv.Itoa(i)] = validation.NewError(
+				"validation_invalid_index_expression",
+				fmt.Sprintf("Failed to create index %s - %v.", parsed.IndexName, err.Error()),
+			)
+			continue
+		}
+	}
+
+	if len(errs) > 0 {
+		return errs
+	}
+
+	return nil
 }

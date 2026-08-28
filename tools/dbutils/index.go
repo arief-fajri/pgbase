@@ -206,6 +206,13 @@ func NormalizeIndexColumnName(name string) string {
 	return n
 }
 
+// IsFunctionalIndexColumn reports whether the provided index column expression
+// is a functional form built on LOWER(...) (the shape used by the identity
+// layer to enforce case-insensitive unique indexes).
+func IsFunctionalIndexColumn(columnExpression string) bool {
+	return strings.Contains(strings.ToLower(columnExpression), "lower(")
+}
+
 // FindSingleColumnUniqueIndex returns the first matching single column unique index.
 //
 // A functional index over a single column expressed as LOWER("<column>") is

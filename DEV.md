@@ -244,6 +244,9 @@ smaller **aux** pool (logs). Their sizes are tunable via env vars (no rebuild):
 | `PB_POSTGRES_AUX_MAX_IDLE_CONNS`  | `3`  | aux — max idle connections |
 | `PB_POSTGRES_CONN_MAX_LIFETIME`   | `30m` | max lifetime before a conn is recycled |
 | `PB_POSTGRES_CONN_MAX_IDLE_TIME`  | `3m`  | max idle time before an idle conn is closed |
+| `PB_POSTGRES_STATEMENT_TIMEOUT`   | `60s` | role-level `statement_timeout` (`ALTER ROLE CURRENT_USER` on boot; `off`/`0` resets) |
+| `PB_POSTGRES_LOCK_TIMEOUT`        | `30s` | role-level `lock_timeout` (`ALTER ROLE CURRENT_USER` on boot; `off`/`0` resets) |
+| `PB_POSTGRES_DEFAULT_QUERY_EXEC_MODE` | *unset* | pgx client-side query exec mode (`exec`/`simple_protocol` for PgBouncer transaction pooling; see warning above) |
 
 > [!IMPORTANT]
 > The effective per-instance ceiling is **`DATA_MAX_OPEN + AUX_MAX_OPEN`**
@@ -263,6 +266,100 @@ smaller **aux** pool (logs). Their sizes are tunable via env vars (no rebuild):
 > For high fan-out, front Postgres with **PgBouncer** in *transaction* pooling
 > mode and keep each app pool small; PgBouncer multiplexes them onto a handful
 > of real server connections.
+>
+> ⚠️ **PgBouncer transaction mode requires setting
+> `PB_POSTGRES_DEFAULT_QUERY_EXEC_MODE`.** pgx defaults to `cache_statement`,
+> which uses per-connection named prepared statements that PgBouncer
+> transaction pooling cannot serve (`prepared statement "stmtcache_..." does
+> not exist`). Set it to `exec` (recommended) or `simple_protocol` when fronting
+> with PgBouncer in transaction mode. With PgBouncer 1.21+ you can alternatively
+> keep `cache_statement` and enable PgBouncer's protocol-level prepared-statement
+> support (`max_prepared_statements`).
+
+### Connection idle behavior (POOL-1)
+
+Each PostgreSQL connection is a forked backend (expensive to create), so
+`MaxIdleConns` sits below `MaxOpenConns` by default (data 80/15, aux 10/3) to
+let the pool shrink during quiet periods — refreshed after `ConnMaxIdleTime`
+(3m). On **direct connection** deployments with sustained concurrency this
+causes connect/reconnect churn between 15 and 80 as `database/sql` closes
+returned connections once idle exceeds `MaxIdleConns`. Two deployment profiles:
+
+- **Direct connection (single/small):** raising `MaxIdleConns` toward
+  `MaxOpenConns` (eg. `PB_POSTGRES_DATA_MAX_IDLE_CONNS=80`) eliminates the
+  churn; `ConnMaxIdleTime` still drains idle backends during quiet periods.
+- **Behind PgBouncer:** keep each app pool **small** (PgBouncer multiplexes)
+  and leave idle low — the app connections are cheap sockets to PgBouncer, so
+  raising idle gains nothing and only adds sockets to hold.
+
+The defaults are tuned for the multi-instance / pooled profile; adjust per
+deployment.
+
+### Query & lock timeouts (server-side backstop)
+
+On boot the app applies `statement_timeout` (default `60s`) and `lock_timeout`
+(default `30s`) **at the PostgreSQL role level** via
+`ALTER ROLE CURRENT_USER SET ...`. They are a server-side backstop so a runaway
+statement or a write blocked on a row lock cannot hold a pooled connection
+indefinitely, and they survive PgBouncer transaction pooling (which does not
+reliably forward per-client DSN `options`). Applying is best-effort: a role
+that cannot alter itself logs a warning and skips. Tune with
+`PB_POSTGRES_STATEMENT_TIMEOUT` / `PB_POSTGRES_LOCK_TIMEOUT`; set either to
+`off` or `0` to **reset** the role setting (a previous boot's value is not left
+behind). Values are deliberately above the app's own 30s
+`DefaultQueryTimeout` so legitimate queries are not cut short.
+
+---
+
+## 3b. Auth identity fields & case-insensitive indexes
+
+Password-auth identity fields (eg. `email`, `username`, or any custom text field
+listed in `PasswordAuth.IdentityFields`) are always matched case-insensitively
+(`LOWER(field) = LOWER(?)`), so each active identity field must carry a
+**functional partial unique index** of the form:
+
+```sql
+CREATE UNIQUE INDEX "idx_<field>_<id>" ON "<collection>" (LOWER("<field>")) WHERE "<field>" <> ''
+```
+
+- The runtime generator (`initIdentityFieldIndexes`) appends this index
+  automatically when an auth collection defines a text identity field without
+  one.
+- The collection validator **rejects** an auth collection whose active identity
+  field does not have a `LOWER(...)` unique index (a plain case-sensitive
+  index is refused — see `validation_non_functional_identity_unique_index`).
+  On a fresh install this is never an issue; it also prevents accidentally
+  degrading identity lookups to sequential scans.
+- Legacy databases are converted by the `1787237101` migration; SQLite backups
+  are normalized during import.
+
+### Removed identity fields ("keep" lifecycle)
+
+Removing a field from `PasswordAuth.IdentityFields` does **not** drop its unique
+index. This is intentional (D-2): dropping a unique index is a destructive data
+operation better left to a conscious admin decision.
+
+Consequences to be aware of:
+
+- The index keeps enforcing **case-insensitive uniqueness** on that column even
+  though it is no longer usable for login — you may still see duplicate errors
+  for values that differ only by letter case.
+- The lookup path is unaffected (the field is simply not consulted anymore).
+- On the save that removes the field, a warning is logged with the index name so
+  operators know a now-orphaned unique constraint remains.
+
+To fully drop the constraint, remove the index from the collection's `indexes`
+list (via the dashboard or a migration) and let the schema sync rebuild without
+it. If you still want case-insensitive uniqueness on a column that is no longer
+an identity field, keeping the index is the correct choice — no action needed.
+
+### Note on OAuth2 username uniqueness
+
+The OAuth2 sign-up uniqueness check runs `LOWER(username) = LOWER(?)` without
+the `username <> ''` predicate, so it does not use the partial functional index.
+This is intentional and mirrors upstream: the check is a secondary guard with
+`LIMIT 1` over a bounded set, not a hot login path. The password identity
+lookup — the actual hot path — is index-served.
 
 ---
 

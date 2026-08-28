@@ -312,8 +312,20 @@ func (s *Provider) Exec(items any) (*Result, error) {
 		// added by RecordFieldResolver.UpdateQuery
 
 		// note: countQuery is shallow cloned and slice/map in-place modifications should be avoided
+		//
+		// The RecordFieldResolver adds DISTINCT only when it also adds
+		// relation joins (see record_field_resolver.go UpdateQuery), so a
+		// plain COUNT(*) is correct (and cheaper) whenever no joins exist:
+		// there is no row multiplication to deduplicate (QRY-1).
+		var countSelect string
+		if queryInfo.Distinct {
+			countSelect = "COUNT(DISTINCT [[" + countCol + "]])"
+		} else {
+			countSelect = "COUNT(*)"
+		}
+
 		err := countQuery.Distinct(false).
-			Select("COUNT(DISTINCT [[" + countCol + "]])").
+			Select(countSelect).
 			GroupBy( /* reset */ ).
 			OrderBy( /* reset */ ).
 			Row(&totalCount)

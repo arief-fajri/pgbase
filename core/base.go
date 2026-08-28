@@ -92,6 +92,9 @@ type BaseApp struct {
 	dataDB              dbx.Builder
 	auxDB               dbx.Builder
 
+	// instanceHeartbeatGuard tracks multi-instance presence (R-1b) once wired.
+	instanceHeartbeatGuard *instanceHeartbeatGuard
+
 	// app event hooks
 	onBootstrap     *hook.Hook[*BootstrapEvent]
 	onServe         *hook.Hook[*ServeEvent]
@@ -426,6 +429,11 @@ func (app *BaseApp) Bootstrap() error {
 		}
 
 		if err := app.initAuxDB(); err != nil {
+			return err
+		}
+
+		// apply server-side statement/lock timeouts at the role level (best-effort)
+		if err := app.ensurePostgresRoleTimeouts(app.Logger()); err != nil {
 			return err
 		}
 
@@ -1297,10 +1305,11 @@ func (app *BaseApp) registerBaseHooks() {
 	})
 
 	// Periodic VACUUM of the main database. PostgreSQL's autovacuum normally
-	// keeps tables healthy on its own, so this is mostly a safety net inherited
-	// from the SQLite era. The schedule is configurable via PB_DB_VACUUM_CRON
-	// and can be turned off entirely by setting it to an empty value or "off".
-	if vacuumSchedule := getEnvOrDefault("PB_DB_VACUUM_CRON", "0 0 * * *"); vacuumSchedule != "" && !strings.EqualFold(vacuumSchedule, "off") {
+	// keeps tables healthy on its own, so this is a redundant safety net
+	// inherited from the SQLite era and is OFF by default. It can be enabled
+	// via PB_DB_VACUUM_CRON (eg. "0 0 * * *"); setting it to an empty value or
+	// "off" keeps it disabled.
+	if vacuumSchedule := getEnvOrDefault("PB_DB_VACUUM_CRON", ""); vacuumSchedule != "" && !strings.EqualFold(vacuumSchedule, "off") {
 		app.Cron().Add("__pbDBVacuum__", vacuumSchedule, func() {
 			if execErr := app.Vacuum(); execErr != nil {
 				app.Logger().Warn("Failed to run periodic VACUUM for the main database", slog.String("error", execErr.Error()))
@@ -1318,6 +1327,7 @@ func (app *BaseApp) registerBaseHooks() {
 	app.registerOTPHooks()
 	app.registerAuthOriginHooks()
 	app.registerNotifyWatcherHooks()
+	app.registerInstanceHeartbeatGuard()
 	app.registerAuditHooks()
 }
 
@@ -1379,7 +1389,11 @@ func (app *BaseApp) initLogger() error {
 			// 65535 bind-parameter limit (logInsertColumns params per row).
 			const maxRowsPerInsert = 1000
 
-			err := app.AuxRunInTransaction(func(txApp App) error {
+			// The flush is a single multi-row INSERT (atomic on its own), so the
+			// transaction wrapper is only needed to keep the *multiple* chunks
+			// of a big flush atomic. For the common single-chunk case it would
+			// only add a BEGIN/COMMIT round-trip on the aux pool (LOG-1).
+			insertChunks := func(txDB dbx.Builder) error {
 				for start := 0; start < len(logs); start += maxRowsPerInsert {
 					end := min(start+maxRowsPerInsert, len(logs))
 
@@ -1404,13 +1418,22 @@ func (app *BaseApp) initLogger() error {
 						params["created"+suffix] = created
 					}
 
-					if _, err := txApp.AuxDB().NewQuery(sb.String()).Bind(params).Execute(); err != nil {
+					if _, err := txDB.NewQuery(sb.String()).Bind(params).Execute(); err != nil {
 						return err
 					}
 				}
 
 				return nil
-			})
+			}
+
+			var err error
+			if len(logs) > maxRowsPerInsert {
+				err = app.AuxRunInTransaction(func(txApp App) error {
+					return insertChunks(txApp.AuxDB())
+				})
+			} else {
+				err = insertChunks(app.AuxDB())
+			}
 			if err != nil {
 				log.Println("Failed to write logs", err)
 			}
