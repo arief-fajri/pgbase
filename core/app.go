@@ -311,8 +311,13 @@ type App interface {
 	// CleanupStaleRealtimeEvents removes processed/stale realtime outbox events.
 	CleanupStaleRealtimeEvents(staleAge time.Duration) error
 
-	// RealtimeOutboxPendingEvents returns unprocessed realtime outbox events.
-	RealtimeOutboxPendingEvents(limit int) ([]RealtimeOutboxEvent, error)
+	// RealtimeOutboxEventsAfter returns settled realtime outbox events strictly
+	// after the (afterCreated, afterId) cursor, in (created, id) order.
+	RealtimeOutboxEventsAfter(afterCreated time.Time, afterId string, limit int) ([]RealtimeOutboxEvent, error)
+
+	// RealtimeOutboxTailCursor returns the newest outbox row's (created, id),
+	// or a zero cursor when the outbox is empty.
+	RealtimeOutboxTailCursor() (time.Time, string, error)
 
 	// RealtimeOutboxEnabled reports whether the realtime outbox is enabled.
 	RealtimeOutboxEnabled() bool

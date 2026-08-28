@@ -166,3 +166,141 @@ func TestRealtimeOutboxCleanup(t *testing.T) {
 		t.Fatalf("expected only the fresh pending row to survive cleanup, got %+v", rows)
 	}
 }
+
+// TestRealtimeOutboxEventsAfterCursorPaging inserts more than one batch of
+// settled rows and pages through them with the forward cursor, proving the old
+// stuck-100-window bug is fixed: every row is returned exactly once in
+// (created, id) order, even past the first batch.
+func TestRealtimeOutboxEventsAfterCursorPaging(t *testing.T) {
+	t.Setenv("PB_REALTIME_OUTBOX", "1")
+
+	app := newRealtimeOutboxTestApp(t)
+
+	if _, err := app.DB().NewQuery(`DELETE FROM "_realtime_outbox"`).Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	// 250 settled rows (created well in the past so the stability lag passes),
+	// with monotonic created + zero-padded ids so (created, id) order is stable.
+	_, err := app.DB().NewQuery(`
+		INSERT INTO "_realtime_outbox" ("id", "action", "collection", "record_id", "snapshot", "created")
+		SELECT lpad(g::text, 6, '0'), 'create', 'c', 'r' || g, NULL,
+			NOW() - interval '1 hour' + (g * interval '1 millisecond')
+		FROM generate_series(1, 250) g
+	`).Execute()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const batch = 100
+	var afterCreated time.Time
+	var afterId string
+	seen := make(map[string]struct{})
+	var prevCreated time.Time
+	prevId := ""
+
+	for pass := 0; pass < 10; pass++ {
+		events, err := app.RealtimeOutboxEventsAfter(afterCreated, afterId, batch)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(events) == 0 {
+			break
+		}
+		for _, e := range events {
+			if _, dup := seen[e.Id]; dup {
+				t.Fatalf("event %q returned twice", e.Id)
+			}
+			seen[e.Id] = struct{}{}
+
+			// strictly ascending (created, id)
+			if !prevCreated.IsZero() {
+				if e.Created.Before(prevCreated) || (e.Created.Equal(prevCreated) && e.Id <= prevId) {
+					t.Fatalf("events out of order: (%s,%s) after (%s,%s)", e.Created, e.Id, prevCreated, prevId)
+				}
+			}
+			prevCreated, prevId = e.Created, e.Id
+		}
+		last := events[len(events)-1]
+		afterCreated, afterId = last.Created, last.Id
+	}
+
+	if len(seen) != 250 {
+		t.Fatalf("expected to page through all 250 settled rows, saw %d", len(seen))
+	}
+}
+
+// TestRealtimeOutboxEventsAfterStabilityLag verifies rows younger than the
+// stability lag are withheld so a slightly-later commit can't be skipped by the
+// forward cursor.
+func TestRealtimeOutboxEventsAfterStabilityLag(t *testing.T) {
+	t.Setenv("PB_REALTIME_OUTBOX", "1")
+
+	app := newRealtimeOutboxTestApp(t)
+
+	if _, err := app.DB().NewQuery(`DELETE FROM "_realtime_outbox"`).Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	// one settled row (older than the lag) and one fresh row (within the lag)
+	_, err := app.DB().NewQuery(`
+		INSERT INTO "_realtime_outbox" ("id", "action", "collection", "record_id", "snapshot", "created") VALUES
+			('old', 'create', 'c', 'r-old', NULL, NOW() - interval '10 seconds'),
+			('new', 'create', 'c', 'r-new', NULL, NOW())
+	`).Execute()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	events, err := app.RealtimeOutboxEventsAfter(time.Time{}, "", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(events) != 1 || events[0].Id != "old" {
+		t.Fatalf("expected only the settled 'old' row (fresh row within lag withheld), got %+v", events)
+	}
+}
+
+// TestRealtimeOutboxTailCursor verifies the tail cursor is empty on an empty
+// table and points at the newest (created, id) once rows exist.
+func TestRealtimeOutboxTailCursor(t *testing.T) {
+	t.Setenv("PB_REALTIME_OUTBOX", "1")
+
+	app := newRealtimeOutboxTestApp(t)
+
+	if _, err := app.DB().NewQuery(`DELETE FROM "_realtime_outbox"`).Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	// empty table -> zero cursor
+	created, id, err := app.RealtimeOutboxTailCursor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !created.IsZero() || id != "" {
+		t.Fatalf("expected a zero cursor on empty table, got (%s, %q)", created, id)
+	}
+
+	// newest row is 'c' (latest created)
+	_, err = app.DB().NewQuery(`
+		INSERT INTO "_realtime_outbox" ("id", "action", "collection", "record_id", "snapshot", "created") VALUES
+			('a', 'create', 'c', 'r-a', NULL, NOW() - interval '2 seconds'),
+			('b', 'create', 'c', 'r-b', NULL, NOW() - interval '1 second'),
+			('c', 'create', 'c', 'r-c', NULL, NOW())
+	`).Execute()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	created, id, err = app.RealtimeOutboxTailCursor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != "c" {
+		t.Fatalf("expected the tail cursor to point at the newest row 'c', got %q", id)
+	}
+	if created.IsZero() {
+		t.Fatal("expected a non-zero created for the tail cursor")
+	}
+}

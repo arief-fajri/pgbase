@@ -26,24 +26,28 @@ const realtimeOutboxReconnectDelay = 2 * time.Second
 // realtimeOutboxListener consumes the cross-instance realtime outbox (D-4 step
 // 2): it LISTENs for the NOTIFY wake-up, reads pending events, and re-broadcasts
 // them to THIS instance's local subscribers (create/update re-fetch the record;
-// delete uses the stored snapshot). It is the BROADCAST consumer side: it never
-// ack-marks rows (broadcast queue - see core realtimeOutboxAckColumnNote), it
-// only dedups in memory per event id.
+// delete uses the stored snapshot).
+//
+// It tracks a per-instance forward (created,id) cursor rather than an unbounded
+// in-memory "seen" set: each pass reads only events after the cursor and
+// advances it, so the read window always moves forward (bounded memory, and it
+// never stalls once the backlog exceeds one batch).
 type realtimeOutboxListener struct {
 	app core.App
 
 	stopOnce sync.Once
 	stopCh   chan struct{}
 
-	mu    sync.Mutex
-	dedup map[string]struct{}
+	mu            sync.Mutex
+	cursorCreated time.Time
+	cursorId      string
+	cursorReady   bool
 }
 
 func newRealtimeOutboxListener(app core.App) *realtimeOutboxListener {
 	return &realtimeOutboxListener{
 		app:    app,
 		stopCh: make(chan struct{}),
-		dedup:  make(map[string]struct{}),
 	}
 }
 
@@ -53,6 +57,17 @@ func newRealtimeOutboxListener(app core.App) *realtimeOutboxListener {
 // terminate. When the outbox is disabled the goroutine parks until stop.
 func registerRealtimeOutboxListener(app core.App) {
 	listener := newRealtimeOutboxListener(app)
+
+	// Seed the forward cursor to the current tail synchronously here (before
+	// the listener goroutine starts) so a freshly started instance forwards
+	// only events published AFTER start. Doing it at registration rather than
+	// inside run() closes a startup race: an event published right after boot
+	// could otherwise land at/behind a not-yet-seeded cursor and be skipped.
+	// run() still calls seedCursorIfNeeded as a fallback (guarded by
+	// cursorReady) in case this initial seed failed on a transient DB error.
+	if app.RealtimeOutboxEnabled() {
+		listener.seedCursorIfNeeded(app)
+	}
 
 	go listener.run(app)
 
@@ -90,9 +105,6 @@ func (l *realtimeOutboxListener) run(app core.App) {
 		return
 	}
 
-	// initial pass covers events published before we started listening
-	l.processPending(app)
-
 	// safety poll ticker (also serves as reconnect catchup re-armed below)
 	pollTicker := time.NewTicker(realtimeOutboxPollInterval)
 	defer pollTicker.Stop()
@@ -115,6 +127,13 @@ func (l *realtimeOutboxListener) run(app core.App) {
 			}
 			continue
 		}
+
+		// Seed the cursor to the current tail on the FIRST successful LISTEN so
+		// a freshly started instance forwards only NEW events (not up to the
+		// whole retention window of history to clients that just connected). On
+		// later reconnects the cursor is kept, so we catch up on anything
+		// published while the connection was down.
+		l.seedCursorIfNeeded(app)
 
 		// catchup: reprocess pending rows that may have been missed while down
 		l.processPending(app)
@@ -158,31 +177,64 @@ func (l *realtimeOutboxListener) run(app core.App) {
 	}
 }
 
-// processPending reads pending events and re-broadcasts them locally. Each
-// event is remembered only in the in-memory dedup (broadcast queue semantics).
-func (l *realtimeOutboxListener) processPending(app core.App) {
-	events, err := app.RealtimeOutboxPendingEvents(realtimeOutboxBatchSize)
-	if err != nil {
-		app.Logger().Warn("Failed to read realtime outbox events", slog.String("error", err.Error()))
+// seedCursorIfNeeded initializes the forward cursor to the current outbox tail
+// the first time it is called, so a freshly started instance skips history.
+func (l *realtimeOutboxListener) seedCursorIfNeeded(app core.App) {
+	l.mu.Lock()
+	already := l.cursorReady
+	l.mu.Unlock()
+	if already {
 		return
 	}
 
-	for _, e := range events {
-		if !l.dedupSeen(e.Id) {
-			l.processEvent(app, e)
-		}
+	created, id, err := app.RealtimeOutboxTailCursor()
+	if err != nil {
+		app.Logger().Warn("Failed to seed realtime outbox cursor", slog.String("error", err.Error()))
+		return
 	}
+
+	l.mu.Lock()
+	// guard against a racing reconnect having seeded already
+	if !l.cursorReady {
+		l.cursorCreated = created
+		l.cursorId = id
+		l.cursorReady = true
+	}
+	l.mu.Unlock()
 }
 
-func (l *realtimeOutboxListener) dedupSeen(id string) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+// processPending pages through all settled events after the current cursor and
+// re-broadcasts them locally, advancing the cursor as it goes. It drains the
+// backlog in batches so it never stalls once more than one batch is pending.
+func (l *realtimeOutboxListener) processPending(app core.App) {
+	for {
+		l.mu.Lock()
+		afterCreated, afterId := l.cursorCreated, l.cursorId
+		l.mu.Unlock()
 
-	if _, ok := l.dedup[id]; ok {
-		return true
+		events, err := app.RealtimeOutboxEventsAfter(afterCreated, afterId, realtimeOutboxBatchSize)
+		if err != nil {
+			app.Logger().Warn("Failed to read realtime outbox events", slog.String("error", err.Error()))
+			return
+		}
+		if len(events) == 0 {
+			return
+		}
+
+		for _, e := range events {
+			l.processEvent(app, e)
+		}
+
+		last := events[len(events)-1]
+		l.mu.Lock()
+		l.cursorCreated = last.Created
+		l.cursorId = last.Id
+		l.mu.Unlock()
+
+		if len(events) < realtimeOutboxBatchSize {
+			return // drained
+		}
 	}
-	l.dedup[id] = struct{}{}
-	return false
 }
 
 // processEvent re-broadcasts a single event to this instance's subscribers.

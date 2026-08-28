@@ -2,7 +2,9 @@ package core
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -106,10 +108,28 @@ type RealtimeOutboxEvent struct {
 	Created    time.Time
 }
 
-// RealtimeOutboxPendingEvents returns up to `limit` unprocessed outbox events in
-// creation order. Every listener instance reads the same rows (broadcast
-// queue); dedup/marking is the consumer's responsibility.
-func (app *BaseApp) RealtimeOutboxPendingEvents(limit int) ([]RealtimeOutboxEvent, error) {
+// realtimeOutboxStabilityLag is a short "settle" window: a listener only
+// advances its (created,id) high-water cursor past rows whose created is at
+// least this old. Without it, a transaction that started slightly earlier (so
+// has a smaller `created`) but commits slightly later could become visible
+// AFTER the cursor has already moved past its timestamp and be skipped forever.
+// Outbox rows are written by short, single-statement post-commit inserts, so
+// their created≈commit time and 1s is a very wide safety margin. It bounds only
+// cross-instance delivery latency (the publisher's own clients are still served
+// synchronously by the local broadcast).
+const realtimeOutboxStabilityLag = 1 * time.Second
+
+// RealtimeOutboxEventsAfter returns up to `limit` settled outbox events strictly
+// after the (afterCreated, afterId) cursor, in (created, id) order. A zero
+// cursor returns the oldest settled events.
+//
+// Each listener advances its own cursor as it processes, so the read window
+// always moves forward. This replaces a fixed LIMIT-from-oldest read, which
+// stalls permanently once the (never-immediately-deleted) backlog exceeds the
+// batch size — every pass would re-return the same oldest rows and never reach
+// newer events. The stability lag (created <= NOW() - lag) keeps the cursor
+// correct under concurrent commits (see realtimeOutboxStabilityLag).
+func (app *BaseApp) RealtimeOutboxEventsAfter(afterCreated time.Time, afterId string, limit int) ([]RealtimeOutboxEvent, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
@@ -125,10 +145,18 @@ func (app *BaseApp) RealtimeOutboxPendingEvents(limit int) ([]RealtimeOutboxEven
 
 	err := app.NonconcurrentDB().NewQuery(fmt.Sprintf(
 		`SELECT "id", "action", "collection", "record_id", COALESCE("snapshot", '{}'::jsonb) AS "snapshot", "created"
-		 FROM "%s" ORDER BY "created", "id" LIMIT {:limit}`,
+		 FROM "%s"
+		 WHERE ("created", "id") > ({:afterCreated}::timestamptz, {:afterId})
+		   AND "created" <= NOW() - {:lag}::interval
+		 ORDER BY "created", "id" LIMIT {:limit}`,
 		RealtimeOutboxTableName,
 	)).
-		Bind(dbx.Params{"limit": limit}).
+		Bind(dbx.Params{
+			"afterCreated": afterCreated,
+			"afterId":      afterId,
+			"lag":          realtimeOutboxStabilityLag.String(),
+			"limit":        limit,
+		}).
 		All(&rows)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read realtime outbox events: %w", err)
@@ -147,6 +175,30 @@ func (app *BaseApp) RealtimeOutboxPendingEvents(limit int) ([]RealtimeOutboxEven
 	}
 
 	return result, nil
+}
+
+// RealtimeOutboxTailCursor returns the (created, id) of the newest outbox row,
+// or a zero cursor when the table is empty. A freshly started listener seeds
+// its cursor from the tail so it forwards only events published after start
+// (rather than replaying up to the whole retention window of history).
+func (app *BaseApp) RealtimeOutboxTailCursor() (time.Time, string, error) {
+	var row struct {
+		Id      string    `db:"id"`
+		Created time.Time `db:"created"`
+	}
+
+	err := app.NonconcurrentDB().NewQuery(fmt.Sprintf(
+		`SELECT "id", "created" FROM "%s" ORDER BY "created" DESC, "id" DESC LIMIT 1`,
+		RealtimeOutboxTableName,
+	)).One(&row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return time.Time{}, "", nil
+		}
+		return time.Time{}, "", fmt.Errorf("failed to read realtime outbox tail cursor: %w", err)
+	}
+
+	return row.Created, row.Id, nil
 }
 
 // OpenRealtimeOutboxListener opens a dedicated pgx-native connection for
