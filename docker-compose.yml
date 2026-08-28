@@ -1,3 +1,16 @@
+# Local / demo docker-compose for pgbase.
+#
+# SECURITY: this file ships NO default credentials. Copy `.env.example` to
+# `.env` and set a strong PB_POSTGRES_PASSWORD (e.g. `openssl rand -base64 32`)
+# before `docker compose up` — compose fails fast if it is unset.
+#
+# The postgres port is published on 127.0.0.1 only, so the database is not
+# reachable from the network. For PRODUCTION:
+#   - point PB_POSTGRES_* at a managed/TLS-enabled Postgres and set
+#     PB_POSTGRES_SSLMODE=require (or verify-full);
+#   - do NOT expose the database port publicly;
+#   - run the app behind a TLS-terminating reverse proxy;
+#   - keep secrets in a real secret store, not a committed file.
 version: '3.8'
 services:
   pgbase:
@@ -7,10 +20,10 @@ services:
     environment:
       - PB_POSTGRES_HOST=postgres
       - PB_POSTGRES_PORT=5432
-      - PB_POSTGRES_USER=pgbase
-      - PB_POSTGRES_PASSWORD=secret
-      - PB_POSTGRES_DBNAME=pgbase
-      - PB_POSTGRES_SSLMODE=disable
+      - PB_POSTGRES_USER=${PB_POSTGRES_USER:-pgbase}
+      - PB_POSTGRES_PASSWORD=${PB_POSTGRES_PASSWORD:?set PB_POSTGRES_PASSWORD in .env (see .env.example)}
+      - PB_POSTGRES_DBNAME=${PB_POSTGRES_DBNAME:-pgbase}
+      - PB_POSTGRES_SSLMODE=${PB_POSTGRES_SSLMODE:-disable}
     volumes:
       - pb_data:/pb_data
     depends_on:
@@ -26,16 +39,17 @@ services:
     # PB_POSTGRES_*_MAX_*_CONNS env vars on the pgbase service.
     command: ["postgres", "-c", "max_connections=200"]
     environment:
-      POSTGRES_DB: pgbase
-      POSTGRES_USER: pgbase
-      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: ${PB_POSTGRES_DBNAME:-pgbase}
+      POSTGRES_USER: ${PB_POSTGRES_USER:-pgbase}
+      POSTGRES_PASSWORD: ${PB_POSTGRES_PASSWORD:?set PB_POSTGRES_PASSWORD in .env (see .env.example)}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/init:/docker-entrypoint-initdb.d:ro
+    # Bound to 127.0.0.1 so the database is never exposed to the network.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${PB_POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pgbase"]
+      test: ["CMD-SHELL", "pg_isready -U ${PB_POSTGRES_USER:-pgbase}"]
       interval: 5s
       timeout: 5s
       retries: 5

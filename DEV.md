@@ -162,8 +162,13 @@ psql -d pgbase_test -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
 ### Option C: Docker Compose (full stack)
 
 ```bash
+cp .env.example .env   # then set a strong PB_POSTGRES_PASSWORD in .env
 docker compose up
 ```
+
+`docker compose up` fails fast if `PB_POSTGRES_PASSWORD` is unset — there is no
+weak built-in default. The postgres port is published on `127.0.0.1` only, so
+the database is never exposed to the network.
 
 This builds the image (slow the first time) and runs **PostgreSQL + the PG-BASE
 web app** (`http://localhost:8090/_/`). It is NOT the right choice when you want
@@ -561,6 +566,9 @@ Open <http://127.0.0.1:8090/_/> in the browser.
 ## 7. Docker (Full Stack)
 
 ```bash
+# One-time: create your local secrets file and set a strong password
+cp .env.example .env
+
 # Build & start all services (first build is slow)
 docker compose up
 
@@ -571,10 +579,12 @@ http://localhost:8090/_/
 | Service | Port | Function |
 |---------|------|----------|
 | `pgbase` | `8090` | API + embedded dashboard UI |
-| `postgres` | `5432` | Database |
+| `postgres` | `127.0.0.1:5432` | Database (localhost-only, not network-exposed) |
 
 The `pgbase` service takes its PostgreSQL connection settings from the
-`PB_POSTGRES_*` environment variables defined in `docker-compose.yml`.
+`PB_POSTGRES_*` environment variables, which are sourced from your `.env` file
+(see `.env.example`). `docker compose up` fails fast if `PB_POSTGRES_PASSWORD`
+is unset — there is **no** weak default baked into `docker-compose.yml`.
 
 **Create a superuser inside the running stack:**
 
@@ -583,8 +593,28 @@ docker compose exec pgbase pgbase superuser create admin@example.com "changeme12
 ```
 
 > [!NOTE]
-> If a local PostgreSQL is already using host port `5432`, change the
-> `ports` mapping in `docker-compose.yml` (e.g. `"5433:5432"`).
+> If a local PostgreSQL is already using host port `5432`, set a different
+> `PB_POSTGRES_PORT` in `.env` (e.g. `5433`).
+
+### Production hardening
+
+The bundled `docker-compose.yml` is a local/demo stack. Before running pgbase in
+production:
+
+- **Secrets:** set a strong `PB_POSTGRES_PASSWORD` (`openssl rand -base64 32`)
+  and keep it in a real secret store, not a committed file.
+- **TLS to the DB:** point `PB_POSTGRES_*` at a TLS-enabled/managed Postgres and
+  set `PB_POSTGRES_SSLMODE=require` (or `verify-full`). The bundled
+  `postgres:16-alpine` has no TLS configured, so the demo stack uses `disable`.
+- **Network:** never publish the database port publicly; keep it on a private
+  network. The demo binds it to `127.0.0.1` only.
+- **App TLS:** terminate HTTPS at a reverse proxy (or use the built-in
+  `--https`) — do not serve plaintext HTTP publicly.
+- **Settings encryption:** run with `--encryptionEnv <ENV_VAR>` so SMTP/S3/
+  OAuth2/JWT secrets are encrypted at rest (see section on settings below).
+- **Connection pool:** size `(data+aux)×instances` under the DB's
+  `max_connections` (see the connection-pool sizing section), and front large
+  fan-out with PgBouncer.
 
 ---
 
