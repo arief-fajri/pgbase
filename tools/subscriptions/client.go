@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/arief-fajri/pgbase/tools/inflector"
 	"github.com/arief-fajri/pgbase/tools/security"
@@ -86,6 +87,11 @@ type DefaultClient struct {
 	id            string
 	mu            sync.RWMutex
 	isDiscarded   bool
+
+	// droppedCount tracks how many messages were dropped for this client
+	// because its buffer was full (slow consumer). Observable via DroppedCount
+	// without a metrics system (RT-1 observability).
+	droppedCount atomic.Uint64
 }
 
 // clientChannelBufferSize is the size of the per-client message queue.
@@ -297,5 +303,14 @@ func (c *DefaultClient) Send(m Message) {
 	case c.channel <- m:
 	default:
 		// buffer full -> drop for this client only
+		c.droppedCount.Add(1)
 	}
+}
+
+// DroppedCount returns how many messages have been dropped for this client due
+// to a full buffer. Not part of the Client interface on purpose, so alternative
+// implementations are not constrained; readers that hold the concrete
+// *DefaultClient can inspect it.
+func (c *DefaultClient) DroppedCount() uint64 {
+	return c.droppedCount.Load()
 }

@@ -20,6 +20,11 @@ func TestDefaultClientSendNonBlockingWhenFull(t *testing.T) {
 		t.Fatalf("expected buffer to stay at capacity (%d) after a drop, got %d", clientChannelBufferSize, got)
 	}
 
+	// the drop must be observable through DroppedCount
+	if got := client.DroppedCount(); got != 1 {
+		t.Fatalf("expected DroppedCount to report 1 drop, got %d", got)
+	}
+
 	// a drained buffer accepts a new message again
 	<-client.Channel()
 	client.Send(Message{Name: "after-drain"})
