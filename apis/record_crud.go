@@ -253,6 +253,7 @@ func recordCreate(responseWriteAfterTx bool, optFinalizer func(data any) error) 
 		requestInfo.Body = data
 
 		form := forms.NewRecordUpsert(e.App, record)
+		form.SetContext(e.Request.Context())
 		if hasSuperuserAuth {
 			form.GrantSuperuserAccess()
 		}
@@ -477,6 +478,7 @@ func recordUpdate(responseWriteAfterTx bool, optFinalizer func(data any) error) 
 		}
 
 		form := forms.NewRecordUpsert(e.App, record)
+		form.SetContext(e.Request.Context())
 		if hasSuperuserAuth {
 			form.GrantSuperuserAccess()
 		}
@@ -605,7 +607,7 @@ func recordDelete(responseWriteAfterTx bool, optFinalizer func(data any) error) 
 		event.Record = record
 
 		hookErr := e.App.OnRecordDeleteRequest().Trigger(event, func(e *core.RecordRequestEvent) error {
-			if err := e.App.Delete(e.Record); err != nil {
+			if err := e.App.DeleteWithContext(e.Request.Context(), e.Record); err != nil {
 				return firstApiError(err, e.BadRequestError("Failed to delete record. Make sure that the record is not part of a required relation reference.", err))
 			}
 

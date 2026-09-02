@@ -3,6 +3,7 @@ package core
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -62,6 +63,59 @@ func TestBuildDSNDefaultQueryExecMode(t *testing.T) {
 	dsn = buildDSN(config)
 	if !strings.Contains(dsn, "default_query_exec_mode=exec") || !strings.Contains(dsn, "search_path=tenant,public") {
 		t.Fatalf("expected both params to coexist, got %q", dsn)
+	}
+}
+
+func TestBuildDSNConnectTimeout(t *testing.T) {
+	config := DBConfig{
+		Host: "localhost", Port: 5432, User: "u", Password: "p",
+		DBName: "db", SSLMode: "disable",
+	}
+
+	t.Cleanup(func() {
+		t.Setenv("PB_POSTGRES_CONNECT_TIMEOUT", "")
+	})
+
+	// default (env unset) -> connect_timeout=10, and pgx parses it as a 10s dial timeout
+	t.Setenv("PB_POSTGRES_CONNECT_TIMEOUT", "")
+	dsn := buildDSN(config)
+	if !strings.Contains(dsn, "connect_timeout=10") {
+		t.Fatalf("expected default connect_timeout=10, got %q", dsn)
+	}
+	cfg, err := pgconn.ParseConfig(dsn)
+	if err != nil {
+		t.Fatalf("pgx failed to parse DSN %q: %v", dsn, err)
+	}
+	if cfg.ConnectTimeout != 10*time.Second {
+		t.Fatalf("expected cfg.ConnectTimeout=10s, got %s", cfg.ConnectTimeout)
+	}
+
+	// env override -> connect_timeout uses the override value
+	t.Setenv("PB_POSTGRES_CONNECT_TIMEOUT", "3")
+	dsn = buildDSN(config)
+	if !strings.Contains(dsn, "connect_timeout=3") {
+		t.Fatalf("expected connect_timeout=3, got %q", dsn)
+	}
+	cfg, err = pgconn.ParseConfig(dsn)
+	if err != nil {
+		t.Fatalf("pgx failed to parse overridden DSN %q: %v", dsn, err)
+	}
+	if cfg.ConnectTimeout != 3*time.Second {
+		t.Fatalf("expected cfg.ConnectTimeout=3s, got %s", cfg.ConnectTimeout)
+	}
+
+	// coexists with search_path and the exec mode param
+	t.Setenv("PB_POSTGRES_DEFAULT_QUERY_EXEC_MODE", "exec")
+	t.Cleanup(func() { t.Setenv("PB_POSTGRES_DEFAULT_QUERY_EXEC_MODE", "") })
+	config.Schema = "tenant"
+	dsn = buildDSN(config)
+	if !strings.Contains(dsn, "connect_timeout=3") ||
+		!strings.Contains(dsn, "default_query_exec_mode=exec") ||
+		!strings.Contains(dsn, "search_path=tenant,public") {
+		t.Fatalf("expected all params to coexist, got %q", dsn)
+	}
+	if _, err := pgconn.ParseConfig(dsn); err != nil {
+		t.Fatalf("pgx failed to parse combined DSN %q: %v", dsn, err)
 	}
 }
 

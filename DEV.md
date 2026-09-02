@@ -249,6 +249,7 @@ smaller **aux** pool (logs). Their sizes are tunable via env vars (no rebuild):
 | `PB_POSTGRES_AUX_MAX_IDLE_CONNS`  | `3`  | aux — max idle connections |
 | `PB_POSTGRES_CONN_MAX_LIFETIME`   | `30m` | max lifetime before a conn is recycled |
 | `PB_POSTGRES_CONN_MAX_IDLE_TIME`  | `3m`  | max idle time before an idle conn is closed |
+| `PB_POSTGRES_CONNECT_TIMEOUT`     | `10` | new-connection dial timeout **in seconds**; fails fast on pool refill during an outage/partition instead of blocking on the OS connect timeout (~75s+) |
 | `PB_POSTGRES_STATEMENT_TIMEOUT`   | `60s` | role-level `statement_timeout` (`ALTER ROLE CURRENT_USER` on boot; `off`/`0` resets) |
 | `PB_POSTGRES_LOCK_TIMEOUT`        | `30s` | role-level `lock_timeout` (`ALTER ROLE CURRENT_USER` on boot; `off`/`0` resets) |
 | `PB_POSTGRES_DEFAULT_QUERY_EXEC_MODE` | *unset* | pgx client-side query exec mode (`exec`/`simple_protocol` for PgBouncer transaction pooling; see warning above) |
@@ -301,19 +302,47 @@ returned connections once idle exceeds `MaxIdleConns`. Two deployment profiles:
 The defaults are tuned for the multi-instance / pooled profile; adjust per
 deployment.
 
-### Query & lock timeouts (server-side backstop)
+### Query & lock timeouts (layered)
 
-On boot the app applies `statement_timeout` (default `60s`) and `lock_timeout`
-(default `30s`) **at the PostgreSQL role level** via
-`ALTER ROLE CURRENT_USER SET ...`. They are a server-side backstop so a runaway
-statement or a write blocked on a row lock cannot hold a pooled connection
-indefinitely, and they survive PgBouncer transaction pooling (which does not
-reliably forward per-client DSN `options`). Applying is best-effort: a role
-that cannot alter itself logs a warning and skips. Tune with
-`PB_POSTGRES_STATEMENT_TIMEOUT` / `PB_POSTGRES_LOCK_TIMEOUT`; set either to
-`off` or `0` to **reset** the role setting (a previous boot's value is not left
-behind). Values are deliberately above the app's own 30s
-`DefaultQueryTimeout` so legitimate queries are not cut short.
+Query execution is bounded by **complementary client-side and server-side**
+layers, so a stuck statement can never hold a pooled connection indefinitely —
+including the case a server-side timeout cannot handle: a **silently dropped
+connection** (a network partition with no TCP RST/FIN — cable pull, VM freeze,
+firewall `DROP`, NAT idle-timeout). On such a dead socket the server's abort
+message can never arrive, so only a *client-side* deadline can free the slot.
+
+- **Client-side deadline (primary).** Every record read already carries a ~30s
+  deadline (`DefaultQueryTimeout`) via `queryTimeoutHook`. Every model **write**
+  (INSERT/UPDATE/DELETE from `App.Save`/`App.Delete`, incl. cron/JSVM/hooks/batch
+  and the aux DB) is now bounded the same way by `withWriteDeadline` at the write
+  execute site (`core/db.go`). A timeout is applied only when the caller's context
+  has none, so an HTTP request context (which cancels on client disconnect) or any
+  outer deadline still wins. On timeout `database/sql`+pgx cancel the statement and
+  discard the bad connection, so the **pool self-heals** at ~`QueryTimeout` instead
+  of hanging for minutes on the OS TCP retransmit. Tune with `DefaultQueryTimeout`
+  (in code) — there is no separate write-timeout knob.
+- **Server-side backstop.** On boot the app applies `statement_timeout` (default
+  `60s`) and `lock_timeout` (default `30s`) **at the PostgreSQL role level** via
+  `ALTER ROLE CURRENT_USER SET ...`. These reclaim the server **backend and locks**
+  even when the client is gone, and survive PgBouncer transaction pooling (which
+  does not reliably forward per-client DSN `options`). Applying is best-effort: a
+  role that cannot alter itself logs a warning and skips. Tune with
+  `PB_POSTGRES_STATEMENT_TIMEOUT` / `PB_POSTGRES_LOCK_TIMEOUT`; set either to `off`
+  or `0` to **reset** the role setting (a previous boot's value is not left
+  behind). Values are deliberately above the app's own 30s `DefaultQueryTimeout`
+  so legitimate queries are not cut short — and so the **client** deadline fires
+  first for the dead-socket case.
+- **Fail-fast dial.** `connect_timeout` (default `10s`, see
+  `PB_POSTGRES_CONNECT_TIMEOUT`) bounds opening a *new* connection so pool refill
+  during a partition fails fast instead of blocking on the OS connect timeout.
+- **Connection recycling.** `ConnMaxLifetime`/`ConnMaxIdleTime` retire stale/idle
+  connections; the `pgbase_db_*` Prometheus metrics (open/in-use/wait_count) give
+  pool-exhaustion visibility.
+
+> [!NOTE]
+> pgx v5's stdlib driver does not parse libpq `keepalives_*` DSN params, so TCP
+> keepalive is not tuned via the DSN; the client-side deadline above is the
+> mechanism that bounds a silently dropped connection.
 
 ---
 

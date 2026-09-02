@@ -102,6 +102,15 @@ func buildDSN(config DBConfig) string {
 		config.DBName, sslmode,
 	)
 
+	// Fail fast when opening a NEW connection during an outage/partition instead
+	// of blocking on the OS connect timeout (which can be ~75s+). This bounds
+	// pool refill and the initial dial; it does NOT affect in-flight queries
+	// (those are bounded client-side by withWriteDeadline / queryTimeoutHook and
+	// server-side by statement_timeout). Value is in seconds (libpq semantics
+	// understood by pgx). Keepalive DSN params are intentionally omitted because
+	// the pgx v5 stdlib driver does not parse libpq `keepalives_*`.
+	dsn += fmt.Sprintf(" connect_timeout=%d", getEnvIntOrDefault("PB_POSTGRES_CONNECT_TIMEOUT", 10))
+
 	// Optional pgx client-side query exec mode (CFG-1). The pgx default
 	// `cache_statement` uses per-connection named prepared statements, which
 	// PgBouncer *transaction* pooling cannot serve (the backend changes per
