@@ -415,6 +415,60 @@ re-broadcasts them to its own local subscribers.
 
 ---
 
+## 3d. Metrics & observability (Prometheus)
+
+An optional Prometheus endpoint exposes runtime, HTTP, DB-pool and realtime
+metrics. It is **opt-in** and served on a **separate listener** from the public
+API, so `/metrics` is never reachable on the port that serves user traffic.
+
+```bash
+# enable by binding the metrics listener (loopback strongly recommended)
+export PB_METRICS_ADDR="127.0.0.1:9090"
+./pgbase serve
+# scrape:  curl http://127.0.0.1:9090/metrics
+```
+
+- **`PB_METRICS_ADDR`** — TCP bind address for the metrics HTTP server. Empty or
+  unset (the default) **disables** the endpoint entirely: no extra listener is
+  opened and the request-instrumentation middleware is not installed (zero
+  overhead). Set to a bind address (e.g. `127.0.0.1:9090`) to enable.
+
+### Exposed metrics
+
+All custom series are prefixed `pgbase_`; the standard Go runtime and process
+collectors are also registered.
+
+| Metric | Type | Labels | Notes |
+|--------|------|--------|-------|
+| `pgbase_http_request_duration_seconds` | histogram | `method`, `route`, `status` | `route` is the matched **route template** (e.g. `/api/collections/{collection}/records`), never the raw path — keeps cardinality bounded. |
+| `pgbase_db_open_connections` | gauge | `db` (`data`/`aux`) | live `sql.DB.Stats()` per pool |
+| `pgbase_db_in_use_connections` | gauge | `db` | |
+| `pgbase_db_idle_connections` | gauge | `db` | |
+| `pgbase_db_max_open_connections` | gauge | `db` | pool ceiling (0 = unlimited) |
+| `pgbase_db_wait_count_total` | counter | `db` | connections waited for |
+| `pgbase_db_wait_duration_seconds_total` | counter | `db` | time blocked waiting for a connection |
+| `pgbase_realtime_connected_clients` | gauge | — | currently connected SSE clients |
+| `pgbase_realtime_dropped_messages` | gauge | — | messages dropped on full client buffers (slow consumers), summed over connected clients |
+
+The DB-pool gauges directly address the pool-ceiling concern from the
+performance audit (watch `open`/`in_use`/`wait_count` approach
+`max_open_connections`); `dropped_messages` surfaces slow realtime consumers.
+
+### Security & deployment
+
+- **No authentication is applied to `/metrics`.** Bind it to loopback
+  (`127.0.0.1`) or an internal-only interface and never expose it publicly. A
+  scrape reveals internal timings and pool state.
+- **Container caveat:** `127.0.0.1` inside a container is *not* reachable by an
+  external Prometheus. Either run Prometheus as a **sidecar** in the same
+  network namespace, or bind the pod/container interface (e.g. `0.0.0.0:9090`)
+  and restrict access with a **NetworkPolicy**/firewall — do not publish the
+  port to the host/internet.
+- The listener shuts down gracefully alongside the main server on
+  `SIGTERM`/restart.
+
+---
+
 ## 4. Run the UI (Dev Mode, Hot Reload)
 
 The dashboard is a single-page app written in vanilla JavaScript (a small

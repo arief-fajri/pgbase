@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -79,6 +80,23 @@ func Serve(app core.App, config ServeConfig) error {
 		AllowOrigins: config.AllowedOrigins,
 		AllowMethods: []string{http.MethodGet, http.MethodHead, http.MethodPut, http.MethodPatch, http.MethodPost, http.MethodDelete},
 	}))
+
+	// optional Prometheus metrics endpoint (opt-in via PB_METRICS_ADDR).
+	// Served on a SEPARATE listener so /metrics is never exposed on the public
+	// API port; bind it to loopback (e.g. 127.0.0.1:9090) or an internal
+	// interface. When the env var is unset/empty no extra listener is opened
+	// and the request-instrumentation middleware is not installed.
+	var metricsShutdown func(context.Context) error
+	if metricsAddr := metricsBindAddr(); metricsAddr != "" {
+		m := newAppMetrics(app)
+		pbRouter.Bind(metricsMiddleware(m))
+
+		shutdown, err := serveMetrics(app, m, metricsAddr)
+		if err != nil {
+			return fmt.Errorf("failed to start metrics server on %s: %w", metricsAddr, err)
+		}
+		metricsShutdown = shutdown
+	}
 
 	// @todo consider moving in base
 	if ui.DistDirFS != nil {
@@ -180,6 +198,13 @@ func Serve(app core.App, config ServeConfig) error {
 			wg.Add(1)
 
 			_ = server.Shutdown(ctx)
+
+			// also stop the optional metrics server (no-op when disabled)
+			if metricsShutdown != nil {
+				mctx, mcancel := context.WithTimeout(context.Background(), 1*time.Second)
+				_ = metricsShutdown(mctx)
+				mcancel()
+			}
 
 			if te.IsRestart {
 				// wait for execve and other handlers up to 3 seconds before exit
