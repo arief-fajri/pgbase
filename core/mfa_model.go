@@ -124,7 +124,10 @@ func (app *BaseApp) registerMFAHooks() {
 
 	// run on every hour to cleanup expired mfa sessions
 	app.Cron().Add("__pbMFACleanup__", "0 * * * *", func() {
-		if err := app.DeleteExpiredMFAs(); err != nil {
+		err := app.runWithCronLock("__pbMFACleanup__", app.Logger(), func() error {
+			return app.DeleteExpiredMFAs()
+		})
+		if err != nil {
 			app.Logger().Warn("Failed to delete expired MFA sessions", "error", err)
 		}
 	})

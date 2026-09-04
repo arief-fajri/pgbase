@@ -19,7 +19,9 @@ func bindBackupApi(app core.App, rg *router.RouterGroup[*core.RequestEvent]) {
 	sub.GET("", backupsList).Bind(RequireSuperuserAuth())
 	sub.POST("", backupCreate).Bind(RequireSuperuserAuth())
 	sub.POST("/upload", backupUpload).Bind(BodyLimit(0), RequireSuperuserAuth())
-	sub.GET("/{key}", backupDownload) // relies on superuser file token
+	// exclude gzip: the backup archive is already compressed and gzip drops
+	// Content-Length/range support
+	sub.GET("/{key}", backupDownload).Unbind(DefaultGzipMiddlewareId) // relies on superuser file token
 	sub.DELETE("/{key}", backupDelete).Bind(RequireSuperuserAuth())
 	sub.POST("/{key}/restore", backupRestore).Bind(RequireSuperuserAuth())
 }

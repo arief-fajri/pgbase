@@ -340,7 +340,7 @@ func TestImportCollectionsUpdateRules(t *testing.T) {
 				"passwordAuth": map[string]any{"identityFields": []string{"email"}},
 				"indexes": []string{
 					// min required system fields indexes
-					"CREATE UNIQUE INDEX \"_v851q4r790rhknl_email_idx\" ON \"clients\" (email) WHERE email != ''",
+					`CREATE UNIQUE INDEX "_v851q4r790rhknl_email_idx" ON "clients" (LOWER("email")) WHERE "email" <> ''`,
 					"CREATE UNIQUE INDEX \"_v851q4r790rhknl_tokenKey_idx\" ON \"clients\" (tokenKey)",
 				},
 			},
