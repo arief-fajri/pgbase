@@ -186,13 +186,43 @@ func ParseIndex(createIndexExpr string) Index {
 	return result
 }
 
+// NormalizeIndexColumnName reduces a single index column expression to its bare
+// column identifier so that a functional index such as LOWER("email") is still
+// recognized as a single column index on "email".
+//
+// It unwraps a single surrounding lower(...) call (the only functional
+// expression the auth layer generates for case-insensitive unique indexes) and
+// strips the usual identifier quoting/brackets. Plain column names are returned
+// unchanged, so this is backward compatible with regular indexes.
+func NormalizeIndexColumnName(name string) string {
+	const trimChars = "`\"'[] \t\r\n\f\v"
+
+	n := strings.Trim(strings.TrimSpace(name), trimChars)
+
+	if lower := strings.ToLower(n); strings.HasPrefix(lower, "lower(") && strings.HasSuffix(n, ")") {
+		n = strings.Trim(n[len("lower("):len(n)-1], trimChars)
+	}
+
+	return n
+}
+
+// IsFunctionalIndexColumn reports whether the provided index column expression
+// is a functional form built on LOWER(...) (the shape used by the identity
+// layer to enforce case-insensitive unique indexes).
+func IsFunctionalIndexColumn(columnExpression string) bool {
+	return strings.Contains(strings.ToLower(columnExpression), "lower(")
+}
+
 // FindSingleColumnUniqueIndex returns the first matching single column unique index.
+//
+// A functional index over a single column expressed as LOWER("<column>") is
+// treated as a single column unique index on that column.
 func FindSingleColumnUniqueIndex(indexes []string, column string) (Index, bool) {
 	var index Index
 
 	for _, idx := range indexes {
 		index := ParseIndex(idx)
-		if index.Unique && len(index.Columns) == 1 && strings.EqualFold(index.Columns[0].Name, column) {
+		if index.Unique && len(index.Columns) == 1 && strings.EqualFold(NormalizeIndexColumnName(index.Columns[0].Name), column) {
 			return index, true
 		}
 	}

@@ -137,17 +137,17 @@ func (d *PgSQLDialect) GenerateIDExpression() string {
 	return "DEFAULT ('r' || lower(encode(gen_random_bytes(7), 'hex')))"
 }
 
-func (d *PgSQLDialect) Strftime(column, format string) string {
-	pgFormat := convertStrftimeFormat(format)
-	return fmt.Sprintf("to_char(%s, '%s')", column, pgFormat)
-}
-
 func (d *PgSQLDialect) CollateNocase(column string) string {
 	return fmt.Sprintf("LOWER(%s)", column)
 }
 
 func (d *PgSQLDialect) QuoteIdentifier(name string) string {
-	return fmt.Sprintf(`"%s"`, name)
+	// escape embedded double-quotes (PGB-L01); already-quoted names are
+	// normalized rather than double-wrapped (mirrors dbx quoteSimpleIdentifier)
+	if len(name) >= 2 && strings.HasPrefix(name, `"`) && strings.HasSuffix(name, `"`) {
+		return `"` + strings.ReplaceAll(name[1:len(name)-1], `"`, `""`) + `"`
+	}
+	return fmt.Sprintf(`"%s"`, strings.ReplaceAll(name, `"`, `""`))
 }
 
 func (d *PgSQLDialect) RandomExpression() string {
@@ -160,19 +160,4 @@ func (d *PgSQLDialect) OptimizeQuery() string {
 
 func (d *PgSQLDialect) VacuumQuery() string {
 	return "VACUUM"
-}
-
-func convertStrftimeFormat(format string) string {
-	replacer := strings.NewReplacer(
-		"%Y", "YYYY",
-		"%m", "MM",
-		"%d", "DD",
-		"%H", "HH24",
-		"%M", "MI",
-		"%S", "SS",
-		"%f", "MS",
-		"%w", "D",
-		"%j", "DDD",
-	)
-	return replacer.Replace(format)
 }

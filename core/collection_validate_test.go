@@ -517,7 +517,7 @@ func TestCollectionValidate(t *testing.T) {
 				c := core.NewAuthCollection("new_auth")
 				c.Indexes = []string{
 					"create unique index test_idx1 on new_auth (tokenKey)",
-					"create unique index test_idx2 on new_auth (email)",
+					`create unique index test_idx2 on new_auth (LOWER("email")) WHERE "email" <> ''`,
 				}
 				return c, nil
 			},

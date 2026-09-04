@@ -42,7 +42,9 @@ func bindFileApi(app core.App, rg *router.RouterGroup[*core.RequestEvent]) {
 
 	sub := rg.Group("/files")
 	sub.POST("/token", api.fileToken).Bind(RequireAuth())
-	sub.GET("/{collection}/{recordId}/{filename}", api.download).Bind(collectionPathRateLimit("", "file"))
+	// exclude gzip: file downloads are usually already-compressed binaries and
+	// gzip drops Content-Length/range support while wasting CPU
+	sub.GET("/{collection}/{recordId}/{filename}", api.download).Bind(collectionPathRateLimit("", "file")).Unbind(DefaultGzipMiddlewareId)
 }
 
 type fileApi struct {

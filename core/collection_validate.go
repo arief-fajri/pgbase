@@ -464,9 +464,21 @@ func (cv *collectionValidator) checkFieldsForUniqueIndex(value any) error {
 				SetParams(map[string]any{"fieldName": name})
 		}
 
-		if _, ok := dbutils.FindSingleColumnUniqueIndex(cv.new.Indexes, name); !ok {
+		idx, ok := dbutils.FindSingleColumnUniqueIndex(cv.new.Indexes, name)
+		if !ok {
 			return validation.NewError("validation_missing_unique_constraint", "The field {{.fieldName}} doesn't have a UNIQUE constraint.").
 				SetParams(map[string]any{"fieldName": name})
+		}
+
+		// identity fields must use a case-insensitive functional (LOWER)
+		// unique index so the LOWER(field) = LOWER(?) auth lookups remain
+		// index-served (a plain case-sensitive unique index would force a
+		// sequential scan on every login) - see IDX-1 / D-1.
+		if len(idx.Columns) != 1 || !dbutils.IsFunctionalIndexColumn(idx.Columns[0].Name) {
+			return validation.NewError(
+				"validation_non_functional_identity_unique_index",
+				"The identity field {{.fieldName}} must have a case-insensitive (LOWER) UNIQUE constraint.",
+			).SetParams(map[string]any{"fieldName": name})
 		}
 	}
 
@@ -631,7 +643,9 @@ func (cv *collectionValidator) checkIndexes(value any) error {
 
 			for _, column := range oldParsed.Columns {
 				for _, f := range cv.original.Fields {
-					if !f.GetSystem() || !strings.EqualFold(column.Name, f.GetName()) {
+					// normalize functional index columns (eg. LOWER("email")) so
+					// the guard also recognizes the auth functional unique index
+					if !f.GetSystem() || !strings.EqualFold(dbutils.NormalizeIndexColumnName(column.Name), f.GetName()) {
 						continue
 					}
 

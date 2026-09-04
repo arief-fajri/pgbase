@@ -4,10 +4,16 @@ import (
 	"context"
 	"net/http"
 	"regexp"
+	"time"
 
 	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/core"
 )
+
+// backupTaskTimeout bounds the pg_dump/backup creation so it cannot run
+// indefinitely (a huge DB could otherwise hold storage and the active-backup
+// store flag for an unbounded time). It mirrors the restore-path bound.
+const backupTaskTimeout = 10 * time.Minute
 
 func backupCreate(e *core.RequestEvent) error {
 	if e.App.Store().Has(core.StoreKeyActiveBackup) {
@@ -27,7 +33,11 @@ func backupCreate(e *core.RequestEvent) error {
 		return e.BadRequestError("An error occurred while validating the submitted data.", err)
 	}
 
-	err = e.App.CreateBackup(context.Background(), form.Name)
+	// bound the pg_dump subprocess so a backup cannot run indefinitely
+	backupCtx, cancel := context.WithTimeout(context.Background(), backupTaskTimeout)
+	defer cancel()
+
+	err = e.App.CreateBackup(backupCtx, form.Name)
 	if err != nil {
 		return e.BadRequestError("Failed to create backup.", err)
 	}

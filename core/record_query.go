@@ -572,7 +572,14 @@ func (app *BaseApp) FindAuthRecordByEmail(collectionModelOrIdentifier any, email
 
 	record := &Record{}
 
-	expr := dbx.NewExp("LOWER([["+FieldNameEmail+"]]) = LOWER({:email})", dbx.Params{"email": email})
+	// note: the "email" <> '' predicate mirrors the partial functional unique
+	// index on LOWER("email") so PostgreSQL can satisfy this lookup with an
+	// index scan; it never changes the result since a non-empty email can only
+	// match a non-empty stored email.
+	expr := dbx.NewExp(
+		"LOWER([["+FieldNameEmail+"]]) = LOWER({:email}) AND [["+FieldNameEmail+"]] <> ''",
+		dbx.Params{"email": email},
+	)
 
 	err = app.RecordQuery(collection).
 		AndWhere(expr).

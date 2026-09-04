@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/core/validators"
 	"github.com/arief-fajri/pgbase/tests"
@@ -105,6 +106,27 @@ func TestNormalizeUniqueIndexError(t *testing.T) {
 			"test",
 			[]string{"a", "a_2", "c"},
 			[]string{"a_2", "c"},
+		},
+		{
+			"pg unique violation detail (single column)",
+			&pgconn.PgError{Code: "23505", Detail: "Key (title)=(test2) already exists."},
+			"test",
+			[]string{"title", "other"},
+			[]string{"title"},
+		},
+		{
+			"pg unique violation detail (multi column)",
+			&pgconn.PgError{Code: "23505", Detail: "Key (a, b)=(1, 2) already exists."},
+			"test",
+			[]string{"a", "b", "c"},
+			[]string{"a", "b"},
+		},
+		{
+			"pg unique violation detail (functional lower(email) index)",
+			&pgconn.PgError{Code: "23505", Detail: "Key (lower(email))=(a@b.co) already exists."},
+			"users",
+			[]string{"email", "username"},
+			[]string{"email"},
 		},
 	}
 

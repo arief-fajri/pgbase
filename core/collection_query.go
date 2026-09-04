@@ -15,6 +15,11 @@ import (
 
 const StoreKeyCachedCollections = "pbAppCachedCollections"
 
+// storeKeyCachedCollectionsLookup holds an id + lower(name) index over the
+// cached collections slice so FindCachedCollectionByNameOrId can resolve in
+// O(1) instead of scanning the whole slice on every call (hot path).
+const storeKeyCachedCollectionsLookup = "pbAppCachedCollectionsLookup"
+
 // CollectionQuery returns a new Collection select query.
 func (app *BaseApp) CollectionQuery() *dbx.SelectQuery {
 	return app.ModelQuery(&Collection{})
@@ -53,7 +58,24 @@ func (app *BaseApp) ReloadCachedCollections() error {
 		return err
 	}
 
+	// build an id + lower(name) lookup index alongside the slice so that
+	// FindCachedCollectionByNameOrId is O(1). Keys are inserted in the slice
+	// order (id ASC) with the id before the name and on a first-wins basis so
+	// the resolved collection matches the previous linear scan semantics
+	// (c.Id == q || EqualFold(c.Name, q)).
+	lookup := make(map[string]*Collection, len(collections)*2)
+	for _, c := range collections {
+		if _, ok := lookup[c.Id]; !ok {
+			lookup[c.Id] = c
+		}
+		nameKey := strings.ToLower(c.Name)
+		if _, ok := lookup[nameKey]; !ok {
+			lookup[nameKey] = c
+		}
+	}
+
 	app.Store().Set(StoreKeyCachedCollections, collections)
+	app.Store().Set(storeKeyCachedCollectionsLookup, lookup)
 
 	return nil
 }
@@ -97,16 +119,19 @@ func (app *BaseApp) FindCollectionByNameOrId(nameOrId string) (*Collection, erro
 //   - The cache is automatically updated on collections db change (create/update/delete).
 //     To manually reload the cache you can call [BaseApp.ReloadCachedCollections].
 func (app *BaseApp) FindCachedCollectionByNameOrId(nameOrId string) (*Collection, error) {
-	collections, _ := app.Store().Get(StoreKeyCachedCollections).([]*Collection)
-	if collections == nil {
+	lookup, ok := app.Store().Get(storeKeyCachedCollectionsLookup).(map[string]*Collection)
+	if !ok {
 		// cache is not initialized yet (eg. run in a system migration)
 		return app.FindCollectionByNameOrId(nameOrId)
 	}
 
-	for _, c := range collections {
-		if strings.EqualFold(c.Name, nameOrId) || c.Id == nameOrId {
-			return c, nil
-		}
+	// exact match resolves case-sensitive ids (and already-lowercased names);
+	// the lowered fallback resolves the case-insensitive name lookup
+	if c, ok := lookup[nameOrId]; ok {
+		return c, nil
+	}
+	if c, ok := lookup[strings.ToLower(nameOrId)]; ok {
+		return c, nil
 	}
 
 	return nil, sql.ErrNoRows

@@ -12,6 +12,15 @@ coverage.out
 # local runtime data dir (created on first run)
 /pb_data/
 
+# runtime-generated migration dir + locally built binary
+/pb_migrations/
+/pgbase
+
+# local secrets for docker-compose (copy .env.example -> .env and fill in);
+# never commit real credentials. The committed template is .env.example.
+.env
+!.env.example
+
 # plaintask todo files
 *.todo
 

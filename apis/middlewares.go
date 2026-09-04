@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"runtime"
 	"slices"
 	"strings"
@@ -47,6 +48,10 @@ const (
 
 	DefaultSecurityHeadersMiddlewarePriority = DefaultRateLimitMiddlewarePriority - 10
 	DefaultSecurityHeadersMiddlewareId       = "pbSecurityHeaders"
+
+	// HSTSEnv toggles the Strict-Transport-Security header (opt-in, meaningful
+	// only when the app is served over HTTPS).
+	HSTSEnv = "PB_HSTS"
 
 	DefaultRequireGuestOnlyMiddlewareId                 = "pbRequireGuestOnly"
 	DefaultRequireAuthMiddlewareId                      = "pbRequireAuth"
@@ -282,23 +287,47 @@ func panicRecover() *hook.Handler[*core.RequestEvent] {
 	}
 }
 
+// hstsEnabledFromEnv reports whether Strict-Transport-Security is enabled via
+// the PB_HSTS env flag (opt-in; only meaningful over HTTPS).
+func hstsEnabledFromEnv() bool {
+	v := os.Getenv(HSTSEnv)
+	return v == "1" || strings.EqualFold(v, "true")
+}
+
 // securityHeaders middleware adds common security headers to the response.
 //
 // This middleware is registered by default for all routes.
 func securityHeaders() *hook.Handler[*core.RequestEvent] {
+	// Strict-Transport-Security is opt-in (see hstsEnabledFromEnv): it is only
+	// meaningful when the app is served over HTTPS (built-in --https/autocert,
+	// or a TLS-terminating reverse proxy in front). Enabling it on a plaintext
+	// dev setup would just set a header for a connection that is already
+	// plaintext.
+	hstsEnabled := hstsEnabledFromEnv()
+
 	return &hook.Handler[*core.RequestEvent]{
 		Id:       DefaultSecurityHeadersMiddlewareId,
 		Priority: DefaultSecurityHeadersMiddlewarePriority,
 		Func: func(e *core.RequestEvent) error {
-			e.Response.Header().Set("X-XSS-Protection", "1; mode=block")
-			e.Response.Header().Set("X-Content-Type-Options", "nosniff")
-			e.Response.Header().Set("X-Frame-Options", "SAMEORIGIN")
-
-			// @todo consider a default HSTS?
-			// (see also https://webkit.org/blog/8146/protecting-against-hsts-abuse/)
+			writeSecurityHeaders(e.Response.Header(), hstsEnabled)
 
 			return e.Next()
 		},
+	}
+}
+
+// writeSecurityHeaders writes the common security response headers. HSTS is
+// opt-in (see PB_HSTS) because it is only meaningful over HTTPS.
+func writeSecurityHeaders(h http.Header, hstsEnabled bool) {
+	h.Set("X-XSS-Protection", "1; mode=block")
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("X-Frame-Options", "SAMEORIGIN")
+	h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+	if hstsEnabled {
+		// 2y max-age; includeSubDomains. Deliberately not "preload" here
+		// (submitting the preload list is a manual operator decision).
+		h.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 	}
 }
 
@@ -346,6 +375,63 @@ func SkipSuccessActivityLog() *hook.Handler[*core.RequestEvent] {
 //
 // Users can attach the [apis.SkipSuccessActivityLog()] middleware if
 // you want to log only the failed requests.
+// sensitiveQueryParams are query string parameter names whose values must be
+// redacted from request activity logs (e.g. the file download "token", OAuth2
+// "code", API/secret keys) to avoid leaking credentials/secrets into log output.
+var sensitiveQueryParams = []string{
+	"token",
+	"code",
+	"key",
+	"secret",
+	"password",
+	"access_token",
+	"refresh_token",
+	"client_secret",
+	"api_key",
+	"apikey",
+	"auth",
+}
+
+// redactSensitiveQueryParams replaces the values of sensitive query parameters
+// with "[redacted]" while preserving the rest of the URI bytes unchanged.
+// It operates on the raw (still percent-encoded) URI to avoid an encode/decode
+// round-trip, and leaves the URI untouched when nothing needs redaction.
+func redactSensitiveQueryParams(requestURI string) string {
+	sep := strings.IndexByte(requestURI, '?')
+	if sep < 0 || len(requestURI) == sep+1 {
+		// no query string -> nothing to redact
+		return requestURI
+	}
+
+	query := requestURI[sep+1:]
+
+	parts := strings.Split(query, "&")
+	redacted := false
+	for i, part := range parts {
+		name := part
+		if eq := strings.IndexByte(part, '='); eq > 0 {
+			name = part[:eq]
+		}
+
+		for _, p := range sensitiveQueryParams {
+			if !strings.EqualFold(name, p) {
+				continue
+			}
+			if strings.Contains(part, "=") {
+				parts[i] = name + "=[redacted]"
+			}
+			redacted = true
+			break
+		}
+	}
+
+	if !redacted {
+		return requestURI
+	}
+
+	return requestURI[:sep+1] + strings.Join(parts, "&")
+}
+
 func activityLogger() *hook.Handler[*core.RequestEvent] {
 	return &hook.Handler[*core.RequestEvent]{
 		Id:       DefaultActivityLoggerMiddlewareId,
@@ -388,7 +474,7 @@ func logRequest(event *core.RequestEvent, err error) {
 
 	status := event.Status()
 	method := cutStr(strings.ToUpper(event.Request.Method), 50)
-	requestUri := cutStr(event.Request.URL.RequestURI(), 3000)
+	requestUri := cutStr(redactSensitiveQueryParams(event.Request.URL.RequestURI()), 3000)
 
 	// parse the request error
 	if err != nil {

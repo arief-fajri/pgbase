@@ -162,8 +162,13 @@ psql -d pgbase_test -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
 ### Option C: Docker Compose (full stack)
 
 ```bash
+cp .env.example .env   # then set a strong PB_POSTGRES_PASSWORD in .env
 docker compose up
 ```
+
+`docker compose up` fails fast if `PB_POSTGRES_PASSWORD` is unset — there is no
+weak built-in default. The postgres port is published on `127.0.0.1` only, so
+the database is never exposed to the network.
 
 This builds the image (slow the first time) and runs **PostgreSQL + the PG-BASE
 web app** (`http://localhost:8090/_/`). It is NOT the right choice when you want
@@ -230,6 +235,279 @@ PB_POSTGRES_PASSWORD=secret go run ./examples/base serve --http="127.0.0.1:8090"
 
 > The API will be available at `http://127.0.0.1:8090`.
 > Read more about the API at [PocketBase docs](https://pocketbase.io/docs).
+
+### Connection pool sizing (high concurrency / multiple instances)
+
+The app keeps two connection pools: a **data** pool (application queries) and a
+smaller **aux** pool (logs). Their sizes are tunable via env vars (no rebuild):
+
+| Env variable | Default | Pool |
+|--------------|---------|------|
+| `PB_POSTGRES_DATA_MAX_OPEN_CONNS` | `80` | data — max open connections |
+| `PB_POSTGRES_DATA_MAX_IDLE_CONNS` | `15` | data — max idle connections |
+| `PB_POSTGRES_AUX_MAX_OPEN_CONNS`  | `10` | aux — max open connections |
+| `PB_POSTGRES_AUX_MAX_IDLE_CONNS`  | `3`  | aux — max idle connections |
+| `PB_POSTGRES_CONN_MAX_LIFETIME`   | `30m` | max lifetime before a conn is recycled |
+| `PB_POSTGRES_CONN_MAX_IDLE_TIME`  | `3m`  | max idle time before an idle conn is closed |
+| `PB_POSTGRES_CONNECT_TIMEOUT`     | `10` | new-connection dial timeout **in seconds**; fails fast on pool refill during an outage/partition instead of blocking on the OS connect timeout (~75s+) |
+| `PB_POSTGRES_STATEMENT_TIMEOUT`   | `60s` | role-level `statement_timeout` (`ALTER ROLE CURRENT_USER` on boot; `off`/`0` resets) |
+| `PB_POSTGRES_LOCK_TIMEOUT`        | `30s` | role-level `lock_timeout` (`ALTER ROLE CURRENT_USER` on boot; `off`/`0` resets) |
+| `PB_POSTGRES_DEFAULT_QUERY_EXEC_MODE` | *unset* | pgx client-side query exec mode (`exec`/`simple_protocol` for PgBouncer transaction pooling; see warning above) |
+| `PB_DB_VACUUM_CRON` | *unset (off)* | daily whole-DB `VACUUM` cron schedule (eg. `0 0 * * *`) — **off by default**; PostgreSQL autovacuum covers it. `off`/empty keeps it disabled |
+
+> [!IMPORTANT]
+> The effective per-instance ceiling is **`DATA_MAX_OPEN + AUX_MAX_OPEN`**
+> (default **90**). This must stay below the PostgreSQL server
+> `max_connections`, leaving headroom for superuser/maintenance sessions and
+> dividing across every app instance:
+>
+> ```
+> (DATA_MAX_OPEN + AUX_MAX_OPEN) × instances  ≤  max_connections − reserved
+> ```
+>
+> The default 90 fits under the stock Postgres `max_connections=100`. If you run
+> **multiple instances** or raise the pool env vars, raise `max_connections`
+> accordingly (`postgres -c max_connections=...`; the bundled
+> `docker-compose.yml` sets `200`) — and note that pushing many more than a few
+> dozen *active* connections at Postgres usually hurts (server-side contention).
+> For high fan-out, front Postgres with **PgBouncer** in *transaction* pooling
+> mode and keep each app pool small; PgBouncer multiplexes them onto a handful
+> of real server connections.
+>
+> ⚠️ **PgBouncer transaction mode requires setting
+> `PB_POSTGRES_DEFAULT_QUERY_EXEC_MODE`.** pgx defaults to `cache_statement`,
+> which uses per-connection named prepared statements that PgBouncer
+> transaction pooling cannot serve (`prepared statement "stmtcache_..." does
+> not exist`). Set it to `exec` (recommended) or `simple_protocol` when fronting
+> with PgBouncer in transaction mode. With PgBouncer 1.21+ you can alternatively
+> keep `cache_statement` and enable PgBouncer's protocol-level prepared-statement
+> support (`max_prepared_statements`).
+
+### Connection idle behavior (POOL-1)
+
+Each PostgreSQL connection is a forked backend (expensive to create), so
+`MaxIdleConns` sits below `MaxOpenConns` by default (data 80/15, aux 10/3) to
+let the pool shrink during quiet periods — refreshed after `ConnMaxIdleTime`
+(3m). On **direct connection** deployments with sustained concurrency this
+causes connect/reconnect churn between 15 and 80 as `database/sql` closes
+returned connections once idle exceeds `MaxIdleConns`. Two deployment profiles:
+
+- **Direct connection (single/small):** raising `MaxIdleConns` toward
+  `MaxOpenConns` (eg. `PB_POSTGRES_DATA_MAX_IDLE_CONNS=80`) eliminates the
+  churn; `ConnMaxIdleTime` still drains idle backends during quiet periods.
+- **Behind PgBouncer:** keep each app pool **small** (PgBouncer multiplexes)
+  and leave idle low — the app connections are cheap sockets to PgBouncer, so
+  raising idle gains nothing and only adds sockets to hold.
+
+The defaults are tuned for the multi-instance / pooled profile; adjust per
+deployment.
+
+### Query & lock timeouts (layered)
+
+Query execution is bounded by **complementary client-side and server-side**
+layers, so a stuck statement can never hold a pooled connection indefinitely —
+including the case a server-side timeout cannot handle: a **silently dropped
+connection** (a network partition with no TCP RST/FIN — cable pull, VM freeze,
+firewall `DROP`, NAT idle-timeout). On such a dead socket the server's abort
+message can never arrive, so only a *client-side* deadline can free the slot.
+
+- **Client-side deadline (primary).** Every record read already carries a ~30s
+  deadline (`DefaultQueryTimeout`) via `queryTimeoutHook`. Every model **write**
+  (INSERT/UPDATE/DELETE from `App.Save`/`App.Delete`, incl. cron/JSVM/hooks/batch
+  and the aux DB) is now bounded the same way by `withWriteDeadline` at the write
+  execute site (`core/db.go`). A timeout is applied only when the caller's context
+  has none, so an HTTP request context (which cancels on client disconnect) or any
+  outer deadline still wins. On timeout `database/sql`+pgx cancel the statement and
+  discard the bad connection, so the **pool self-heals** at ~`QueryTimeout` instead
+  of hanging for minutes on the OS TCP retransmit. Tune with `DefaultQueryTimeout`
+  (in code) — there is no separate write-timeout knob.
+- **Server-side backstop.** On boot the app applies `statement_timeout` (default
+  `60s`) and `lock_timeout` (default `30s`) **at the PostgreSQL role level** via
+  `ALTER ROLE CURRENT_USER SET ...`. These reclaim the server **backend and locks**
+  even when the client is gone, and survive PgBouncer transaction pooling (which
+  does not reliably forward per-client DSN `options`). Applying is best-effort: a
+  role that cannot alter itself logs a warning and skips. Tune with
+  `PB_POSTGRES_STATEMENT_TIMEOUT` / `PB_POSTGRES_LOCK_TIMEOUT`; set either to `off`
+  or `0` to **reset** the role setting (a previous boot's value is not left
+  behind). Values are deliberately above the app's own 30s `DefaultQueryTimeout`
+  so legitimate queries are not cut short — and so the **client** deadline fires
+  first for the dead-socket case.
+- **Fail-fast dial.** `connect_timeout` (default `10s`, see
+  `PB_POSTGRES_CONNECT_TIMEOUT`) bounds opening a *new* connection so pool refill
+  during a partition fails fast instead of blocking on the OS connect timeout.
+- **Connection recycling.** `ConnMaxLifetime`/`ConnMaxIdleTime` retire stale/idle
+  connections; the `pgbase_db_*` Prometheus metrics (open/in-use/wait_count) give
+  pool-exhaustion visibility.
+
+> [!NOTE]
+> pgx v5's stdlib driver does not parse libpq `keepalives_*` DSN params, so TCP
+> keepalive is not tuned via the DSN; the client-side deadline above is the
+> mechanism that bounds a silently dropped connection.
+
+---
+
+## 3b. Auth identity fields & case-insensitive indexes
+
+Password-auth identity fields (eg. `email`, `username`, or any custom text field
+listed in `PasswordAuth.IdentityFields`) are always matched case-insensitively
+(`LOWER(field) = LOWER(?)`), so each active identity field must carry a
+**functional partial unique index** of the form:
+
+```sql
+CREATE UNIQUE INDEX "idx_<field>_<id>" ON "<collection>" (LOWER("<field>")) WHERE "<field>" <> ''
+```
+
+- The runtime generator (`initIdentityFieldIndexes`) appends this index
+  automatically when an auth collection defines a text identity field without
+  one.
+- The collection validator **rejects** an auth collection whose active identity
+  field does not have a `LOWER(...)` unique index (a plain case-sensitive
+  index is refused — see `validation_non_functional_identity_unique_index`).
+  On a fresh install this is never an issue; it also prevents accidentally
+  degrading identity lookups to sequential scans.
+- Legacy databases are converted by the `1787237101` migration; SQLite backups
+  are normalized during import.
+
+### Removed identity fields ("keep" lifecycle)
+
+Removing a field from `PasswordAuth.IdentityFields` does **not** drop its unique
+index. This is intentional (D-2): dropping a unique index is a destructive data
+operation better left to a conscious admin decision.
+
+Consequences to be aware of:
+
+- The index keeps enforcing **case-insensitive uniqueness** on that column even
+  though it is no longer usable for login — you may still see duplicate errors
+  for values that differ only by letter case.
+- The lookup path is unaffected (the field is simply not consulted anymore).
+- On the save that removes the field, a warning is logged with the index name so
+  operators know a now-orphaned unique constraint remains.
+
+To fully drop the constraint, remove the index from the collection's `indexes`
+list (via the dashboard or a migration) and let the schema sync rebuild without
+it. If you still want case-insensitive uniqueness on a column that is no longer
+an identity field, keeping the index is the correct choice — no action needed.
+
+### Note on OAuth2 username uniqueness
+
+The OAuth2 sign-up uniqueness check runs `LOWER(username) = LOWER(?)` without
+the `username <> ''` predicate, so it does not use the partial functional index.
+This is intentional and mirrors upstream: the check is a secondary guard with
+`LIMIT 1` over a bounded set, not a hot login path. The password identity
+lookup — the actual hot path — is index-served.
+
+---
+
+## 3c. Cross-instance realtime (outbox)
+
+By default realtime is **single-instance**: record broadcasts are fanned out to
+the subscribers connected to the instance that performed the write. To fan a
+write out to subscribers on *other* app instances (a **multi-instance**
+deployment sharing one database), enable the DB-backed event outbox:
+
+```bash
+PB_REALTIME_OUTBOX=1
+```
+
+When enabled, each record write appends an event row to `_realtime_outbox`
+(`action`, `collection`, `record_id`, `snapshot`) and sends a PostgreSQL
+`NOTIFY pb_realtime_outbox` wake-up. Every other instance `LISTEN`s on that
+channel (dedicated pgx-native connection), reads the pending events, and
+re-broadcasts them to its own local subscribers.
+
+### Design notes
+
+- **Create/update** events store only identifiers; the receiver re-fetches the
+  record by id, so the broadcast always carries the latest committed state
+  (last-write-wins is automatic — no manual field merge).
+- **Delete** events store the **full serialized record snapshot** taken before
+  the delete, because a re-fetch is impossible after the delete commits; the
+  receiver re-evaluates its local access rules against that snapshot.
+- **Broadcast queue, not competing consumers**: every instance processes every
+  row for its own local fanout, deduplicating per event id in memory. Rows are
+  not ack-marked (a per-row ack would let one instance "consume" an event
+  before another read it); stale rows are removed by the hourly TTL cleanup.
+- The listener reconnects with a backoff and re-polls pending events after a
+  reconnect (catch-up), so brief disconnects do not lose broadcasts to the
+  local subscribers.
+
+### Operational notes
+
+- `PB_REALTIME_OUTBOX` defaults to **off**: single-instance deployments have
+  zero outbox reads, zero NOTIFY listeners and zero extra rows (the write path
+  is unchanged).
+- **Trust model:** outbox rows are trusted exactly as much as DB writes. There
+  is **no mutual authentication between instances** — origin is a random
+  per-process id and rows with a NULL/legacy origin are always delivered. Any
+  process with write access to the shared DB (e.g. a compromised instance) can
+  forge/delete-snapshot rows that are re-broadcast to other instances'
+  subscribers (whose API rules are re-evaluated, so exposure stays within rule
+  grants). Delete snapshots are scrubbed of auth secrets (password, tokenKey)
+  before being stored at rest (PGB-N02).
+- The listener needs a dedicated PostgreSQL connection (LISTEN is not
+  multi-plexed by a transaction-pooling proxy); connect it directly or via a
+  session-pooling front.
+- The outbox table is small (event rows, TTL-cleaned). With the listener
+  disabled the rows are not produced at all.
+
+---
+
+## 3d. Metrics & observability (Prometheus)
+
+An optional Prometheus endpoint exposes runtime, HTTP, DB-pool and realtime
+metrics. It is **opt-in** and served on a **separate listener** from the public
+API, so `/metrics` is never reachable on the port that serves user traffic.
+
+```bash
+# enable by binding the metrics listener (loopback strongly recommended)
+export PB_METRICS_ADDR="127.0.0.1:9090"
+./pgbase serve
+# scrape:  curl http://127.0.0.1:9090/metrics
+```
+
+- **`PB_METRICS_ADDR`** — TCP bind address for the metrics HTTP server. Empty or
+  unset (the default) **disables** the endpoint entirely: no extra listener is
+  opened and the request-instrumentation middleware is not installed (zero
+  overhead). Set to a bind address (e.g. `127.0.0.1:9090`) to enable.
+- **`PB_METRICS_EXPOSE`** — explicit acknowledgement that the metrics listener is
+  bound on a **non-loopback** address (e.g. `0.0.0.0:9090` inside a container
+  behind a NetworkPolicy). Loopback binds (`127.0.0.0/8`, `::1`, `localhost`)
+  never need it. Any other bind **fails to start** unless this is `true`/`1`,
+  because `/metrics` is unauthenticated.
+
+### Exposed metrics
+
+All custom series are prefixed `pgbase_`; the standard Go runtime and process
+collectors are also registered.
+
+| Metric | Type | Labels | Notes |
+|--------|------|--------|-------|
+| `pgbase_http_request_duration_seconds` | histogram | `method`, `route`, `status` | `route` is the matched **route template** (e.g. `/api/collections/{collection}/records`), never the raw path — keeps cardinality bounded. |
+| `pgbase_db_open_connections` | gauge | `db` (`data`/`aux`) | live `sql.DB.Stats()` per pool |
+| `pgbase_db_in_use_connections` | gauge | `db` | |
+| `pgbase_db_idle_connections` | gauge | `db` | |
+| `pgbase_db_max_open_connections` | gauge | `db` | pool ceiling (0 = unlimited) |
+| `pgbase_db_wait_count_total` | counter | `db` | connections waited for |
+| `pgbase_db_wait_duration_seconds_total` | counter | `db` | time blocked waiting for a connection |
+| `pgbase_realtime_connected_clients` | gauge | — | currently connected SSE clients |
+| `pgbase_realtime_dropped_messages` | gauge | — | messages dropped on full client buffers (slow consumers), summed over connected clients |
+
+The DB-pool gauges directly address the pool-ceiling concern from the
+performance audit (watch `open`/`in_use`/`wait_count` approach
+`max_open_connections`); `dropped_messages` surfaces slow realtime consumers.
+
+### Security & deployment
+
+- **No authentication is applied to `/metrics`.** Bind it to loopback
+  (`127.0.0.1`) or an internal-only interface and never expose it publicly. A
+  scrape reveals internal timings and pool state.
+- **Container caveat:** `127.0.0.1` inside a container is *not* reachable by an
+  external Prometheus. Either run Prometheus as a **sidecar** in the same
+  network namespace, or bind the pod/container interface (e.g. `0.0.0.0:9090`)
+  **plus `PB_METRICS_EXPOSE=true`** and restrict access with a
+  **NetworkPolicy**/firewall — do not publish the port to the host/internet.
+- The listener shuts down gracefully alongside the main server on
+  `SIGTERM`/restart.
 
 ---
 
@@ -310,6 +588,50 @@ PB_POSTGRES_PASSWORD=secret go run ./examples/base superuser upsert admin@exampl
 
 ---
 
+## 5b. Schema & data-model notes
+
+### Manual `CREATE INDEX CONCURRENTLY` (IDX-4 escape hatch)
+
+Collection schema changes run inside a transaction, so plain `CREATE INDEX` on a
+large populated table takes a `SHARE` lock that blocks **writes** for the build
+duration. Post-index-diff, only genuinely changed/added indexes trigger a
+rebuild, so this is usually a short window. For exceptional cases (a huge hot
+table), a DBA can build the index out-of-band to avoid the write stall:
+
+```sql
+CREATE UNIQUE INDEX CONCURRENTLY "idx_foo" ON "my_table" (LOWER("username")) WHERE "username" <> '';
+```
+
+Notes:
+- `CONCURRENTLY` cannot run inside a transaction; run it directly via `psql`.
+- It may leave an `INVALID` index on failure; drop it before retrying
+  (`DROP INDEX ...`).
+- After building, the index must also be declared in the collection's
+  `indexes` JSON so the schema sync treats it as managed (or it will be
+  re-created by the sync instead of reused).
+
+### Legacy SQLite-format backup export (TX-1 tradeoff)
+
+The default backup format (`pg`) runs `pg_dump` as an external process with its
+own consistent snapshot and is fully safe. The legacy opt-in format
+(`Backups.Format = "sqlite"`) wraps its reads in a single transaction to keep
+them snapshot-consistent. On PostgreSQL this does **not** block writes (MVCC),
+but the transaction pins the xmin horizon for the export duration, which can
+slow autovacuum cluster-wide on very large databases, and holds one data-pool
+connection. Use the default `pg` format; the legacy format is kept for
+SQLite-tooling interoperability.
+
+### Record primary keys (IDX-6, awareness only)
+
+Record ids are random 15-char lowercase strings (fallback `gen_random_bytes`).
+As TEXT primary keys they are **not monotonic**, which causes B-tree page
+splits on insert, slightly larger relation columns/indexes, and no
+time-ordering (the earlier `-@rowid`→`-created` logs bug). This is an
+upstream/architectural tradeoff, kept for id-format compatibility; no change is
+planned.
+
+---
+
 ## 6. Production Build (Single Binary)
 
 The UI is embedded into the Go binary at compile time via `ui/embed.go`
@@ -340,6 +662,9 @@ Open <http://127.0.0.1:8090/_/> in the browser.
 ## 7. Docker (Full Stack)
 
 ```bash
+# One-time: create your local secrets file and set a strong password
+cp .env.example .env
+
 # Build & start all services (first build is slow)
 docker compose up
 
@@ -350,10 +675,12 @@ http://localhost:8090/_/
 | Service | Port | Function |
 |---------|------|----------|
 | `pgbase` | `8090` | API + embedded dashboard UI |
-| `postgres` | `5432` | Database |
+| `postgres` | `127.0.0.1:5432` | Database (localhost-only, not network-exposed) |
 
 The `pgbase` service takes its PostgreSQL connection settings from the
-`PB_POSTGRES_*` environment variables defined in `docker-compose.yml`.
+`PB_POSTGRES_*` environment variables, which are sourced from your `.env` file
+(see `.env.example`). `docker compose up` fails fast if `PB_POSTGRES_PASSWORD`
+is unset — there is **no** weak default baked into `docker-compose.yml`.
 
 **Create a superuser inside the running stack:**
 
@@ -362,8 +689,42 @@ docker compose exec pgbase pgbase superuser create admin@example.com "changeme12
 ```
 
 > [!NOTE]
-> If a local PostgreSQL is already using host port `5432`, change the
-> `ports` mapping in `docker-compose.yml` (e.g. `"5433:5432"`).
+> If a local PostgreSQL is already using host port `5432`, set a different
+> `PB_POSTGRES_PORT` in `.env` (e.g. `5433`).
+
+### Production hardening
+
+The bundled `docker-compose.yml` is a local/demo stack. Before running pgbase in
+production:
+
+- **Secrets:** set a strong `PB_POSTGRES_PASSWORD` (`openssl rand -base64 32`)
+  and keep it in a real secret store, not a committed file.
+- **TLS to the DB:** point `PB_POSTGRES_*` at a TLS-enabled/managed Postgres and
+  set `PB_POSTGRES_SSLMODE=require` (or `verify-full`). The bundled
+  `postgres:16-alpine` has no TLS configured, so the demo stack uses `disable`.
+- **Network:** never publish the database port publicly; keep it on a private
+  network. The demo binds it to `127.0.0.1` only.
+- **App TLS:** terminate HTTPS at a reverse proxy (or use the built-in
+  `--https`) — do not serve plaintext HTTP publicly. When HTTPS is in front,
+  set `PB_HSTS=true` to emit `Strict-Transport-Security` (2y, includeSubDomains;
+  opt-in because it is meaningless on a plaintext connection).
+- **Settings encryption:** run with `--encryptionEnv <ENV_VAR>` so SMTP/S3/
+  OAuth2/JWT secrets are encrypted at rest (see section on settings below).
+  Without it those secrets are stored base64-encoded but **unencrypted**; the
+  server prints a one-line warning on start when no encryption key is set.
+- **Editor (rich-text) fields:** `editor`-type field values are stored as
+  HTML. Since v0.4.x the app **sanitizes editor content server-side at write
+  time** (allow-list via bluemonday — scripts, event handlers, iframes, embeds
+  and `javascript:`/`data:text`/SVG URLs are stripped; see PGB-M03). The
+  dashboard renders stored HTML through a sandboxed editor, but the REST/records
+  API still returns it verbatim. Treat editor content as **untrusted defense-in-
+  depth** in any client app that injects it into the DOM (e.g. use a DOMPurify-
+  style pass), especially when the collection's create/update API rules allow
+  non-superuser writes. Note: native `pg_restore` backups restore the stored
+  HTML as-is (admin-level restore capabability).
+- **Connection pool:** size `(data+aux)×instances` under the DB's
+  `max_connections` (see the connection-pool sizing section), and front large
+  fan-out with PgBouncer.
 
 ---
 

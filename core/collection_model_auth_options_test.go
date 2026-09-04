@@ -124,7 +124,21 @@ func TestCollectionAuthOptionsValidate(t *testing.T) {
 			expectedErrors: []string{"passwordAuth"},
 		},
 		{
-			name: "passwordAuth with non-unique identity fields",
+			name: "passwordAuth with functional unique identity fields",
+			collection: func(app core.App) (*core.Collection, error) {
+				c := core.NewAuthCollection("new_auth")
+				c.Fields.Add(&core.TextField{Name: "test"})
+				c.AddIndex("auth_test_idx", true, `LOWER("test")`, `"test" <> ''`)
+				c.PasswordAuth = core.PasswordAuthConfig{
+					Enabled:        true,
+					IdentityFields: []string{"email", "test"},
+				}
+				return c, nil
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name: "passwordAuth with plain (non-functional) unique identity field",
 			collection: func(app core.App) (*core.Collection, error) {
 				c := core.NewAuthCollection("new_auth")
 				c.Fields.Add(&core.TextField{Name: "test"})
@@ -135,7 +149,24 @@ func TestCollectionAuthOptionsValidate(t *testing.T) {
 				}
 				return c, nil
 			},
-			expectedErrors: []string{},
+			expectedErrors: []string{"passwordAuth"},
+		},
+		{
+			name: "passwordAuth with deleted identity field",
+			collection: func(app core.App) (*core.Collection, error) {
+				c := core.NewAuthCollection("new_auth")
+				// remaining fields
+				c.Fields.Add(&core.TextField{Name: "other"})
+				// the collection is validated as new, so it has no original
+				// state; model the "field deleted while still an identity"
+				// through an identity field that doesn't exist
+				c.PasswordAuth = core.PasswordAuthConfig{
+					Enabled:        true,
+					IdentityFields: []string{"email", "deleted_identity"},
+				}
+				return c, nil
+			},
+			expectedErrors: []string{"passwordAuth"},
 		},
 
 		// oauth2

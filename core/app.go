@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/cron"
 	"github.com/arief-fajri/pgbase/tools/filesystem"
@@ -296,8 +297,33 @@ type App interface {
 	// Analyze updates the query planner statistics on the main database.
 	Analyze() error
 
+	// AnalyzeTable updates the query planner statistics for a single table
+	// only, avoiding a whole-database ANALYZE after a collection schema change.
+	AnalyzeTable(tableName string) error
+
 	// AuxAnalyze updates the query planner statistics on the auxiliary database.
 	AuxAnalyze() error
+
+	// PublishRealtimeEvent appends a cross-instance realtime outbox event
+	// (no-op unless the realtime outbox is enabled - see PB_REALTIME_OUTBOX).
+	PublishRealtimeEvent(action string, collectionName string, recordId string, snapshot *Record) error
+
+	// CleanupStaleRealtimeEvents removes processed/stale realtime outbox events.
+	CleanupStaleRealtimeEvents(staleAge time.Duration) error
+
+	// RealtimeOutboxEventsAfter returns settled realtime outbox events strictly
+	// after the (afterCreated, afterId) cursor, in (created, id) order.
+	RealtimeOutboxEventsAfter(afterCreated time.Time, afterId string, limit int) ([]RealtimeOutboxEvent, error)
+
+	// RealtimeOutboxTailCursor returns the newest outbox row's (created, id),
+	// or a zero cursor when the outbox is empty.
+	RealtimeOutboxTailCursor() (time.Time, string, error)
+
+	// RealtimeOutboxEnabled reports whether the realtime outbox is enabled.
+	RealtimeOutboxEnabled() bool
+
+	// OpenRealtimeOutboxListener opens a dedicated pgx-native LISTEN connection.
+	OpenRealtimeOutboxListener(connectCtx context.Context) (*pgx.Conn, error)
 
 	// ---------------------------------------------------------------
 

@@ -250,19 +250,41 @@ func TestDeleteAllOTPsByRecord(t *testing.T) {
 func TestDeleteExpiredOTPs(t *testing.T) {
 	t.Parallel()
 
+	// note: DeleteExpiredOTPs deletes in bulk with a plain SQL statement and
+	// intentionally does not fire per-record delete hooks, so the actually
+	// deleted ids are derived by diffing the stored rows before/after.
+	fetchOTPIds := func(app core.App, t *testing.T) []string {
+		records := []*core.Record{}
+		if err := app.RecordQuery(core.CollectionNameOTPs).All(&records); err != nil {
+			t.Fatal(err)
+		}
+
+		ids := make([]string, len(records))
+		for i, r := range records {
+			ids[i] = r.Id
+		}
+
+		return ids
+	}
+
 	checkDeletedIds := func(app core.App, t *testing.T, expectedDeletedIds []string) {
 		if err := tests.StubOTPRecords(app); err != nil {
 			t.Fatal(err)
 		}
 
-		deletedIds := []string{}
-		app.OnRecordAfterDeleteSuccess().BindFunc(func(e *core.RecordEvent) error {
-			deletedIds = append(deletedIds, e.Record.Id)
-			return e.Next()
-		})
+		idsBefore := fetchOTPIds(app, t)
 
 		if err := app.DeleteExpiredOTPs(); err != nil {
 			t.Fatal(err)
+		}
+
+		idsAfter := fetchOTPIds(app, t)
+
+		deletedIds := []string{}
+		for _, id := range idsBefore {
+			if !slices.Contains(idsAfter, id) {
+				deletedIds = append(deletedIds, id)
+			}
 		}
 
 		if len(deletedIds) != len(expectedDeletedIds) {

@@ -64,6 +64,11 @@ Flags take precedence over environment variables.
 Connection settings are configured via CLI flags or environment variables (not
 stored in the database).
 
+## Production
+
+See **[PRODUCTION.md](PRODUCTION.md)** for a deployment runbook — builds, env
+vars, TLS, hardening and a go-live checklist.
+
 ## Development
 
 See **[DEV.md](DEV.md)** — the single source of truth for running, testing, and

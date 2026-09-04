@@ -1,0 +1,99 @@
+# Production docker-compose for pgbase — single host, one-command start.
+#
+# Topology:  [Caddy :80/:443 (HTTPS)] -> pgbase :8090 (internal) -> postgres (internal)
+#
+#   - Only ports 80/443 are published; the app and database are reachable only
+#     via Caddy on the internal compose network.
+#   - The database port is never exposed (not even on 127.0.0.1).
+#   - HTTPS + certificate are automatic via Caddy (Let's Encrypt).
+#
+# Usage:
+#   cp .env.example .env            # then fill in real values (DOMAIN etc.)
+#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.prod.yml exec pgbase pgbase superuser create admin@example.com "<STRONG-password>"
+#
+# For production hardening notes see PRODUCTION.md (§6, §9), .env.example and
+# DEV.md — in particular: use sslmode=require/verify-full only when the DB is
+# on a different host + network (here it is inside the same private network,
+# so `disable` is acceptable); keep PB_ENCRYPTION_KEY set.
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env, e.g. api.example.com}
+    volumes:
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - pgbase
+
+  pgbase:
+    build: .
+    restart: unless-stopped
+    # no port is published: only Caddy reaches the app on the internal network
+    environment:
+      - PB_POSTGRES_HOST=postgres
+      - PB_POSTGRES_PORT=5432
+      - PB_POSTGRES_USER=${PB_POSTGRES_USER:-pgbase}
+      - PB_POSTGRES_PASSWORD=${PB_POSTGRES_PASSWORD:?set PB_POSTGRES_PASSWORD in .env (see .env.example)}
+      - PB_POSTGRES_DBNAME=${PB_POSTGRES_DBNAME:-pgbase}
+      # internal compose network only (single host), so `disable` is acceptable
+      # here. For a remote/managed DB set require/verify-full.
+      - PB_POSTGRES_SSLMODE=${PB_POSTGRES_SSLMODE:-disable}
+      # settings encryption (see .env.example); strongly recommended even here
+      - PB_ENCRYPTION_KEY=${PB_ENCRYPTION_KEY:-}
+      # HTTPS is terminated by Caddy in front -> safe to enable HSTS
+      - PB_HSTS=${PB_HSTS:-true}
+      # optional metrics: loopback inside the container is not reachable from
+      # the host; to expose /metrics to Prometheus bind 0.0.0.0:9090 and publish
+      # a loopback port, and set PB_METRICS_EXPOSE=true (see DEV.md 3d).
+      #   PB_METRICS_ADDR=0.0.0.0:9090
+      #   PB_METRICS_EXPOSE=true
+      #   + on this service:  ports: ["127.0.0.1:9090:9090"]
+      - PB_METRICS_ADDR=${PB_METRICS_ADDR:-}
+      - PB_METRICS_EXPOSE=${PB_METRICS_EXPOSE:-}
+      # restore decompression cap (default 8 GiB)
+      - PB_BACKUP_MAX_EXTRACT_BYTES=${PB_BACKUP_MAX_EXTRACT_BYTES:-}
+    volumes:
+      - pb_data:/pb_data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8090/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    # reminder: also run periodic backups (dashboard/API) and keep a copy of
+    # pb_data/postgres_data off this machine
+    command: ["postgres", "-c", "max_connections=200"]
+    environment:
+      POSTGRES_DB: ${PB_POSTGRES_DBNAME:-pgbase}
+      POSTGRES_USER: ${PB_POSTGRES_USER:-pgbase}
+      POSTGRES_PASSWORD: ${PB_POSTGRES_PASSWORD:?set PB_POSTGRES_PASSWORD in .env (see .env.example)}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # preinstall pgcrypto to avoid the first-boot CREATE EXTENSION deadlock
+      - ./docker/init:/docker-entrypoint-initdb.d:ro
+    # no ports published: internal network only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PB_POSTGRES_USER:-pgbase}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pb_data:
+  postgres_data:

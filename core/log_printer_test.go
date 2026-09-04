@@ -8,6 +8,8 @@ import (
 
 	"github.com/arief-fajri/pgbase/tools/list"
 	"github.com/arief-fajri/pgbase/tools/logger"
+	"github.com/arief-fajri/pgbase/tools/security"
+	"github.com/pocketbase/dbx"
 )
 
 func TestBaseAppLoggerLevelDevPrint(t *testing.T) {
@@ -59,7 +61,6 @@ func TestBaseAppLoggerLevelDevPrint(t *testing.T) {
 			}
 
 			var printedLevels []int
-			var persistedLevels []int
 
 			ctx := context.Background()
 
@@ -72,18 +73,15 @@ func TestBaseAppLoggerLevelDevPrint(t *testing.T) {
 				printedLevels = append(printedLevels, int(log.Level))
 			}
 
-			// track persisted logs
-			app.OnModelAfterCreateSuccess("_logs").BindFunc(func(e *ModelEvent) error {
-				l, ok := e.Model.(*Log)
-				if ok {
-					persistedLevels = append(persistedLevels, l.Level)
-				}
-				return e.Next()
-			})
+			// use a unique message so the persisted rows can be isolated from
+			// any other logs already present in the shared aux _logs table
+			// (the batched multi-row insert writes raw rows and intentionally
+			// no longer triggers the per-model create hooks)
+			logMessage := "logtest_" + security.PseudorandomString(10)
 
 			// write and persist logs
 			for _, l := range s.levels {
-				app.Logger().Log(ctx, slog.Level(l), "test")
+				app.Logger().Log(ctx, slog.Level(l), logMessage)
 			}
 			handler, ok := app.Logger().Handler().(*logger.BatchHandler)
 			if !ok {
@@ -91,6 +89,17 @@ func TestBaseAppLoggerLevelDevPrint(t *testing.T) {
 			}
 			if err := handler.WriteAll(ctx); err != nil {
 				t.Fatalf("Failed to write all logs: %v", err)
+			}
+
+			// check persisted log levels (queried directly from the aux _logs
+			// table since the batched insert bypasses the model create hooks)
+			var persistedLevels []int
+			err := app.AuxDB().
+				NewQuery("SELECT [[level]] FROM " + LogsTableName + " WHERE [[message]]={:msg} ORDER BY [[level]] ASC").
+				Bind(dbx.Params{"msg": logMessage}).
+				Column(&persistedLevels)
+			if err != nil {
+				t.Fatalf("Failed to fetch persisted logs: %v", err)
 			}
 
 			// check persisted log levels

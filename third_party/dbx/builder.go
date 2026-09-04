@@ -142,22 +142,33 @@ func (b *BaseBuilder) Quote(s string) string {
 	return "'" + strings.Replace(s, "'", "''", -1) + "'"
 }
 
+// quoteSimpleIdentifier quotes a simple (schema-less) SQL identifier, escaping
+// embedded double-quotes (PostgreSQL identifier escaping). Identifiers that are
+// ALREADY double-quoted (e.g. RecordQuery pre-quotes table names before the
+// select columns are re-quoted) are normalized instead of double-wrapped: their
+// inner quotes are escaped, which preserves the "already quoted" passthrough
+// behaviour upstream relies on while never emitting a quote-breakout (PGB-L01).
+func quoteSimpleIdentifier(s string) string {
+	if len(s) >= 2 && strings.HasPrefix(s, `"`) && strings.HasSuffix(s, `"`) {
+		inner := strings.ReplaceAll(s[1:len(s)-1], `"`, `""`)
+		return `"` + inner + `"`
+	}
+	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+}
+
 // QuoteSimpleTableName quotes a simple table name.
 // A simple table name does not contain any schema prefix.
 func (b *BaseBuilder) QuoteSimpleTableName(s string) string {
-	if strings.Contains(s, `"`) {
-		return s
-	}
-	return `"` + s + `"`
+	return quoteSimpleIdentifier(s)
 }
 
 // QuoteSimpleColumnName quotes a simple column name.
 // A simple column name does not contain any table prefix.
 func (b *BaseBuilder) QuoteSimpleColumnName(s string) string {
-	if strings.Contains(s, `"`) || s == "*" {
+	if s == "*" {
 		return s
 	}
-	return `"` + s + `"`
+	return quoteSimpleIdentifier(s)
 }
 
 // Insert creates a Query that represents an INSERT SQL statement.

@@ -1,0 +1,62 @@
+# Optional monitoring stack: Prometheus + Grafana + Alertmanager.
+#
+# Usage (from the repo root, stacked on the prod compose):
+#   docker compose -f docker-compose.prod.yml \
+#                  -f deploy/docker-compose.monitoring.yml up -d
+#
+# Make sure the pgbase service exposes /metrics (see PRODUCTION.md §8):
+#   PB_METRICS_ADDR=0.0.0.0:9090 ; PB_METRICS_EXPOSE=true ; publish loopback port
+#
+# UIs (change the default Grafana password!):
+#   Prometheus  http://localhost:9090
+#   Grafana      http://localhost:3000   (admin / admin)
+#   Alertmanager http://localhost:9093
+#
+# A running pgbase /metrics listener on the shared network is scraped via the
+# built-in service-discovery of this file (target: pgbase:9090). If you run
+# Prometheus on the host instead, use deploy/prometheus.yml with 127.0.0.1:9090.
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      # targets the internal service name pgbase:9090 (shared compose network)
+      - ./deploy/prometheus.compose.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus.rules.yml:/etc/prometheus/rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    secrets:
+      - grafana_admin_password
+    depends_on:
+      - prometheus
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9093:9093"
+    volumes:
+      - alertmanager_data:/alertmanager
+
+secrets:
+  grafana_admin_password:
+    environment: GRAFANA_ADMIN_PASSWORD
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:

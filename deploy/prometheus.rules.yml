@@ -1,0 +1,42 @@
+# Basic Prometheus alert rules for pgbase.
+#
+# Tune thresholds to your workload. Alertmanager handles delivery (see
+# docker-compose.monitoring.yml); wire webhooks/email/Slack as needed.
+groups:
+  - name: pgbase
+    rules:
+      # DB connection pool is saturated (clients waiting for a connection)
+      - alert: PgbasePoolSaturation
+        expr: rate(pgbase_db_wait_count_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "pgbase DB pool is saturated (client waits detected)"
+
+      # Rough availability signal: no successful /api responses for 5 minutes
+      - alert: PgbaseApiUnreachable
+        expr: sum(rate(pgbase_http_request_duration_seconds_count{status=~"2..|3.."}[5m])) == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "pgbase API is not returning successful responses"
+
+      # Slow tail: p99 requests above 2s for 10 minutes
+      - alert: PgbaseSlowRequests
+        expr: histogram_quantile(0.99, sum(rate(pgbase_http_request_duration_seconds_bucket[10m])) by (le)) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "pgbase p99 latency is above 2s"
+
+      # Realtime consumers dropping messages (slow clients)
+      - alert: PgbaseRealtimeDropping
+        expr: pgbase_realtime_dropped_messages > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "pgbase realtime clients are dropping messages"

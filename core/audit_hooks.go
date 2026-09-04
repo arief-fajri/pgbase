@@ -173,22 +173,31 @@ func (app *BaseApp) registerAuditHooks() {
 	// -----------------------------------------------------------------
 
 	app.Cron().Add("__pbAuditsPartition__", "0 0 * * *", func() {
-		if err := ensureAuditPartitions(app); err != nil {
+		err := app.runWithCronLock("__pbAuditsPartition__", app.Logger(), func() error {
+			return ensureAuditPartitions(app)
+		})
+		if err != nil {
 			app.Logger().Warn("Failed to ensure audit partitions", "error", err.Error())
 		}
 	})
 
 	app.Cron().Add("__pbAuditsCleanup__", "0 0 * * *", func() {
-		s := app.Settings().Audit
-		if s.RetentionDays > 0 {
-			if err := dropOldAuditPartitions(app, AuditsTableName, s.RetentionDays); err != nil {
-				app.Logger().Warn("Failed to cleanup old audit partitions", "error", err.Error())
+		err := app.runWithCronLock("__pbAuditsCleanup__", app.Logger(), func() error {
+			s := app.Settings().Audit
+			if s.RetentionDays > 0 {
+				if err := dropOldAuditPartitions(app, AuditsTableName, s.RetentionDays); err != nil {
+					return err
+				}
 			}
-		}
-		if s.ReadRetentionDays > 0 {
-			if err := dropOldAuditPartitions(app, AuditReadsTableName, s.ReadRetentionDays); err != nil {
-				app.Logger().Warn("Failed to cleanup old audit_read partitions", "error", err.Error())
+			if s.ReadRetentionDays > 0 {
+				if err := dropOldAuditPartitions(app, AuditReadsTableName, s.ReadRetentionDays); err != nil {
+					return err
+				}
 			}
+			return nil
+		})
+		if err != nil {
+			app.Logger().Warn("Failed to cleanup old audit partitions", "error", err.Error())
 		}
 	})
 }

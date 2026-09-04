@@ -355,10 +355,10 @@ func SeedTestData(app core.App) error {
 	}
 
 	if err := setAuthOptions(usersCol, func(c *core.Collection) {
-		// the users collection is missing its username unique index
-		// (upstream auth collections always have one)
+		// the users collection is missing its functional username unique index
+		// (upstream auth collections always have a case-insensitive one)
 		if c.GetIndex("_pb_users_auth__username_idx") == "" {
-			c.AddIndex("_pb_users_auth__username_idx", true, "username", "")
+			c.AddIndex("_pb_users_auth__username_idx", true, `LOWER("username")`, `"username" <> ''`)
 		}
 		setDefaultTokenOptions(c)
 		c.PasswordAuth = core.PasswordAuthConfig{
@@ -411,9 +411,9 @@ func SeedTestData(app core.App) error {
 	}
 
 	if err := setAuthOptions(clients, func(c *core.Collection) {
-		// the clients collection is also missing its username unique index
+		// the clients collection is also missing its functional username unique index
 		if c.GetIndex("idx_username_v851q4r790rhknl") == "" {
-			c.AddIndex("idx_username_v851q4r790rhknl", true, "username", "")
+			c.AddIndex("idx_username_v851q4r790rhknl", true, `LOWER("username")`, `"username" <> ''`)
 		}
 		setDefaultTokenOptions(c)
 		c.PasswordAuth = core.PasswordAuthConfig{

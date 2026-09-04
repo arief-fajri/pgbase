@@ -15,6 +15,7 @@ import (
 
 	"github.com/arief-fajri/pgbase/tools/dbutils"
 	"github.com/arief-fajri/pgbase/tools/filesystem"
+	"github.com/arief-fajri/pgbase/tools/list"
 	"github.com/arief-fajri/pgbase/tools/security"
 	"github.com/arief-fajri/pgbase/tools/types"
 	"github.com/pocketbase/dbx"
@@ -426,6 +427,17 @@ func readSQLiteCollections(db *sql.DB, version int) ([]map[string]any, []sqliteC
 			}
 		}
 
+		// Auth collections in SQLite relied on the implicit COLLATE NOCASE of
+		// their identity fields; PostgreSQL carries the case-insensitivity in
+		// the functional LOWER(...) unique index instead. Convert any plain
+		// unique identity index to that form before ImportCollections validates
+		// it (see IDX-1 / D-1).
+		if typ == "auth" {
+			if err := normalizeSQLiteIdentityIndexes(def); err != nil {
+				return nil, nil, err
+			}
+		}
+
 		defs = append(defs, def)
 		meta = append(meta, sqliteCollMeta{name: name, isView: typ == "view"})
 	}
@@ -583,6 +595,17 @@ func (app *BaseApp) importSQLiteRecords(ctx context.Context, db *sql.DB, meta []
 				return fmt.Errorf("failed to clear target table %q: %w", m.name, err)
 			}
 
+			// PGB-M03: the raw INSERT path bypasses EditorField.ValidateValue, so
+			// sanitize editor-field HTML (allow-list) before it lands in the DB.
+			editorCols := map[string]bool{}
+			if coll, colErr := app.FindCollectionByNameOrId(m.name); colErr == nil {
+				for _, fld := range coll.Fields {
+					if fld.Type() == FieldTypeEditor {
+						editorCols[fld.GetName()] = true
+					}
+				}
+			}
+
 			for _, row := range rows {
 				params := dbx.Params{}
 				for i, c := range cols {
@@ -593,6 +616,12 @@ func (app *BaseApp) importSQLiteRecords(ctx context.Context, db *sql.DB, meta []
 					out, omit := coerceSQLiteValueForPG(pgType, row[i])
 					if omit {
 						continue // let the Postgres column default apply
+					}
+					if editorCols[c] {
+						if s, isStr := out.(string); isStr {
+							params[c] = sanitizeEditorHTML(s)
+							continue
+						}
 					}
 					params[c] = out
 				}
@@ -769,6 +798,61 @@ func anyToJSONBytes(v any) []byte {
 // single quotes and are unaffected).
 func normalizeSQLiteIndex(expr string) string {
 	return strings.ReplaceAll(expr, "`", `"`)
+}
+
+// normalizeSQLiteIdentityIndexes rewrites the plain (case-sensitive) unique
+// indexes of the auth identity fields to the functional LOWER(...) form.
+//
+// SQLite stores auth identity fields with an implicit COLLATE NOCASE, but the
+// translated index definitions do not carry a collation. Without this step the
+// import would either fail the collection validator (which now requires
+// functional identity indexes - see NF-2) or silently import a case-sensitive
+// index that forces a sequential scan on every identity login (IDX-1).
+func normalizeSQLiteIdentityIndexes(def map[string]any) error {
+	rawIdx, ok := def["indexes"].([]string)
+	if !ok {
+		return nil // no indexes
+	}
+
+	var identityFields []string
+	if rawPw, ok := cast.ToStringMap(def["passwordAuth"])["identityFields"].([]any); ok {
+		for _, v := range rawPw {
+			if s := cast.ToString(v); s != "" {
+				identityFields = append(identityFields, s)
+			}
+		}
+	}
+
+	if len(identityFields) == 0 {
+		return nil
+	}
+
+	for i, expr := range rawIdx {
+		parsed := dbutils.ParseIndex(expr)
+		if !parsed.Unique || len(parsed.Columns) != 1 {
+			continue
+		}
+
+		colName := dbutils.NormalizeIndexColumnName(parsed.Columns[0].Name)
+		if !list.ExistInSlice(colName, identityFields) {
+			continue
+		}
+
+		// already functional -> nothing to do
+		if dbutils.IsFunctionalIndexColumn(parsed.Columns[0].Name) {
+			continue
+		}
+
+		rawIdx[i] = fmt.Sprintf(
+			`CREATE UNIQUE INDEX "%s" ON "%s" (LOWER("%s")) WHERE "%s" <> ''`,
+			parsed.IndexName,
+			cast.ToString(def["name"]),
+			colName,
+			colName,
+		)
+	}
+
+	return nil
 }
 
 // -------------------------------------------------------------------

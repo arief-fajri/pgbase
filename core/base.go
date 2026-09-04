@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/arief-fajri/pgbase/tools/logger"
 	"github.com/arief-fajri/pgbase/tools/mailer"
 	"github.com/arief-fajri/pgbase/tools/routine"
+	"github.com/arief-fajri/pgbase/tools/security"
 	"github.com/arief-fajri/pgbase/tools/store"
 	"github.com/arief-fajri/pgbase/tools/subscriptions"
 	"github.com/arief-fajri/pgbase/tools/types"
@@ -30,9 +32,17 @@ import (
 )
 
 const (
-	DefaultDataMaxOpenConns int           = 120
+	// Connection-pool defaults. The effective single-instance ceiling is
+	// DefaultDataMaxOpenConns + DefaultAuxMaxOpenConns (= 90), kept below the
+	// stock Postgres max_connections=100 with headroom for superuser/maintenance
+	// sessions. Raise via the PB_POSTGRES_*_CONNS env vars (or BaseAppConfig)
+	// when the server max_connections is raised; see DEV.md for the sizing
+	// formula and PgBouncer guidance. NB: pushing many more than a few dozen
+	// active connections at Postgres usually hurts (server-side contention)
+	// rather than helps - front it with PgBouncer instead.
+	DefaultDataMaxOpenConns int           = 80
 	DefaultDataMaxIdleConns int           = 15
-	DefaultAuxMaxOpenConns  int           = 20
+	DefaultAuxMaxOpenConns  int           = 10
 	DefaultAuxMaxIdleConns  int           = 3
 	DefaultQueryTimeout     time.Duration = 30 * time.Second
 
@@ -82,6 +92,16 @@ type BaseApp struct {
 	logger              *slog.Logger
 	dataDB              dbx.Builder
 	auxDB               dbx.Builder
+
+	// instanceHeartbeatGuard tracks multi-instance presence (R-1b) once wired.
+	instanceHeartbeatGuard *instanceHeartbeatGuard
+
+	// realtimeOutboxOrigin is this process's stable per-instance identity. It
+	// is stamped on every published outbox row so this instance's own listener
+	// can skip its own events (the publisher already broadcasts to its local
+	// clients synchronously; re-broadcasting the row it just wrote would double-
+	// deliver). Set once in NewBaseApp so it is race-free and never empty.
+	realtimeOutboxOrigin string
 
 	// app event hooks
 	onBootstrap     *hook.Hook[*BootstrapEvent]
@@ -201,23 +221,37 @@ func NewBaseApp(config BaseAppConfig) *BaseApp {
 		cron:                cron.New(),
 		subscriptionsBroker: subscriptions.NewBroker(),
 		config:              &config,
+
+		// stable per-process identity for the cross-instance realtime outbox
+		realtimeOutboxOrigin: "@" + security.PseudorandomString(10),
 	}
 
 	// apply config defaults
+	//
+	// The connection-pool sizes fall back to (in order of precedence):
+	//   1. the explicit BaseAppConfig value (e.g. set via pocketbase.Config),
+	//   2. the matching PB_POSTGRES_*_CONNS env var (operator override without a
+	//      rebuild), then
+	//   3. the built-in Default*Conns constants.
+	//
+	// NB: the effective single-instance ceiling is Data+Aux open conns. Keep it
+	// below the Postgres server "max_connections" (minus a superuser reserve),
+	// divided by the number of app instances. See DEV.md for the sizing formula
+	// and PgBouncer guidance.
 	if app.config.DBConnect == nil {
 		app.config.DBConnect = DefaultDBConnect
 	}
 	if app.config.DataMaxOpenConns <= 0 {
-		app.config.DataMaxOpenConns = DefaultDataMaxOpenConns
+		app.config.DataMaxOpenConns = getEnvIntOrDefault("PB_POSTGRES_DATA_MAX_OPEN_CONNS", DefaultDataMaxOpenConns)
 	}
 	if app.config.DataMaxIdleConns <= 0 {
-		app.config.DataMaxIdleConns = DefaultDataMaxIdleConns
+		app.config.DataMaxIdleConns = getEnvIntOrDefault("PB_POSTGRES_DATA_MAX_IDLE_CONNS", DefaultDataMaxIdleConns)
 	}
 	if app.config.AuxMaxOpenConns <= 0 {
-		app.config.AuxMaxOpenConns = DefaultAuxMaxOpenConns
+		app.config.AuxMaxOpenConns = getEnvIntOrDefault("PB_POSTGRES_AUX_MAX_OPEN_CONNS", DefaultAuxMaxOpenConns)
 	}
 	if app.config.AuxMaxIdleConns <= 0 {
-		app.config.AuxMaxIdleConns = DefaultAuxMaxIdleConns
+		app.config.AuxMaxIdleConns = getEnvIntOrDefault("PB_POSTGRES_AUX_MAX_IDLE_CONNS", DefaultAuxMaxIdleConns)
 	}
 	if app.config.QueryTimeout <= 0 {
 		app.config.QueryTimeout = DefaultQueryTimeout
@@ -406,6 +440,11 @@ func (app *BaseApp) Bootstrap() error {
 		}
 
 		if err := app.initAuxDB(); err != nil {
+			return err
+		}
+
+		// apply server-side statement/lock timeouts at the role level (best-effort)
+		if err := app.ensurePostgresRoleTimeouts(app.Logger()); err != nil {
 			return err
 		}
 
@@ -1276,11 +1315,21 @@ func (app *BaseApp) registerBaseHooks() {
 		Priority: 999,
 	})
 
-	app.Cron().Add("__pbDBVacuum__", "0 0 * * *", func() {
-		if execErr := app.Vacuum(); execErr != nil {
-			app.Logger().Warn("Failed to run periodic VACUUM for the main database", slog.String("error", execErr.Error()))
-		}
-	})
+	// Periodic VACUUM of the main database. PostgreSQL's autovacuum normally
+	// keeps tables healthy on its own, so this is a redundant safety net
+	// inherited from the SQLite era and is OFF by default. It can be enabled
+	// via PB_DB_VACUUM_CRON (eg. "0 0 * * *"); setting it to an empty value or
+	// "off" keeps it disabled.
+	if vacuumSchedule := getEnvOrDefault("PB_DB_VACUUM_CRON", ""); vacuumSchedule != "" && !strings.EqualFold(vacuumSchedule, "off") {
+		app.Cron().Add("__pbDBVacuum__", vacuumSchedule, func() {
+			err := app.runWithCronLock("__pbDBVacuum__", app.Logger(), func() error {
+				return app.Vacuum()
+			})
+			if err != nil {
+				app.Logger().Warn("Failed to run periodic VACUUM for the main database", slog.String("error", err.Error()))
+			}
+		})
+	}
 
 	app.registerSettingsHooks()
 	app.registerAutobackupHooks()
@@ -1292,6 +1341,8 @@ func (app *BaseApp) registerBaseHooks() {
 	app.registerOTPHooks()
 	app.registerAuthOriginHooks()
 	app.registerNotifyWatcherHooks()
+	app.registerInstanceHeartbeatGuard()
+	app.registerRealtimeOutboxCleanup()
 	app.registerAuditHooks()
 }
 
@@ -1343,25 +1394,64 @@ func (app *BaseApp) initLogger() error {
 				return nil
 			}
 
-			// write the accumulated logs
-			// (note: based on several local tests there is no significant performance difference between small number of separate write queries vs 1 big INSERT)
-			app.AuxRunInTransaction(func(txApp App) error {
-				model := &Log{}
-				for _, l := range logs {
-					model.MarkAsNew()
-					model.Id = GenerateDefaultRandomId()
-					model.Level = int(l.Level)
-					model.Message = l.Message
-					model.Data = l.Data
-					model.Created, _ = types.ParseDateTime(l.Time)
+			// Persist the accumulated logs with a single multi-row INSERT per
+			// chunk, so each flush is effectively one round-trip to PostgreSQL.
+			// The previous per-row AuxSave loop was a SQLite-era pattern (where
+			// round-trips are free); on PostgreSQL it cost up to BatchSize
+			// network round-trips per flush.
+			//
+			// Chunked to keep every statement comfortably under PostgreSQL's
+			// 65535 bind-parameter limit (logInsertColumns params per row).
+			const maxRowsPerInsert = 1000
 
-					if err := txApp.AuxSave(model); err != nil {
-						log.Println("Failed to write log", model, err)
+			// The flush is a single multi-row INSERT (atomic on its own), so the
+			// transaction wrapper is only needed to keep the *multiple* chunks
+			// of a big flush atomic. For the common single-chunk case it would
+			// only add a BEGIN/COMMIT round-trip on the aux pool (LOG-1).
+			insertChunks := func(txDB dbx.Builder) error {
+				for start := 0; start < len(logs); start += maxRowsPerInsert {
+					end := min(start+maxRowsPerInsert, len(logs))
+
+					var sb strings.Builder
+					sb.WriteString("INSERT INTO ")
+					sb.WriteString(LogsTableName)
+					sb.WriteString(` ("id", "level", "message", "data", "created") VALUES `)
+
+					params := dbx.Params{}
+					for i, l := range logs[start:end] {
+						suffix := strconv.Itoa(i)
+						if i > 0 {
+							sb.WriteString(",")
+						}
+						sb.WriteString("({:id" + suffix + "},{:level" + suffix + "},{:message" + suffix + "},{:data" + suffix + "}::jsonb,{:created" + suffix + "}::timestamptz)")
+
+						created, _ := types.ParseDateTime(l.Time)
+						params["id"+suffix] = GenerateDefaultRandomId()
+						params["level"+suffix] = int(l.Level)
+						params["message"+suffix] = l.Message
+						params["data"+suffix] = l.Data
+						params["created"+suffix] = created
+					}
+
+					if _, err := txDB.NewQuery(sb.String()).Bind(params).Execute(); err != nil {
+						return err
 					}
 				}
 
 				return nil
-			})
+			}
+
+			var err error
+			if len(logs) > maxRowsPerInsert {
+				err = app.AuxRunInTransaction(func(txApp App) error {
+					return insertChunks(txApp.AuxDB())
+				})
+			} else {
+				err = insertChunks(app.AuxDB())
+			}
+			if err != nil {
+				log.Println("Failed to write logs", err)
+			}
 
 			return nil
 		},
@@ -1442,9 +1532,11 @@ func (app *BaseApp) initLogger() error {
 
 	// cleanup old logs
 	app.Cron().Add("__pbLogsCleanup__", "0 */6 * * *", func() {
-		deleteErr := app.DeleteOldLogs(time.Now().AddDate(0, 0, -1*app.Settings().Logs.MaxDays))
-		if deleteErr != nil {
-			app.Logger().Warn("Failed to delete old logs", "error", deleteErr)
+		err := app.runWithCronLock("__pbLogsCleanup__", app.Logger(), func() error {
+			return app.DeleteOldLogs(time.Now().AddDate(0, 0, -1*app.Settings().Logs.MaxDays))
+		})
+		if err != nil {
+			app.Logger().Warn("Failed to delete old logs", "error", err)
 		}
 	})
 

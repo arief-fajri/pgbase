@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -22,7 +24,7 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
-const defaultCSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://127.0.0.1:* https://tile.openstreetmap.org data: blob:; connect-src 'self' http://127.0.0.1:* https://nominatim.openstreetmap.org; script-src 'self' http://127.0.0.1:*; frame-ancestors 'none'"
+const defaultCSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
 // ServeConfig defines a configuration struct for apis.Serve().
 type ServeConfig struct {
@@ -78,6 +80,29 @@ func Serve(app core.App, config ServeConfig) error {
 		AllowOrigins: config.AllowedOrigins,
 		AllowMethods: []string{http.MethodGet, http.MethodHead, http.MethodPut, http.MethodPatch, http.MethodPost, http.MethodDelete},
 	}))
+
+	// optional Prometheus metrics endpoint (opt-in via PB_METRICS_ADDR).
+	// Served on a SEPARATE listener so /metrics is never exposed on the public
+	// API port; bind it to loopback (e.g. 127.0.0.1:9090) or an internal
+	// interface. When the env var is unset/empty no extra listener is opened
+	// and the request-instrumentation middleware is not installed.
+	var metricsShutdown func(context.Context) error
+	if metricsAddr := metricsBindAddr(); metricsAddr != "" {
+		// refuse network-reachable binds unless the operator acknowledged them
+		// (see validateMetricsAddr / MetricsExposeEnv)
+		if err := validateMetricsAddr(metricsAddr); err != nil {
+			return err
+		}
+
+		m := newAppMetrics(app)
+		pbRouter.Bind(metricsMiddleware(m))
+
+		shutdown, err := serveMetrics(app, m, metricsAddr)
+		if err != nil {
+			return fmt.Errorf("failed to start metrics server on %s: %w", metricsAddr, err)
+		}
+		metricsShutdown = shutdown
+	}
 
 	// @todo consider moving in base
 	if ui.DistDirFS != nil {
@@ -179,6 +204,13 @@ func Serve(app core.App, config ServeConfig) error {
 			wg.Add(1)
 
 			_ = server.Shutdown(ctx)
+
+			// also stop the optional metrics server (no-op when disabled)
+			if metricsShutdown != nil {
+				mctx, mcancel := context.WithTimeout(context.Background(), 1*time.Second)
+				_ = metricsShutdown(mctx)
+				mcancel()
+			}
 
 			if te.IsRestart {
 				// wait for execve and other handlers up to 3 seconds before exit
@@ -290,6 +322,17 @@ func Serve(app core.App, config ServeConfig) error {
 		} else {
 			regular.Printf("├─ REST API:  %s\n", color.CyanString("%s/api/", baseURL))
 			regular.Printf("└─ Dashboard: %s\n", color.CyanString("%s/_/", baseURL))
+		}
+
+		// Security notice (PGB-M02): settings secrets (SMTP/S3/OAuth2
+		// credentials) are stored base64-encoded but UNENCRYPTED at rest
+		// unless an encryption key is provided via --encryptionEnv. Warn once
+		// on start so operators can harden production deployments.
+		if os.Getenv(app.EncryptionEnv()) == "" {
+			warn := color.New(color.FgYellow)
+			warn.Printf(
+				"⚠ Settings secrets are stored UNENCRYPTED at rest. Set --encryptionEnv=<ENV_VAR> (32-char key) to encrypt them (see DEV.md).\n",
+			)
 		}
 	}
 

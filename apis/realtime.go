@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pocketbase/dbx"
@@ -34,10 +36,12 @@ const RealtimeClientIPKey = "pbRealtimeClientIP"
 // bindRealtimeApi registers the realtime api endpoints.
 func bindRealtimeApi(app core.App, rg *router.RouterGroup[*core.RequestEvent]) {
 	sub := rg.Group("/realtime")
-	sub.GET("", realtimeConnect).Bind(SkipSuccessActivityLog())
+	// exclude gzip: the SSE stream must not be buffered by the compressor
+	sub.GET("", realtimeConnect).Bind(SkipSuccessActivityLog()).Unbind(DefaultGzipMiddlewareId)
 	sub.POST("", realtimeSetSubscriptions)
 
 	bindRealtimeEvents(app)
+	registerRealtimeOutboxListener(app)
 }
 
 func realtimeConnect(e *core.RequestEvent) error {
@@ -428,6 +432,8 @@ func bindRealtimeEvents(app core.App) {
 						slog.String("collectionName", record.Collection().Name),
 						slog.String("error", err.Error()),
 					)
+				} else {
+					publishRealtimeEvent(app, "create", record, nil)
 				}
 			}
 
@@ -448,6 +454,8 @@ func bindRealtimeEvents(app core.App) {
 						slog.String("collectionName", record.Collection().Name),
 						slog.String("error", err.Error()),
 					)
+				} else {
+					publishRealtimeEvent(app, "update", record, nil)
 				}
 			}
 
@@ -464,14 +472,17 @@ func bindRealtimeEvents(app core.App) {
 				// note: use the outside scoped app instance for the access checks so that the API rules
 				// are performed out of the delete transaction ensuring that they would still work even if
 				// a cascade-deleted record's API rule relies on an already deleted parent record
-				err := realtimeBroadcastRecord(e.App, "delete", record, true, app)
-				if err != nil {
+				if err := realtimeBroadcastRecord(e.App, "delete", record, true, app); err != nil {
 					app.Logger().Debug(
 						"Failed to dry cache record delete",
 						slog.String("id", record.Id),
 						slog.String("collectionName", record.Collection().Name),
 						slog.String("error", err.Error()),
 					)
+				} else {
+					// snapshot the record BEFORE it is deleted so other instances can
+					// re-evaluate their local subscribers after the delete commits
+					publishRealtimeEvent(app, "delete", record, record)
 				}
 			}
 
@@ -622,6 +633,32 @@ func realtimeBroadcastRecord(app core.App, action string, record *core.Record, d
 		accessCheckApp = optAccessCheckApp[0]
 	}
 
+	// Memoize the access-check result for the duration of this single
+	// broadcast to avoid re-running the same rule query once per subscriber.
+	// The record is fixed here, so the decision only depends on the access
+	// rule and the per-subscription request info (see realtimeAccessCacheKey).
+	// The cache is shared across the chunk goroutines, hence the mutex.
+	accessMemo := make(map[string]bool)
+	var accessMemoMu sync.Mutex
+	canAccess := func(rec *core.Record, requestInfo *core.RequestInfo, rule *string) bool {
+		key := realtimeAccessCacheKey(rule, requestInfo)
+
+		accessMemoMu.Lock()
+		cached, ok := accessMemo[key]
+		accessMemoMu.Unlock()
+		if ok {
+			return cached
+		}
+
+		allowed := realtimeCanAccessRecord(accessCheckApp, rec, requestInfo, rule)
+
+		accessMemoMu.Lock()
+		accessMemo[key] = allowed
+		accessMemoMu.Unlock()
+
+		return allowed
+	}
+
 	for _, chunk := range chunks {
 		group.Go(routine.SafeWrap(func() error {
 			var clientAuth *core.Record
@@ -647,7 +684,7 @@ func realtimeBroadcastRecord(app core.App, action string, record *core.Record, d
 							Auth:    clientAuth,
 						}
 
-						if !realtimeCanAccessRecord(accessCheckApp, record, requestInfo, rule) {
+						if !canAccess(record, requestInfo, rule) {
 							continue
 						}
 
@@ -691,7 +728,7 @@ func realtimeBroadcastRecord(app core.App, action string, record *core.Record, d
 							// for auth owner, superuser or manager
 							if collection.IsAuth() {
 								if isSameAuth(clientAuth, cleanRecord) ||
-									realtimeCanAccessRecord(accessCheckApp, cleanRecord, requestInfo, collection.ManageRule) {
+									canAccess(cleanRecord, requestInfo, collection.ManageRule) {
 									cleanRecord.IgnoreEmailVisibility(true)
 								}
 							}
@@ -757,9 +794,11 @@ func realtimeBroadcastRecord(app core.App, action string, record *core.Record, d
 							}
 							client.Set(dryCacheKey, messages)
 						} else {
-							routine.FireAndForget(func() {
-								client.Send(msg)
-							})
+							// direct non-blocking send: the client channel is buffered and
+							// drops when full, so we don't need a goroutine per message
+							// (which previously caused heavy goroutine churn under large
+							// fanout) just to tolerate a slow consumer - RT-1.
+							client.Send(msg)
 						}
 					}
 				}
@@ -850,6 +889,77 @@ func isSameAuth(authA, authB *core.Record) bool {
 	}
 
 	return authA.Id == authB.Id && authA.Collection().Id == authB.Collection().Id
+}
+
+// publishRealtimeEvent appends a cross-instance realtime outbox event
+// best-effort (the publisher also needs the broadcast to have succeeded, to
+// keep outbox writes consistent with local fanout).
+func publishRealtimeEvent(app core.App, action string, record *core.Record, snapshot *core.Record) {
+	if err := app.PublishRealtimeEvent(action, record.Collection().Name, record.Id, snapshot); err != nil {
+		app.Logger().Debug(
+			"Failed to publish realtime outbox event",
+			slog.String("action", action),
+			slog.String("id", record.Id),
+			slog.String("collectionName", record.Collection().Name),
+			slog.String("error", err.Error()),
+		)
+	}
+}
+
+// realtimeAccessCacheKey builds a key that fully captures every input that
+// realtimeCanAccessRecord's result depends on for a fixed record within a
+// single broadcast: the access rule and the per-subscription request info
+// (auth, query and headers, which the rule/filter may reference).
+//
+// The auth record is only included when the rule can actually reference it
+// (contains "@request.auth"). When a rule does not depend on the caller's auth
+// we omit the auth pointer so the memoized decision is shared across all
+// subscribers with the same rule+query+headers — this is the multi-user fanout
+// win (RT-2). For rules that do reference @request.auth, the pointer identity
+// is used on purpose: the same pointer guarantees identical field values (a
+// cache hit can never reuse a decision computed for a different auth state).
+func realtimeAccessCacheKey(rule *string, requestInfo *core.RequestInfo) string {
+	var b strings.Builder
+
+	if rule == nil {
+		b.WriteByte(0)
+	} else {
+		b.WriteByte(1)
+		b.WriteString(*rule)
+	}
+	b.WriteByte(0x1f)
+
+	ruleReferencesAuth := rule != nil && strings.Contains(*rule, "@request.auth")
+
+	if ruleReferencesAuth {
+		fmt.Fprintf(&b, "%p", requestInfo.Auth)
+		b.WriteByte(0x1f)
+	}
+
+	writeSortedStringMap(&b, requestInfo.Query)
+	b.WriteByte(0x1f)
+	writeSortedStringMap(&b, requestInfo.Headers)
+
+	return b.String()
+}
+
+func writeSortedStringMap(b *strings.Builder, m map[string]string) {
+	if len(m) == 0 {
+		return
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(m[k])
+		b.WriteByte(0x1e)
+	}
 }
 
 // realtimeCanAccessRecord checks if the subscription client has access to the specified record model.

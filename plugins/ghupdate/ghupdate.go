@@ -8,12 +8,15 @@ package ghupdate
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -92,6 +95,13 @@ func Register(app core.App, rootCmd *cobra.Command, config Config) error {
 		p.config.BaseURL = "https://api.github.com"
 	} else {
 		p.config.BaseURL = strings.TrimRight(p.config.BaseURL, "/")
+	}
+
+	// PGB-L09: refuse to fetch release metadata/artifacts over plaintext (MITM
+	// could tamper with the release JSON or the downloaded binary). Loopback
+	// http (e.g. a local API mirror) is allowed.
+	if err := validateBaseURL(p.config.BaseURL); err != nil {
+		return err
 	}
 
 	if p.config.HttpClient == nil {
@@ -187,6 +197,13 @@ func (p *plugin) update(withBackup bool) error {
 	// download the release asset
 	assetZip := filepath.Join(releaseDir, asset.Name)
 	if err := downloadFile(p.config.Context, p.config.HttpClient, asset.DownloadUrl, assetZip); err != nil {
+		return err
+	}
+
+	// PGB-L09: verify the downloaded asset against the release checksums.txt
+	// (goreleaser) BEFORE extracting/replacing the running executable, so a
+	// tampered or wrong artifact can never overwrite the binary.
+	if err := verifyAssetChecksum(p.config.Context, p.config.HttpClient, latest, asset, assetZip); err != nil {
 		return err
 	}
 
@@ -342,6 +359,130 @@ func downloadFile(
 	}
 
 	return nil
+}
+
+// checksumsAssetName is the goreleaser checksums file name. GoReleaser publishes
+// a "checksums.txt" asset whose lines are "<hex sha256>  <archive filename>".
+const checksumsAssetName = "checksums.txt"
+
+// validateBaseURL refuses non-HTTPS base URLs (loopback http is allowed for
+// local mirrors / tests) - PGB-L09.
+func validateBaseURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid ghupdate BaseURL %q: %w", raw, err)
+	}
+
+	if u.Scheme == "https" {
+		return nil
+	}
+
+	if u.Scheme == "http" {
+		host := u.Hostname()
+		if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("ghupdate BaseURL must be https:// (got %q)", raw)
+}
+
+// verifyAssetChecksum downloads the release "checksums.txt" (goreleaser) and
+// verifies that the sha256 of assetPath matches the digest listed for
+// asset.Name. It returns an error when the checksums asset is missing, the
+// filename is not listed, or the digest does not match.
+func verifyAssetChecksum(
+	ctx context.Context,
+	client HttpClient,
+	rel *release,
+	asset *releaseAsset,
+	assetPath string,
+) error {
+	checksumsAsset := rel.findAssetByName(checksumsAssetName)
+	if checksumsAsset == nil {
+		return fmt.Errorf(
+			"missing %s asset in the release; refusing to update without a checksum",
+			checksumsAssetName,
+		)
+	}
+
+	checksumsPath := assetPath + ".checksums.txt"
+	if err := downloadFile(ctx, client, checksumsAsset.DownloadUrl, checksumsPath); err != nil {
+		return fmt.Errorf("failed to download %s: %w", checksumsAssetName, err)
+	}
+	defer os.Remove(checksumsPath)
+
+	raw, err := os.ReadFile(checksumsPath)
+	if err != nil {
+		return err
+	}
+
+	expected, ok := findChecksum(raw, asset.Name)
+	if !ok {
+		return fmt.Errorf(
+			"checksums.txt does not list %q; refusing to update",
+			asset.Name,
+		)
+	}
+
+	actual, err := sha256HexFile(assetPath)
+	if err != nil {
+		return fmt.Errorf("failed to hash downloaded asset: %w", err)
+	}
+
+	if !strings.EqualFold(actual, expected) {
+		return fmt.Errorf(
+			"checksum mismatch for %q (expected %s, got %s); refusing to replace the executable",
+			asset.Name,
+			expected,
+			actual,
+		)
+	}
+
+	return nil
+}
+
+// findChecksum parses a goreleaser checksums file ("<hex digest>  <filename>")
+// and returns the digest for the given filename (compared by the trailing
+// whitespace-separated token, ignoring any leading "./").
+func findChecksum(raw []byte, filename string) (string, bool) {
+	filename = strings.TrimPrefix(filename, "./")
+
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+
+		if strings.TrimPrefix(fields[1], "./") != filename {
+			continue
+		}
+
+		return strings.ToLower(fields[0]), true
+	}
+
+	return "", false
+}
+
+// sha256HexFile returns the lowercase hex sha256 digest of the file at path.
+func sha256HexFile(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func archiveSuffix(goos, goarch string) string {

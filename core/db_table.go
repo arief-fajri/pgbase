@@ -108,6 +108,18 @@ func (app *BaseApp) Analyze() error {
 	return err
 }
 
+// AnalyzeTable runs ANALYZE on a single table only (instead of the whole
+// database), so a collection schema change refreshes planner statistics for
+// just the affected table (IDX-5).
+func (app *BaseApp) AnalyzeTable(tableName string) error {
+	if tableName == "" {
+		return nil
+	}
+
+	_, err := app.DB().NewQuery("ANALYZE " + dbutils.DefaultDialect.QuoteIdentifier(tableName)).Execute()
+	return err
+}
+
 func (app *BaseApp) AuxAnalyze() error {
 	_, err := app.AuxDB().NewQuery(dbutils.DefaultDialect.OptimizeQuery()).Execute()
 	return err

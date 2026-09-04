@@ -126,9 +126,14 @@ func (app *BaseApp) delete(ctx context.Context, model Model, isForAuxDB bool) er
 				db = e.App.NonconcurrentDB()
 			}
 
+			// bound the write with a client-side deadline so it cannot hang
+			// indefinitely on a silently dropped connection (see withWriteDeadline)
+			execCtx, cancel := withWriteDeadline(e.Context, app.config.QueryTimeout)
+			defer cancel()
+
 			if _, err := db.Delete(e.Model.TableName(), dbx.HashExp{
 				idColumn: pk,
-			}).WithContext(e.Context).Execute(); err != nil {
+			}).WithContext(execCtx).Execute(); err != nil {
 				return err
 			}
 			return nil
@@ -291,6 +296,11 @@ func (app *BaseApp) create(ctx context.Context, model Model, withValidations boo
 				db = e.App.NonconcurrentDB()
 			}
 
+			// bound the write with a client-side deadline so it cannot hang
+			// indefinitely on a silently dropped connection (see withWriteDeadline)
+			execCtx, cancel := withWriteDeadline(e.Context, app.config.QueryTimeout)
+			defer cancel()
+
 			var dbErr error
 			if m, ok := e.Model.(DBExporter); ok {
 				var data map[string]any
@@ -308,9 +318,9 @@ func (app *BaseApp) create(ctx context.Context, model Model, withValidations boo
 					return errors.New("empty primary key is not allowed when using the DBExporter interface")
 				}
 
-				_, dbErr = db.Insert(e.Model.TableName(), data).WithContext(e.Context).Execute()
+				_, dbErr = db.Insert(e.Model.TableName(), data).WithContext(execCtx).Execute()
 			} else {
-				dbErr = db.Model(e.Model).WithContext(e.Context).Insert()
+				dbErr = db.Model(e.Model).WithContext(execCtx).Insert()
 			}
 			if dbErr != nil {
 				return dbErr
@@ -384,6 +394,11 @@ func (app *BaseApp) update(ctx context.Context, model Model, withValidations boo
 				db = e.App.NonconcurrentDB()
 			}
 
+			// bound the write with a client-side deadline so it cannot hang
+			// indefinitely on a silently dropped connection (see withWriteDeadline)
+			execCtx, cancel := withWriteDeadline(e.Context, app.config.QueryTimeout)
+			defer cancel()
+
 			if m, ok := e.Model.(DBExporter); ok {
 				data, exportErr := m.DBExport(e.App)
 				if exportErr != nil {
@@ -397,11 +412,11 @@ func (app *BaseApp) update(ctx context.Context, model Model, withValidations boo
 
 				if _, updateErr := db.Update(e.Model.TableName(), data, dbx.HashExp{
 					idColumn: e.Model.LastSavedPK(),
-				}).WithContext(e.Context).Execute(); updateErr != nil {
+				}).WithContext(execCtx).Execute(); updateErr != nil {
 					return updateErr
 				}
 			} else {
-				if dbErr := db.Model(e.Model).WithContext(e.Context).Update(); dbErr != nil {
+				if dbErr := db.Model(e.Model).WithContext(execCtx).Update(); dbErr != nil {
 					return dbErr
 				}
 			}

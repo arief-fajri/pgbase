@@ -34,3 +34,14 @@ func (r *release) findAssetBySuffix(suffix string) (*releaseAsset, error) {
 
 	return nil, errors.New("missing asset containing " + suffix)
 }
+
+// findAssetByName returns the first asset whose name matches exactly the given
+// name (e.g. the goreleaser "checksums.txt" asset).
+func (r *release) findAssetByName(name string) *releaseAsset {
+	for _, asset := range r.Assets {
+		if asset.Name == name {
+			return asset
+		}
+	}
+	return nil
+}
