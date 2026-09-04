@@ -302,6 +302,22 @@ func TestHasSingleColumnUniqueIndex(t *testing.T) {
 			},
 			true,
 		},
+		{
+			"functional LOWER() partial unique index (matching column)",
+			"test",
+			[]string{
+				`CREATE UNIQUE INDEX "index" ON "example" (LOWER("test")) WHERE "test" <> ''`,
+			},
+			true,
+		},
+		{
+			"functional LOWER() unique index (different column)",
+			"test",
+			[]string{
+				`CREATE UNIQUE INDEX "index" ON "example" (LOWER("test2")) WHERE "test2" <> ''`,
+			},
+			false,
+		},
 	}
 
 	for _, s := range scenarios {
@@ -384,6 +400,22 @@ func TestFindSingleColumnUniqueIndex(t *testing.T) {
 			},
 			true,
 		},
+		{
+			"functional LOWER() partial unique index (matching column)",
+			"test",
+			[]string{
+				`CREATE UNIQUE INDEX "index" ON "example" (LOWER("test")) WHERE "test" <> ''`,
+			},
+			true,
+		},
+		{
+			"functional LOWER() unique index (different column)",
+			"test",
+			[]string{
+				`CREATE UNIQUE INDEX "index" ON "example" (LOWER("test2")) WHERE "test2" <> ''`,
+			},
+			false,
+		},
 	}
 
 	for _, s := range scenarios {
@@ -397,7 +429,7 @@ func TestFindSingleColumnUniqueIndex(t *testing.T) {
 				t.Fatal("Expected index.Columns to be empty")
 			}
 
-			if exists && !strings.EqualFold(index.Columns[0].Name, s.column) {
+			if exists && !strings.EqualFold(index.Columns[0].Name, s.column) && !strings.EqualFold(index.Columns[0].Name, `LOWER("`+s.column+`")`) {
 				t.Fatalf("Expected to find column %q in %v", s.column, index)
 			}
 		})

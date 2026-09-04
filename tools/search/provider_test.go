@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/list"
+	"github.com/pocketbase/dbx"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -304,7 +304,7 @@ func TestProviderExecNonEmptyQuery(t *testing.T) {
 			false,
 			`{"items":[{"test1":1,"test2":"test2.1","test3":""},{"test1":2,"test2":"test2.2","test3":""}],"page":1,"perPage":10,"totalItems":2,"totalPages":1}`,
 			[]string{
-				`SELECT COUNT(DISTINCT [[test.id]]) FROM "test" WHERE NOT ("test1" IS NULL)`,
+				`SELECT COUNT(*) FROM "test" WHERE NOT ("test1" IS NULL)`,
 				`SELECT * FROM "test" WHERE NOT ("test1" IS NULL) ORDER BY "test1" ASC LIMIT 10`,
 			},
 		},
@@ -317,10 +317,10 @@ func TestProviderExecNonEmptyQuery(t *testing.T) {
 			false,
 			false,
 			`{"items":[],"page":10,"perPage":30,"totalItems":2,"totalPages":1}`,
-		[]string{
-			`SELECT COUNT(DISTINCT [[test.id]]) FROM "test" WHERE NOT ("test1" IS NULL)`,
-			`SELECT * FROM "test" WHERE NOT ("test1" IS NULL) ORDER BY "test1" ASC LIMIT 30 OFFSET 270`,
-		},
+			[]string{
+				`SELECT COUNT(*) FROM "test" WHERE NOT ("test1" IS NULL)`,
+				`SELECT * FROM "test" WHERE NOT ("test1" IS NULL) ORDER BY "test1" ASC LIMIT 30 OFFSET 270`,
+			},
 		},
 		{
 			"invalid sort field",
@@ -354,7 +354,7 @@ func TestProviderExecNonEmptyQuery(t *testing.T) {
 			false,
 			`{"items":[{"test1":2,"test2":"test2.2","test3":""}],"page":1,"perPage":` + fmt.Sprint(MaxPerPage) + `,"totalItems":1,"totalPages":1}`,
 			[]string{
-				`SELECT COUNT(DISTINCT [[test.id]]) FROM "test" WHERE ((NOT ("test1" IS NULL)) AND (((test2 != '' AND test2 IS NOT NULL)))) AND (test1 >= 2)`,
+				`SELECT COUNT(*) FROM "test" WHERE ((NOT ("test1" IS NULL)) AND (((test2 != '' AND test2 IS NOT NULL)))) AND (test1 >= 2)`,
 				`SELECT * FROM "test" WHERE ((NOT ("test1" IS NULL)) AND (((test2 != '' AND test2 IS NOT NULL)))) AND (test1 >= 2) ORDER BY "test1" ASC, "test2" DESC NULLS FIRST LIMIT ` + fmt.Sprint(MaxPerPage),
 			},
 		},
@@ -380,23 +380,23 @@ func TestProviderExecNonEmptyQuery(t *testing.T) {
 			false,
 			false,
 			`{"items":[],"page":1,"perPage":10,"totalItems":0,"totalPages":0}`,
-		[]string{
-			`SELECT COUNT(DISTINCT [[test.id]]) FROM "test" WHERE (NOT ("test1" IS NULL)) AND (((test3 != '' AND test3 IS NOT NULL)))`,
-			`SELECT * FROM "test" WHERE (NOT ("test1" IS NULL)) AND (((test3 != '' AND test3 IS NOT NULL))) ORDER BY "test1" ASC, "test3" ASC NULLS LAST LIMIT 10`,
+			[]string{
+				`SELECT COUNT(*) FROM "test" WHERE (NOT ("test1" IS NULL)) AND (((test3 != '' AND test3 IS NOT NULL)))`,
+				`SELECT * FROM "test" WHERE (NOT ("test1" IS NULL)) AND (((test3 != '' AND test3 IS NOT NULL))) ORDER BY "test1" ASC, "test3" ASC NULLS LAST LIMIT 10`,
+			},
 		},
-	},
-	{
-		"valid sort and filter fields (zero results; skipTotal=1)",
-		1,
-		10,
-		[]SortField{{"test3", SortAsc}},
-		[]FilterData{"test3 != ''"},
-		true,
-		false,
-		`{"items":[],"page":1,"perPage":10,"totalItems":-1,"totalPages":-1}`,
-		[]string{
-			`SELECT * FROM "test" WHERE (NOT ("test1" IS NULL)) AND (((test3 != '' AND test3 IS NOT NULL))) ORDER BY "test1" ASC, "test3" ASC NULLS LAST LIMIT 10`,
-		},
+		{
+			"valid sort and filter fields (zero results; skipTotal=1)",
+			1,
+			10,
+			[]SortField{{"test3", SortAsc}},
+			[]FilterData{"test3 != ''"},
+			true,
+			false,
+			`{"items":[],"page":1,"perPage":10,"totalItems":-1,"totalPages":-1}`,
+			[]string{
+				`SELECT * FROM "test" WHERE (NOT ("test1" IS NULL)) AND (((test3 != '' AND test3 IS NOT NULL))) ORDER BY "test1" ASC, "test3" ASC NULLS LAST LIMIT 10`,
+			},
 		},
 		{
 			"pagination test",
@@ -406,11 +406,11 @@ func TestProviderExecNonEmptyQuery(t *testing.T) {
 			[]FilterData{},
 			false,
 			false,
-		`{"items":[{"test1":2,"test2":"test2.2","test3":""}],"page":2,"perPage":1,"totalItems":2,"totalPages":2}`,
-		[]string{
-			`SELECT COUNT(DISTINCT [[test.id]]) FROM "test" WHERE NOT ("test1" IS NULL)`,
-			`SELECT * FROM "test" WHERE NOT ("test1" IS NULL) ORDER BY "test1" ASC LIMIT 1 OFFSET 1`,
-		},
+			`{"items":[{"test1":2,"test2":"test2.2","test3":""}],"page":2,"perPage":1,"totalItems":2,"totalPages":2}`,
+			[]string{
+				`SELECT COUNT(*) FROM "test" WHERE NOT ("test1" IS NULL)`,
+				`SELECT * FROM "test" WHERE NOT ("test1" IS NULL) ORDER BY "test1" ASC LIMIT 1 OFFSET 1`,
+			},
 		},
 		{
 			"pagination test (skipTotal=1)",
@@ -420,10 +420,10 @@ func TestProviderExecNonEmptyQuery(t *testing.T) {
 			[]FilterData{},
 			true,
 			false,
-		`{"items":[{"test1":2,"test2":"test2.2","test3":""}],"page":2,"perPage":1,"totalItems":-1,"totalPages":-1}`,
-		[]string{
-			`SELECT * FROM "test" WHERE NOT ("test1" IS NULL) ORDER BY "test1" ASC LIMIT 1 OFFSET 1`,
-		},
+			`{"items":[{"test1":2,"test2":"test2.2","test3":""}],"page":2,"perPage":1,"totalItems":-1,"totalPages":-1}`,
+			[]string{
+				`SELECT * FROM "test" WHERE NOT ("test1" IS NULL) ORDER BY "test1" ASC LIMIT 1 OFFSET 1`,
+			},
 		},
 	}
 
@@ -806,4 +806,84 @@ func (t *testFieldResolver) Resolve(field string) (*ResolverResult, error) {
 	}
 
 	return &ResolverResult{Identifier: field}, nil
+}
+
+// distinctFieldResolver simulates the RecordFieldResolver behavior when a
+// relation filter adds joins: it enables DISTINCT (the dedup marker) so the
+// count query must keep COUNT(DISTINCT ...) instead of the cheaper COUNT(*).
+type distinctFieldResolver struct {
+	*testFieldResolver
+}
+
+func (r *distinctFieldResolver) UpdateQuery(query *dbx.SelectQuery) error {
+	query.Distinct(true)
+	return r.testFieldResolver.UpdateQuery(query)
+}
+
+// TestProviderCountSelectKeepsDistinctOnJoin verifies QRY-1: when the field
+// resolver marks the query as DISTINCT (relation joins), the count query must
+// keep COUNT(DISTINCT <col>) so row-multiplying joins are deduplicated,
+// while a plain resolver falls back to COUNT(*).
+func TestProviderCountSelectKeepsDistinctOnJoin(t *testing.T) {
+	testDB, err := createTestDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDB.Close()
+
+	query := testDB.Select("*").
+		From("test").
+		Where(dbx.Not(dbx.HashExp{"test1": nil}))
+
+	scenarios := []struct {
+		name        string
+		resolver    FieldResolver
+		expectCount string
+	}{
+		{
+			"distinct (join) keeps COUNT(DISTINCT ..)",
+			&distinctFieldResolver{testFieldResolver: &testFieldResolver{}},
+			`SELECT COUNT(DISTINCT [[test.id]]) FROM`,
+		},
+		{
+			"no join uses COUNT(*)",
+			&testFieldResolver{},
+			`SELECT COUNT(*) FROM`,
+		},
+	}
+
+	for _, s := range scenarios {
+		t.Run(s.name, func(t *testing.T) {
+			testDB.CalledQueries = []string{} // reset
+
+			p := NewProvider(s.resolver).
+				Query(query).
+				Page(1).
+				PerPage(10)
+
+			if _, err := p.Exec(&[]testTableStruct{}); err != nil {
+				t.Fatalf("Exec failed: %v", err)
+			}
+
+			if len(testDB.CalledQueries) != 2 {
+				t.Fatalf("expected 2 queries (count + select), got %d: %v", len(testDB.CalledQueries), testDB.CalledQueries)
+			}
+
+			// count and select run concurrently (errgroup) so the recorded order
+			// is nondeterministic; scan for the count query by its prefix
+			var countQuery string
+			for _, q := range testDB.CalledQueries {
+				if strings.Contains(q, "COUNT(") {
+					countQuery = q
+					break
+				}
+			}
+			if countQuery == "" {
+				t.Fatalf("expected to find a COUNT query, got: %v", testDB.CalledQueries)
+			}
+			if !strings.Contains(countQuery, s.expectCount) {
+				t.Fatalf("expected count query to contain %q, got %q", s.expectCount, countQuery)
+			}
+		})
+	}
 }

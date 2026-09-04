@@ -95,21 +95,17 @@ func (app *BaseApp) DeleteExpiredOTPs() error {
 			return err
 		}
 
-		items := []*Record{}
+		// delete in bulk with a single statement instead of fetching every
+		// expired row and issuing a per-row model delete. Expired OTP records
+		// are leaf rows (no inbound relations and their delete hook is a
+		// no-op), so no cascade or event handling is lost.
+		expr := dbx.And(
+			dbx.HashExp{"collectionRef": collection.Id},
+			dbx.NewExp("[[created]] < {:date}", dbx.Params{"date": minValidDate}),
+		)
 
-		err = app.RecordQuery(CollectionNameOTPs).
-			AndWhere(dbx.HashExp{"collectionRef": collection.Id}).
-			AndWhere(dbx.NewExp("[[created]] < {:date}", dbx.Params{"date": minValidDate})).
-			All(&items)
-		if err != nil {
+		if _, err := app.NonconcurrentDB().Delete(CollectionNameOTPs, expr).Execute(); err != nil {
 			return err
-		}
-
-		for _, item := range items {
-			err = app.Delete(item)
-			if err != nil {
-				return err
-			}
 		}
 	}
 

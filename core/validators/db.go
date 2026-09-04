@@ -9,12 +9,18 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pocketbase/dbx"
 	validation "github.com/pocketbase/ozzo-validation/v4"
+	"github.com/arief-fajri/pgbase/tools/dbutils"
 )
 
 // pgUniqueDetailKeyRegex extracts the offending column name(s) from a
 // PostgreSQL unique-violation error detail, eg. "Key (title)=(abc) already
-// exists." or the multi-column "Key (a, b)=(1, 2) already exists.".
-var pgUniqueDetailKeyRegex = regexp.MustCompile(`(?i)Key \(([^)]+)\)=`)
+// exists.", the multi-column "Key (a, b)=(1, 2) already exists." or the
+// functional "Key (lower(email))=(a@b.co) already exists.".
+//
+// The capture is non-greedy and anchored on the "){=(" value separator so that
+// a nested functional expression (eg. lower(email)) is captured whole instead
+// of being truncated at its inner closing parenthesis.
+var pgUniqueDetailKeyRegex = regexp.MustCompile(`(?i)Key \((.+?)\)=\(`)
 
 
 // UniqueId checks whether a field string id already exists in the specified table.
@@ -72,7 +78,10 @@ func NormalizeUniqueIndexError(err error, tableOrAlias string, fieldNames []stri
 		detailCols := map[string]struct{}{}
 		if m := pgUniqueDetailKeyRegex.FindStringSubmatch(pgErr.Detail); len(m) == 2 {
 			for _, c := range strings.Split(m[1], ",") {
-				detailCols[strings.ToLower(strings.TrimSpace(c))] = struct{}{}
+				// normalize functional expressions (eg. lower(email)) back to
+				// the bare column so they map to the collection field name
+				col := dbutils.NormalizeIndexColumnName(c)
+				detailCols[strings.ToLower(col)] = struct{}{}
 			}
 		}
 
