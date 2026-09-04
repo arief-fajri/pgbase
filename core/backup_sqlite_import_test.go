@@ -15,7 +15,7 @@ import (
 const legacySQLiteFixture = "testdata/legacy_sqlite_backup/data.db"
 
 // TestImportFromSQLiteDir performs an end-to-end import of an authentic
-// PocketBase v0.23+ SQLite backup into the current PostgreSQL-backed test app
+// legacy v0.23+ SQLite backup into the current PostgreSQL-backed test app
 // and asserts schema, record fidelity (incl. verbatim auth secrets), settings
 // and storage files are all restored.
 func TestImportFromSQLiteDir(t *testing.T) {

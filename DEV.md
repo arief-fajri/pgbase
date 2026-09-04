@@ -947,7 +947,7 @@ pgbase/
 │   └── base/           # Runnable main entrypoint (go run ./examples/base)
 ├── third_party/        # Vendored dependencies
 ├── .github/workflows/  # CI (lint, tests, releases)
-├── pocketbase.go       # Main app struct (library)
+├── pgbase.go            # Main app struct (library)
 ├── Dockerfile
 ├── docker-compose.yml
 └── Makefile

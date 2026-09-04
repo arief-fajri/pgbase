@@ -135,7 +135,7 @@ type settings struct {
 	Audit        AuditConfig        `form:"audit" json:"audit"`
 }
 
-// Settings defines the PocketBase app settings.
+// Settings defines the PGBase app settings.
 type Settings struct {
 	settings
 
