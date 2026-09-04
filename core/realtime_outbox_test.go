@@ -131,6 +131,42 @@ func TestRealtimeOutboxPublishCreateAndDelete(t *testing.T) {
 	}
 }
 
+// TestRealtimeOutboxDeleteSnapshotScrubsAuthSecrets verifies a delete snapshot
+// for an auth collection never persists password or tokenKey (PGB-N02): those
+// secrets are stored at rest in the outbox table and are included in backups.
+func TestRealtimeOutboxDeleteSnapshotScrubsAuthSecrets(t *testing.T) {
+	t.Setenv("PB_REALTIME_OUTBOX", "1")
+
+	app := newRealtimeOutboxTestApp(t)
+
+	// clean table first (raw shared-DB path)
+	if _, err := app.DB().NewQuery(`DELETE FROM "_realtime_outbox"`).Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	coll := NewBaseCollection("users")
+	coll.Id = "pbc_users"
+	coll.Type = CollectionTypeAuth
+	coll.Fields.Add(&TextField{Name: "title"})
+	rec := NewRecord(coll)
+	rec.Id = "rec-auth"
+	rec.SetRaw("title", "public title")
+	rec.SetRaw(FieldNamePassword, "$2a$10$abcdefghijklmnopqrstuv")
+	rec.SetRaw(FieldNameTokenKey, "super-secret-token-key")
+
+	raw := sanitizeOutboxSnapshot(rec)
+
+	for _, secret := range []string{FieldNamePassword, FieldNameTokenKey, "$2a$10$", "super-secret-token-key"} {
+		if strings.Contains(string(raw), secret) {
+			t.Fatalf("expected outbox snapshot to scrub %q, got: %s", secret, raw)
+		}
+	}
+
+	if !strings.Contains(string(raw), "public title") {
+		t.Fatalf("expected non-sensitive fields to remain in the snapshot, got: %s", raw)
+	}
+}
+
 // TestRealtimeOutboxCleanup verifies processed and stale rows are removed.
 func TestRealtimeOutboxCleanup(t *testing.T) {
 	t.Setenv("PB_REALTIME_OUTBOX", "1")

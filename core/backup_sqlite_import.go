@@ -595,6 +595,17 @@ func (app *BaseApp) importSQLiteRecords(ctx context.Context, db *sql.DB, meta []
 				return fmt.Errorf("failed to clear target table %q: %w", m.name, err)
 			}
 
+			// PGB-M03: the raw INSERT path bypasses EditorField.ValidateValue, so
+			// sanitize editor-field HTML (allow-list) before it lands in the DB.
+			editorCols := map[string]bool{}
+			if coll, colErr := app.FindCollectionByNameOrId(m.name); colErr == nil {
+				for _, fld := range coll.Fields {
+					if fld.Type() == FieldTypeEditor {
+						editorCols[fld.GetName()] = true
+					}
+				}
+			}
+
 			for _, row := range rows {
 				params := dbx.Params{}
 				for i, c := range cols {
@@ -605,6 +616,12 @@ func (app *BaseApp) importSQLiteRecords(ctx context.Context, db *sql.DB, meta []
 					out, omit := coerceSQLiteValueForPG(pgType, row[i])
 					if omit {
 						continue // let the Postgres column default apply
+					}
+					if editorCols[c] {
+						if s, isStr := out.(string); isStr {
+							params[c] = sanitizeEditorHTML(s)
+							continue
+						}
 					}
 					params[c] = out
 				}

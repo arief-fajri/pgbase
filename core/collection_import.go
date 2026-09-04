@@ -208,6 +208,31 @@ func (app *BaseApp) ImportCollections(toImport []map[string]any, deleteMissing b
 				}
 		}
 
+		// PGB-L02: validate collection/field names BEFORE the DDL loop so a
+		// crafted name (quotes, spaces, etc.) can never reach the identifier
+		// interpolation in CreateTable/ALTER, even though import is
+		// superuser-only and the whole operation runs in a transaction.
+		for _, imported := range importedCollections {
+			if !collectionNameRegex.MatchString(imported.Name) {
+				return fmt.Errorf(
+					"invalid collection name %q in import data (allowed: %s)",
+					imported.Name,
+					collectionNameRegex.String(),
+				)
+			}
+
+			for _, f := range imported.Fields {
+				if !fieldNameRegex.MatchString(f.GetName()) {
+					return fmt.Errorf(
+						"invalid field name %q in collection %q import data (allowed: %s)",
+						f.GetName(),
+						imported.Name,
+						fieldNameRegex.String(),
+					)
+				}
+			}
+		}
+
 		// upsert imported collections
 		for _, imported := range importedCollections {
 			if err := txApp.SaveNoValidate(imported); err != nil {

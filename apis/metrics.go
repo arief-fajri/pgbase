@@ -33,6 +33,12 @@ import (
 // same port that serves user traffic.
 const MetricsAddrEnv = "PB_METRICS_ADDR"
 
+// MetricsExposeEnv is the env var that explicitly acknowledges that the
+// metrics listener is bound to a non-loopback address (e.g. "0.0.0.0:9090"
+// inside a container fronted by a NetworkPolicy). Without it, non-loopback
+// binds fail fast, because /metrics is unauthenticated (see DEV.md).
+const MetricsExposeEnv = "PB_METRICS_EXPOSE"
+
 // metricsNamespace prefixes every custom pgbase metric.
 const metricsNamespace = "pgbase"
 
@@ -43,6 +49,43 @@ const metricsMiddlewareId = "pbMetrics"
 // metricsBindAddr returns the trimmed PB_METRICS_ADDR value ("" = disabled).
 func metricsBindAddr() string {
 	return strings.TrimSpace(os.Getenv(MetricsAddrEnv))
+}
+
+// metricsExplicitExpose reports whether the operator has explicitly opted in to
+// binding the unauthenticated /metrics endpoint on a non-loopback address.
+func metricsExplicitExpose() bool {
+	v := strings.TrimSpace(os.Getenv(MetricsExposeEnv))
+	return v == "1" || strings.EqualFold(v, "true")
+}
+
+// validateMetricsAddr refuses non-loopback bind addresses unless the operator
+// explicitly opted in via PB_METRICS_EXPOSE. Loopback addresses and the
+// "localhost" hostname are always allowed. The endpoint is unauthenticated, so
+// a network-reachable bind must be a conscious, operator-acknowledged choice.
+func validateMetricsAddr(addr string) error {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("invalid PB_METRICS_ADDR %q: %w", addr, err)
+	}
+
+	ip := net.ParseIP(host)
+	if ip != nil && ip.IsLoopback() {
+		return nil
+	}
+	if strings.EqualFold(host, "localhost") {
+		// hostnames may resolve anywhere; still treat "localhost" as loopback
+		return nil
+	}
+
+	if !metricsExplicitExpose() {
+		return fmt.Errorf(
+			"refusing to bind unauthenticated /metrics on non-loopback address %q; set %s=true to acknowledge the exposure (loopback, e.g. 127.0.0.1:9090, is always allowed)",
+			addr,
+			MetricsExposeEnv,
+		)
+	}
+
+	return nil
 }
 
 // appMetrics bundles the Prometheus registry and the request histogram for a
@@ -149,6 +192,10 @@ func serveMetricsListener(app core.App, m *appMetrics, ln net.Listener) func(con
 	server := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MiB
 	}
 
 	go func() {

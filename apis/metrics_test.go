@@ -51,9 +51,38 @@ func TestMetricsBindAddr(t *testing.T) {
 	}
 }
 
-// TestMetricsMiddlewareObservesRoutePattern verifies the HTTP histogram is
-// labeled by the low-cardinality matched route pattern (e.g. "/api/test/{id}")
-// rather than the raw request path, and captures method + status.
+func TestValidateMetricsAddr(t *testing.T) {
+	t.Setenv(MetricsExposeEnv, "")
+
+	// loopback binds are always allowed
+	for _, addr := range []string{"127.0.0.1:9090", "127.45.0.1:9090", "[::1]:9090", "localhost:9090"} {
+		if err := validateMetricsAddr(addr); err != nil {
+			t.Errorf("expected %q to be allowed without PB_METRICS_EXPOSE, got: %v", addr, err)
+		}
+	}
+
+	// non-loopback binds are refused without the explicit ack
+	for _, addr := range []string{"0.0.0.0:9090", "192.168.1.10:9090", ":9090", "example.com:9090"} {
+		if err := validateMetricsAddr(addr); err == nil {
+			t.Errorf("expected %q to be refused without PB_METRICS_EXPOSE", addr)
+		}
+	}
+
+	// ... but allowed once the operator explicitly opts in
+	t.Setenv(MetricsExposeEnv, "true")
+	for _, addr := range []string{"0.0.0.0:9090", "192.168.1.10:9090", ":9090"} {
+		if err := validateMetricsAddr(addr); err != nil {
+			t.Errorf("expected %q to be allowed with PB_METRICS_EXPOSE=true, got: %v", addr, err)
+		}
+	}
+
+	// malformed addresses are always rejected
+	t.Setenv(MetricsExposeEnv, "true")
+	if err := validateMetricsAddr("not-an-address"); err == nil {
+		t.Error("expected malformed address to be rejected")
+	}
+}
+
 func TestMetricsMiddlewareObservesRoutePattern(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	hist := prometheus.NewHistogramVec(prometheus.HistogramOpts{

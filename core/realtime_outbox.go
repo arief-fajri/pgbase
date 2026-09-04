@@ -29,12 +29,11 @@ func RealtimeOutboxNotifyChannel() string {
 	return realtimeOutboxNotifyChannel
 }
 
-// realtimeOutboxAckColumnNote documents why `processed_at` is intentionally NOT
-// used as an ack: the outbox is a *broadcast* queue (every instance consumes
-// every row for its own local fanout), so a single per-row ack would let one
-// instance "consume" an event before another instance read it. Instances dedup
-// in memory per event id and rows are removed by TTL cleanup.
-const realtimeOutboxAckColumnNote = "processed_at is informational-only (never ack-guarded); see listener design"
+// realtimeOutboxAckColumnNote: `processed_at` is intentionally NOT used as an
+// ack: the outbox is a *broadcast* queue (every instance consumes every row for
+// its own local fanout), so a single per-row ack would let one instance
+// "consume" an event before another instance read it. Instances dedup in memory
+// per event id and rows are removed by TTL cleanup.
 
 // Realtime outbox event actions.
 const (
@@ -69,10 +68,15 @@ func (app *BaseApp) PublishRealtimeEvent(action string, collectionName string, r
 
 	var snapshotJSON []byte
 	if action == RealtimeActionDelete && snapshot != nil {
-		snapshotJSON, _ = json.Marshal(snapshot.Fresh())
+		snapshotJSON = sanitizeOutboxSnapshot(snapshot)
 	}
 
 	db := app.NonconcurrentDB()
+
+	// bound the outbox writes with a client-side deadline so they cannot hang
+	// indefinitely on a silently dropped connection (see withWriteDeadline)
+	execCtx, cancel := withWriteDeadline(context.Background(), app.config.QueryTimeout)
+	defer cancel()
 
 	insertSQL := fmt.Sprintf(
 		`INSERT INTO "%s" ("action", "collection", "record_id", "snapshot", "origin") VALUES ({:action}, {:collection}, {:recordId}, {:snapshot}, {:origin})`,
@@ -86,14 +90,35 @@ func (app *BaseApp) PublishRealtimeEvent(action string, collectionName string, r
 			"snapshot":   snapshotJSON,
 			"origin":     app.realtimeOutboxOrigin,
 		}).
+		WithContext(execCtx).
 		Execute(); err != nil {
 		return fmt.Errorf("failed to append realtime outbox event: %w", err)
 	}
 
 	// wake up other instances (empty payload; data is in the table)
-	_, err := db.NewQuery(fmt.Sprintf("SELECT pg_notify('%s', '')", realtimeOutboxNotifyChannel)).Execute()
+	_, err := db.NewQuery(fmt.Sprintf("SELECT pg_notify('%s', '')", realtimeOutboxNotifyChannel)).
+		WithContext(execCtx).
+		Execute()
 
 	return err
+}
+
+// sanitizeOutboxSnapshot serializes a deleted record for the realtime outbox,
+// explicitly stripping auth secrets. Record serialization already hides
+// password/tokenKey for auth collections via PublicExport; this keeps the
+// invariant explicit and guards against future serialization changes. The
+// snapshot is stored at rest (and included in DB backups), so it must never
+// carry password hashes or token keys.
+func sanitizeOutboxSnapshot(record *Record) []byte {
+	export := record.PublicExport()
+	if record.Collection().IsAuth() {
+		delete(export, FieldNamePassword)
+		delete(export, FieldNameTokenKey)
+	}
+
+	raw, _ := json.Marshal(export)
+
+	return raw
 }
 
 // realtimeOutboxCleanupCronKey is the hourly cleanup cron for the outbox.
@@ -250,11 +275,16 @@ func (app *BaseApp) registerRealtimeOutboxCleanup() {
 // CleanupStaleRealtimeEvents removes processed events (and any pending event
 // older than staleAge - e.g. a dead publisher) so the outbox table stays tiny.
 func (app *BaseApp) CleanupStaleRealtimeEvents(staleAge time.Duration) error {
+	// bound the cleanup write with a client-side deadline (see withWriteDeadline)
+	execCtx, cancel := withWriteDeadline(context.Background(), app.config.QueryTimeout)
+	defer cancel()
+
 	_, err := app.NonconcurrentDB().NewQuery(fmt.Sprintf(
 		`DELETE FROM "%s" WHERE "processed_at" IS NOT NULL OR "created" < {:cutoff}::timestamptz`,
 		RealtimeOutboxTableName,
 	)).
 		Bind(dbx.Params{"cutoff": time.Now().Add(-staleAge)}).
+		WithContext(execCtx).
 		Execute()
 
 	return err

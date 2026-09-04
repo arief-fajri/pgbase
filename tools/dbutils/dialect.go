@@ -12,8 +12,6 @@ type Dialect interface {
 
 	GenerateIDExpression() string
 
-	Strftime(column, format string) string
-
 	CollateNocase(column string) string
 
 	QuoteIdentifier(name string) string

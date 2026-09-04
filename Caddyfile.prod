@@ -1,0 +1,12 @@
+# Caddyfile used by docker-compose.prod.yml.
+# DOMAIN is injected from .env; HTTPS + certificate are automatic (Let's Encrypt).
+{$DOMAIN} {
+	encode gzip
+
+	reverse_proxy pgbase:8090
+
+	# browser-facing hardening on top of pgbase's own headers
+	header Strict-Transport-Security "max-age=63072000; includeSubDomains"
+	header X-Content-Type-Options "nosniff"
+	header X-Frame-Options "SAMEORIGIN"
+}

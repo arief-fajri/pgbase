@@ -129,6 +129,17 @@ func (f *EditorField) ValidateValue(ctx context.Context, app App, record *Record
 		return validators.ErrUnsupportedValueType
 	}
 
+	// allow-list sanitization at write time (PGB-M03): stored editor HTML is
+	// served verbatim by the API and rendered in privileged contexts, so active
+	// content (scripts, event handlers, iframes, unsafe URL schemes) is stripped
+	// before it ever hits the database. Consumers should still treat editor
+	// content as untrusted (upstream parity is preserved for the sanitized set).
+	sanitized := sanitizeEditorHTML(val)
+	if sanitized != val {
+		record.SetRaw(f.Name, sanitized)
+		val = sanitized
+	}
+
 	if f.Required {
 		if err := validation.Required.Validate(val); err != nil {
 			return err

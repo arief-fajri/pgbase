@@ -24,6 +24,8 @@ services:
       - PB_POSTGRES_PASSWORD=${PB_POSTGRES_PASSWORD:?set PB_POSTGRES_PASSWORD in .env (see .env.example)}
       - PB_POSTGRES_DBNAME=${PB_POSTGRES_DBNAME:-pgbase}
       - PB_POSTGRES_SSLMODE=${PB_POSTGRES_SSLMODE:-disable}
+      # settings encryption key (see .env.example); encrypted at rest when set
+      - PB_ENCRYPTION_KEY=${PB_ENCRYPTION_KEY:-}
     volumes:
       - pb_data:/pb_data
     depends_on:

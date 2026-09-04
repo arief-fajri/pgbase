@@ -436,6 +436,14 @@ re-broadcasts them to its own local subscribers.
 - `PB_REALTIME_OUTBOX` defaults to **off**: single-instance deployments have
   zero outbox reads, zero NOTIFY listeners and zero extra rows (the write path
   is unchanged).
+- **Trust model:** outbox rows are trusted exactly as much as DB writes. There
+  is **no mutual authentication between instances** — origin is a random
+  per-process id and rows with a NULL/legacy origin are always delivered. Any
+  process with write access to the shared DB (e.g. a compromised instance) can
+  forge/delete-snapshot rows that are re-broadcast to other instances'
+  subscribers (whose API rules are re-evaluated, so exposure stays within rule
+  grants). Delete snapshots are scrubbed of auth secrets (password, tokenKey)
+  before being stored at rest (PGB-N02).
 - The listener needs a dedicated PostgreSQL connection (LISTEN is not
   multi-plexed by a transaction-pooling proxy); connect it directly or via a
   session-pooling front.
@@ -461,6 +469,11 @@ export PB_METRICS_ADDR="127.0.0.1:9090"
   unset (the default) **disables** the endpoint entirely: no extra listener is
   opened and the request-instrumentation middleware is not installed (zero
   overhead). Set to a bind address (e.g. `127.0.0.1:9090`) to enable.
+- **`PB_METRICS_EXPOSE`** — explicit acknowledgement that the metrics listener is
+  bound on a **non-loopback** address (e.g. `0.0.0.0:9090` inside a container
+  behind a NetworkPolicy). Loopback binds (`127.0.0.0/8`, `::1`, `localhost`)
+  never need it. Any other bind **fails to start** unless this is `true`/`1`,
+  because `/metrics` is unauthenticated.
 
 ### Exposed metrics
 
@@ -491,8 +504,8 @@ performance audit (watch `open`/`in_use`/`wait_count` approach
 - **Container caveat:** `127.0.0.1` inside a container is *not* reachable by an
   external Prometheus. Either run Prometheus as a **sidecar** in the same
   network namespace, or bind the pod/container interface (e.g. `0.0.0.0:9090`)
-  and restrict access with a **NetworkPolicy**/firewall — do not publish the
-  port to the host/internet.
+  **plus `PB_METRICS_EXPOSE=true`** and restrict access with a
+  **NetworkPolicy**/firewall — do not publish the port to the host/internet.
 - The listener shuts down gracefully alongside the main server on
   `SIGTERM`/restart.
 
@@ -692,17 +705,23 @@ production:
 - **Network:** never publish the database port publicly; keep it on a private
   network. The demo binds it to `127.0.0.1` only.
 - **App TLS:** terminate HTTPS at a reverse proxy (or use the built-in
-  `--https`) — do not serve plaintext HTTP publicly.
+  `--https`) — do not serve plaintext HTTP publicly. When HTTPS is in front,
+  set `PB_HSTS=true` to emit `Strict-Transport-Security` (2y, includeSubDomains;
+  opt-in because it is meaningless on a plaintext connection).
 - **Settings encryption:** run with `--encryptionEnv <ENV_VAR>` so SMTP/S3/
   OAuth2/JWT secrets are encrypted at rest (see section on settings below).
   Without it those secrets are stored base64-encoded but **unencrypted**; the
   server prints a one-line warning on start when no encryption key is set.
-- **Editor (rich-text) fields:** `editor`-type field values are stored as raw
-  HTML (matching upstream PocketBase). The dashboard renders them through a
-  sandboxed editor, but the REST/records API returns the raw HTML verbatim.
-  Any client app that injects that HTML into the DOM **must** sanitize it first
-  (e.g. DOMPurify) to avoid stored XSS — treat editor content as untrusted
-  whenever the collection's create/update API rules allow non-superuser writes.
+- **Editor (rich-text) fields:** `editor`-type field values are stored as
+  HTML. Since v0.4.x the app **sanitizes editor content server-side at write
+  time** (allow-list via bluemonday — scripts, event handlers, iframes, embeds
+  and `javascript:`/`data:text`/SVG URLs are stripped; see PGB-M03). The
+  dashboard renders stored HTML through a sandboxed editor, but the REST/records
+  API still returns it verbatim. Treat editor content as **untrusted defense-in-
+  depth** in any client app that injects it into the DOM (e.g. use a DOMPurify-
+  style pass), especially when the collection's create/update API rules allow
+  non-superuser writes. Note: native `pg_restore` backups restore the stored
+  HTML as-is (admin-level restore capabability).
 - **Connection pool:** size `(data+aux)×instances` under the DB's
   `max_connections` (see the connection-pool sizing section), and front large
   fan-out with PgBouncer.

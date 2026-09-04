@@ -4,10 +4,14 @@ package mails
 
 import (
 	"bytes"
-	"text/template"
+	"html/template"
 )
 
 // resolveTemplateContent resolves inline html template strings.
+//
+// html/template is used (instead of text/template) so that interpolated user
+// data (record fields, names, tokens) is HTML-escaped in the email body, which
+// prevents content/HTML injection into outgoing mail (PGB-L08).
 func resolveTemplateContent(data any, content ...string) (string, error) {
 	if len(content) == 0 {
 		return "", nil

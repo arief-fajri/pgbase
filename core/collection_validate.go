@@ -643,7 +643,9 @@ func (cv *collectionValidator) checkIndexes(value any) error {
 
 			for _, column := range oldParsed.Columns {
 				for _, f := range cv.original.Fields {
-					if !f.GetSystem() || !strings.EqualFold(column.Name, f.GetName()) {
+					// normalize functional index columns (eg. LOWER("email")) so
+					// the guard also recognizes the auth functional unique index
+					if !f.GetSystem() || !strings.EqualFold(dbutils.NormalizeIndexColumnName(column.Name), f.GetName()) {
 						continue
 					}
 

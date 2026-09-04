@@ -24,7 +24,7 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
-const defaultCSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://127.0.0.1:* https://tile.openstreetmap.org data: blob:; connect-src 'self' http://127.0.0.1:* https://nominatim.openstreetmap.org; script-src 'self' http://127.0.0.1:*; frame-ancestors 'none'"
+const defaultCSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
 // ServeConfig defines a configuration struct for apis.Serve().
 type ServeConfig struct {
@@ -88,6 +88,12 @@ func Serve(app core.App, config ServeConfig) error {
 	// and the request-instrumentation middleware is not installed.
 	var metricsShutdown func(context.Context) error
 	if metricsAddr := metricsBindAddr(); metricsAddr != "" {
+		// refuse network-reachable binds unless the operator acknowledged them
+		// (see validateMetricsAddr / MetricsExposeEnv)
+		if err := validateMetricsAddr(metricsAddr); err != nil {
+			return err
+		}
+
 		m := newAppMetrics(app)
 		pbRouter.Bind(metricsMiddleware(m))
 
