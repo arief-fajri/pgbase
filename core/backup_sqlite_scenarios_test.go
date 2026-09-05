@@ -300,7 +300,7 @@ func TestScenarioEncryptedSettingsWithoutKey(t *testing.T) {
 // Scenario 3 - corrupt / unrecognized backups fail cleanly (no panic)
 // -------------------------------------------------------------------
 
-// TestScenarioCorruptBackups asserts that malformed or non-PocketBase data.db
+// TestScenarioCorruptBackups asserts that malformed or unrecognized data.db
 // files are rejected with a clear error rather than a panic or a partial import.
 func TestScenarioCorruptBackups(t *testing.T) {
 	ctx := context.Background()
@@ -328,7 +328,7 @@ func TestScenarioCorruptBackups(t *testing.T) {
 		}
 	})
 
-	t.Run("valid sqlite but not PocketBase", func(t *testing.T) {
+	t.Run("valid sqlite but unrecognized backup", func(t *testing.T) {
 		dir := t.TempDir()
 		db, err := sql.Open("sqlite", filepath.Join(dir, "data.db"))
 		if err != nil {
@@ -340,11 +340,11 @@ func TestScenarioCorruptBackups(t *testing.T) {
 		_ = db.Close()
 
 		if err := app.ImportFromSQLiteDir(ctx, dir); err == nil {
-			t.Fatalf("expected an error for a non-PocketBase SQLite db")
+			t.Fatalf("expected an error for an unrecognized SQLite db")
 		}
 	})
 
-	t.Run("PocketBase-shaped but unrecognized version", func(t *testing.T) {
+	t.Run("valid layout but unrecognized version", func(t *testing.T) {
 		dir := t.TempDir()
 		db, err := sql.Open("sqlite", filepath.Join(dir, "data.db"))
 		if err != nil {

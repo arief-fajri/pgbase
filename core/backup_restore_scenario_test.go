@@ -279,7 +279,7 @@ func TestBackupRestoreScenario(t *testing.T) {
 }
 
 // assertDumpSnapshot opens the exported SQLite dump directly and verifies it is
-// a v0.23-shaped PocketBase database carrying the expected step-3 snapshot.
+// a v0.23-shaped legacy SQLite database carrying the expected step-3 snapshot.
 func assertDumpSnapshot(t *testing.T, dumpPath string, wantArticles, wantTags int) {
 	t.Helper()
 
@@ -325,8 +325,8 @@ func assertDumpSnapshot(t *testing.T, dumpPath string, wantArticles, wantTags in
 // pre-v0.23 (v0.22) SQLite fixture builder
 // -------------------------------------------------------------------
 
-// buildLegacyV22DB writes a minimal but representative pre-v0.23 PocketBase
-// SQLite backup at path. It uses the legacy "_collections.schema" column (with
+// buildLegacyV22DB writes a minimal but representative pre-v0.23 SQLite
+// backup at path. It uses the legacy "_collections.schema" column (with
 // nested per-type field options), a separate "_admins" table, and base
 // collections whose records span the tricky field types the importer must
 // convert (text with null min/max, number noDecimal, relation displayFields,

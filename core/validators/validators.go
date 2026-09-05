@@ -1,4 +1,4 @@
-// Package validators implements some common custom PocketBase validators.
+// Package validators implements some common custom PGBase validators.
 package validators
 
 import (
