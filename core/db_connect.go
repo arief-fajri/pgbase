@@ -3,6 +3,8 @@ package core
 import (
 	"fmt"
 	"log/slog"
+	"math/rand"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -54,7 +56,7 @@ func ResolveDBConfig(config DBConfig) DBConfig {
 		config.DBName = getEnvOrDefault("PB_POSTGRES_DBNAME", "pgbase")
 	}
 	if config.SSLMode == "" {
-		config.SSLMode = getEnvOrDefault("PB_POSTGRES_SSLMODE", "disable")
+		config.SSLMode = getEnvOrDefault("PB_POSTGRES_SSLMODE", "prefer")
 	}
 	// keep the zero-config fallback in sync with the app-level pool defaults
 	// (base.go) so the CLI/raw connection paths never silently exceed the
@@ -71,6 +73,17 @@ func ResolveDBConfig(config DBConfig) DBConfig {
 
 func DefaultDBConnect(config DBConfig) (*dbx.DB, error) {
 	config = ResolveDBConfig(config)
+
+	// CFG-02: warn when sslmode=disable is used against a non-loopback host
+	// (plaintext DB traffic). Loopback (local dev / docker-compose) is allowed.
+	if strings.EqualFold(strings.TrimSpace(config.SSLMode), "disable") &&
+		!isLoopbackHost(config.Host) {
+		slog.Warn(
+			"PostgreSQL connection is using sslmode=disable against a non-loopback host; "+
+				"database traffic will be transmitted in plaintext. Use require/verify-full in production.",
+			slog.String("host", config.Host),
+		)
+	}
 
 	db, err := dbx.Open("pgx", buildDSN(config))
 	if err != nil {
@@ -93,7 +106,7 @@ func DefaultDBConnect(config DBConfig) (*dbx.DB, error) {
 func buildDSN(config DBConfig) string {
 	sslmode := config.SSLMode
 	if sslmode == "" {
-		sslmode = "disable"
+		sslmode = "prefer"
 	}
 
 	dsn := fmt.Sprintf(
@@ -175,10 +188,11 @@ func (a postgresRoleTimeoutAction) SQL() string {
 
 // roleTimeoutAlterAttempts is how many times a single ALTER ROLE statement is
 // retried before giving up.
-const roleTimeoutAlterAttempts = 3
+const roleTimeoutAlterAttempts = 5
 
-// roleTimeoutAlterRetryDelay is the backoff between ALTER ROLE retries.
-const roleTimeoutAlterRetryDelay = 25 * time.Millisecond
+// roleTimeoutAlterRetryDelay is the base backoff between ALTER ROLE retries.
+// Each retry doubles the delay and adds random jitter to reduce contention.
+const roleTimeoutAlterRetryDelay = 50 * time.Millisecond
 
 // ensurePostgresRoleTimeouts applies server-side statement/lock timeouts at the
 // PostgreSQL role level (ALTER ROLE CURRENT_USER ...), so they hold across
@@ -205,11 +219,21 @@ func (app *BaseApp) ensurePostgresRoleTimeouts(logger *slog.Logger) error {
 		var lastErr error
 		for attempt := 0; attempt < roleTimeoutAlterAttempts; attempt++ {
 			if attempt > 0 {
-				time.Sleep(roleTimeoutAlterRetryDelay)
+				// Exponential backoff with jitter to reduce contention when
+				// multiple app instances bootstrap concurrently.
+				delay := roleTimeoutAlterRetryDelay * time.Duration(1<<uint(attempt-1))
+				delay += time.Duration(rand.Int63n(int64(roleTimeoutAlterRetryDelay)))
+				time.Sleep(delay)
 			}
 
 			if _, err := app.NonconcurrentDB().NewQuery(action.SQL()).Execute(); err != nil {
 				lastErr = err
+				// Only retry on "tuple concurrently updated" (XX000); other errors
+				// (permission denied, syntax error) are permanent and wasting retries
+				// would only delay boot.
+				if !isTupleConcurrentlyUpdated(err) {
+					break
+				}
 				continue
 			}
 			lastErr = nil
@@ -227,6 +251,17 @@ func (app *BaseApp) ensurePostgresRoleTimeouts(logger *slog.Logger) error {
 	}
 
 	return nil
+}
+
+// isTupleConcurrentlyUpdated reports whether err is a PostgreSQL
+// "tuple concurrently updated" (XX000) error, which is a transient
+// contention error safe to retry.
+func isTupleConcurrentlyUpdated(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "XX000") ||
+		strings.Contains(err.Error(), "tuple concurrently updated")
 }
 
 // quoteParamValue quotes a GUC value as a SQL literal so arbitrary env values
@@ -248,6 +283,29 @@ func getEnvOrDefault(key, defaultVal string) string {
 		return v
 	}
 	return defaultVal
+}
+
+// isLoopbackHost reports whether the given host is a loopback address (either
+// a literal 127.0.0.1/::1 or the "localhost" hostname).
+func isLoopbackHost(host string) bool {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return false
+	}
+
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+
+	// trim the port if the host is passed in host:port form
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+		if ip := net.ParseIP(host); ip != nil {
+			return ip.IsLoopback()
+		}
+	}
+
+	return strings.EqualFold("localhost", host)
 }
 
 // getEnvIntOrDefault returns the positive integer value of the given env var,

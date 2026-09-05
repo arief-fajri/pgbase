@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -92,15 +93,20 @@ func dropOrphanDatabases() {
 // database with the standard test environment settings.
 func connectToDatabase(dbName string) func(cfg core.DBConfig) (*dbx.DB, error) {
 	return func(cfg core.DBConfig) (*dbx.DB, error) {
+		host := getEnvOrDefault("PGTEST_HOST", "localhost")
+		port := getPortOrDefault("PGTEST_PORT", 5433)
+		user := getEnvOrDefault("PGTEST_USER", "test")
+		password := getEnvOrDefault("PGTEST_PASSWORD", "test")
+
 		if cfg.Host == "" {
-			cfg.Host = getEnvOrDefault("PGTEST_HOST", "localhost")
+			cfg.Host = host
 		}
-		cfg.Port = getPortOrDefault("PGTEST_PORT", 5433)
+		cfg.Port = port
 		if cfg.User == "" {
-			cfg.User = getEnvOrDefault("PGTEST_USER", "test")
+			cfg.User = user
 		}
 		if cfg.Password == "" {
-			cfg.Password = getEnvOrDefault("PGTEST_PASSWORD", "test")
+			cfg.Password = password
 		}
 		if cfg.SSLMode == "" {
 			cfg.SSLMode = "disable"
@@ -108,6 +114,15 @@ func connectToDatabase(dbName string) func(cfg core.DBConfig) (*dbx.DB, error) {
 		// Isolate via a dedicated database (own catalog) rather than a schema,
 		// so leave cfg.Schema empty (no search_path; default "public" is used).
 		cfg.DBName = dbName
+
+		// Sync PB_POSTGRES_* env vars so the outbox listener (which resolves
+		// its connection from these) connects to the same test database.
+		os.Setenv("PB_POSTGRES_HOST", cfg.Host)
+		os.Setenv("PB_POSTGRES_PORT", strconv.Itoa(port))
+		os.Setenv("PB_POSTGRES_USER", cfg.User)
+		os.Setenv("PB_POSTGRES_PASSWORD", cfg.Password)
+		os.Setenv("PB_POSTGRES_SSLMODE", cfg.SSLMode)
+
 		return core.DefaultDBConnect(cfg)
 	}
 }

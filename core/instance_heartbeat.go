@@ -46,6 +46,7 @@ type instanceHeartbeatGuard struct {
 	mu        sync.Mutex
 	lastMulti bool
 	stopCh    chan struct{}
+	done      chan struct{} // closed when the background goroutine exits
 }
 
 func newInstanceHeartbeatGuard(app *BaseApp) *instanceHeartbeatGuard {
@@ -54,6 +55,7 @@ func newInstanceHeartbeatGuard(app *BaseApp) *instanceHeartbeatGuard {
 		instanceID: "@" + security.PseudorandomString(10),
 		interval:   defaultInstanceHeartbeatInterval,
 		stopCh:     make(chan struct{}),
+		done:       make(chan struct{}),
 	}
 }
 
@@ -96,7 +98,11 @@ func (guard *instanceHeartbeatGuard) init(e *BootstrapEvent) error {
 	if guard.stopCh == nil {
 		guard.stopCh = make(chan struct{})
 	}
+	if guard.done == nil {
+		guard.done = make(chan struct{})
+	}
 	stopCh := guard.stopCh
+	done := guard.done
 	guard.mu.Unlock()
 
 	// write an initial presence so peers see us promptly, then tick
@@ -105,6 +111,8 @@ func (guard *instanceHeartbeatGuard) init(e *BootstrapEvent) error {
 	}
 
 	routine.FireAndForget(func() {
+		defer close(done)
+
 		ticker := time.NewTicker(guard.interval)
 		defer ticker.Stop()
 
@@ -127,7 +135,15 @@ func (guard *instanceHeartbeatGuard) cleanup(e *TerminateEvent) error {
 		close(guard.stopCh)
 		guard.stopCh = nil
 	}
+	done := guard.done
+	guard.done = nil
 	guard.mu.Unlock()
+
+	// Wait for the background goroutine to exit before continuing the
+	// terminate chain, so DB connections can be safely closed afterwards.
+	if done != nil {
+		<-done
+	}
 
 	return e.Next()
 }

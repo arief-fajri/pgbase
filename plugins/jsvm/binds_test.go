@@ -1098,25 +1098,10 @@ func TestBindFilesystem(t *testing.T) {
 		}
 	}
 
-	// fileFromURL (success)
+	// fileFromURL (SSRF guard rejects private/loopback addresses)
 	{
-		v, err := vm.RunString(`$filesystem.fileFromURL(baseURL + "/test")`)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		file, _ := v.Export().(*filesystem.File)
-
-		if file == nil || file.OriginalName != "test" {
-			t.Fatalf("[fileFromURL] Expected file with name %q, got %v", file.OriginalName, file)
-		}
-	}
-
-	// fileFromURL (failure)
-	{
-		_, err := vm.RunString(`$filesystem.fileFromURL(baseURL + "/error")`)
-		if err == nil {
-			t.Fatal("Expected url fetch error")
+		if _, err := vm.RunString(`$filesystem.fileFromURL(baseURL + "/test")`); err == nil {
+			t.Fatal("Expected SSRF guard to reject the loopback fileFromURL request")
 		}
 	}
 }

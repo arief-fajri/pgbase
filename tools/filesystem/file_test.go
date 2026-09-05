@@ -14,6 +14,7 @@ import (
 
 	"github.com/arief-fajri/pgbase/tests"
 	"github.com/arief-fajri/pgbase/tools/filesystem"
+	"github.com/arief-fajri/pgbase/tools/security"
 )
 
 func TestFileAsMap(t *testing.T) {
@@ -173,12 +174,12 @@ func TestNewFileFromURLTimeout(t *testing.T) {
 		}
 	}
 
-	// valid response
+	// valid response via the unsafe variant (loopback is blocked by the default NewFileFromURL)
 	{
 		originalName := "image_!@ special"
 		normalizedNamePattern := regexp.QuoteMeta("image_special_") + `\w{10}` + regexp.QuoteMeta(".txt")
 
-		f, err := filesystem.NewFileFromURL(context.Background(), srv.URL+"/"+originalName)
+		f, err := filesystem.NewUnsafeFileFromURL(context.Background(), srv.URL+"/"+originalName)
 		if err != nil {
 			t.Fatalf("[valid] Unexpected error %v", err)
 		}
@@ -198,6 +199,44 @@ func TestNewFileFromURLTimeout(t *testing.T) {
 		}
 		if _, ok := f.Reader.(*filesystem.BytesReader); !ok {
 			t.Fatalf("Expected Reader to be BytesReader, got %v", f.Reader)
+		}
+	}
+}
+
+func TestNewFileFromURLRejectsPrivateAddresses(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "private")
+	}))
+	defer srv.Close()
+
+	// both the loopback server URL and explicit private/loopback IPs should be rejected
+	scenarios := []string{
+		srv.URL + "/x",         // httptest binds to 127.0.0.1 (loopback)
+		"http://127.0.0.1/x",   // loopback
+		"http://10.0.0.1/x",    // private
+		"http://169.254.1.1/x", // link-local
+		"http://::1/x",         // IPv6 loopback
+	}
+
+	for _, url := range scenarios {
+		if _, err := filesystem.NewFileFromURL(context.Background(), url); err == nil {
+			t.Fatalf("Expected error for %q, got nil", url)
+		}
+	}
+}
+
+func TestValidateDialAddress(t *testing.T) {
+	// allowed addresses (public, non-RFC1918)
+	for _, addr := range []string{"8.8.8.8:443", "1.2.3.4:80", "123.45.67.89:443"} {
+		if err := security.ValidateDialAddress(addr); err != nil {
+			t.Fatalf("Expected no error for %q, got %v", addr, err)
+		}
+	}
+
+	// disallowed addresses
+	for _, addr := range []string{"127.0.0.1:80", "10.0.0.1:80", "192.168.1.1:80", "169.254.1.1:80", "[::1]:80"} {
+		if err := security.ValidateDialAddress(addr); err == nil {
+			t.Fatalf("Expected error for %q, got nil", addr)
 		}
 	}
 }

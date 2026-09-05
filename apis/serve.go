@@ -324,14 +324,16 @@ func Serve(app core.App, config ServeConfig) error {
 			regular.Printf("└─ Dashboard: %s\n", color.CyanString("%s/_/", baseURL))
 		}
 
-		// Security notice (PGB-M02): settings secrets (SMTP/S3/OAuth2
-		// credentials) are stored base64-encoded but UNENCRYPTED at rest
-		// unless an encryption key is provided via --encryptionEnv. Warn once
-		// on start so operators can harden production deployments.
+		// Security notice (PGB-M02 / CFG-01): settings secrets (SMTP/S3/OAuth2
+		// credentials) and the token-signing secret are stored base64-encoded but
+		// UNENCRYPTED at rest unless an encryption key is provided via
+		// --encryptionEnv. Warn once on start so operators can harden production
+		// deployments. The token-signing secret is the most critical value: a
+		// leaked copy allows forging valid auth tokens for any user.
 		if os.Getenv(app.EncryptionEnv()) == "" {
 			warn := color.New(color.FgYellow)
 			warn.Printf(
-				"⚠ Settings secrets are stored UNENCRYPTED at rest. Set --encryptionEnv=<ENV_VAR> (32-char key) to encrypt them (see DEV.md).\n",
+				"⚠ Settings are stored UNENCRYPTED at rest (incl. the token-signing secret). For production, PB_ENCRYPTION_KEY is MANDATORY: set --encryptionEnv=<ENV_VAR> (32-char key) to encrypt them (see DEV.md).\n",
 			)
 		}
 	}

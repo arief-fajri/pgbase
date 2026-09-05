@@ -292,9 +292,16 @@ func (app *BaseApp) restoreBackup(ctx context.Context, name string, restartAfter
 			defer os.Remove(tempZip.Name())
 			defer tempZip.Close() // note: this technically shouldn't be necessary but it is here to workaround platforms discrepancies
 
-			_, err = io.Copy(tempZip, br)
+			// bound the compressed blob download to the configured extract limit
+			// (8 GiB default) so an oversized/malicious object cannot exhaust disk
+			// before extraction.
+			maxDownloadBytes := archive.ConfiguredExtractTotalLimit()
+			_, err = io.Copy(tempZip, io.LimitReader(br, maxDownloadBytes+1))
 			if err != nil {
 				return err
+			}
+			if fi, statErr := tempZip.Stat(); statErr == nil && fi.Size() > maxDownloadBytes {
+				return fmt.Errorf("backup download exceeds the %d byte limit", maxDownloadBytes)
 			}
 
 			err = archive.Extract(tempZip.Name(), extractedDataDir)

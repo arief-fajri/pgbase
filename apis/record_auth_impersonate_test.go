@@ -2,6 +2,7 @@ package apis_test
 
 import (
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 
@@ -99,6 +100,27 @@ func TestRecordAuthImpersonate(t *testing.T) {
 				"*":                   0,
 				"OnRecordAuthRequest": 1,
 				"OnRecordEnrich":      1,
+			},
+		},
+		{
+			Name:   "authorized as superuser with duration exceeding the configured cap",
+			Method: http.MethodPost,
+			URL:    "/api/collections/users/impersonate/4q1xlclmfloku33",
+			Headers: map[string]string{
+				"Authorization": "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6InN5d2JoZWNuaDQ2cmhtMCIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoicGJjXzMxNDI2MzU4MjMiLCJleHAiOjI1MjQ2MDQ0NjEsInJlZnJlc2hhYmxlIjp0cnVlfQ.UXgO3j-0BumcugrFjbd7j0M4MQvbrLggLlcu_YNGjoY",
+			},
+			Body:           strings.NewReader(`{"duration":100}`),
+			ExpectedStatus: 400,
+			ExpectedContent: []string{
+				`"data":{`,
+				`"duration":{`,
+			},
+			ExpectedEvents: map[string]int{"*": 0},
+			BeforeRequestFunc: func(t testing.TB, app *tests.TestApp, req *http.Request) {
+				os.Setenv("PB_IMPERSONATE_MAX_TOKEN_DURATION", "50")
+			},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				os.Unsetenv("PB_IMPERSONATE_MAX_TOKEN_DURATION")
 			},
 		},
 	}

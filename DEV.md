@@ -708,10 +708,13 @@ production:
   `--https`) — do not serve plaintext HTTP publicly. When HTTPS is in front,
   set `PB_HSTS=true` to emit `Strict-Transport-Security` (2y, includeSubDomains;
   opt-in because it is meaningless on a plaintext connection).
-- **Settings encryption:** run with `--encryptionEnv <ENV_VAR>` so SMTP/S3/
-  OAuth2/JWT secrets are encrypted at rest (see section on settings below).
-  Without it those secrets are stored base64-encoded but **unencrypted**; the
-  server prints a one-line warning on start when no encryption key is set.
+- **Settings encryption:** `PB_ENCRYPTION_KEY` is **mandatory for production**.
+  Run with `--encryptionEnv <ENV_VAR>` so SMTP/S3/OAuth2/JWT secrets — including
+  the **token-signing secret**, whose leak would allow forging valid auth tokens —
+  are encrypted at rest (see section on settings below). Without it those secrets
+  are stored base64-encoded but **unencrypted** (and copied verbatim into
+  `pg_dump` backups); the server prints a warning on start when no encryption key
+  is set.
 - **Editor (rich-text) fields:** `editor`-type field values are stored as
   HTML. Since v0.4.x the app **sanitizes editor content server-side at write
   time** (allow-list via bluemonday — scripts, event handlers, iframes, embeds

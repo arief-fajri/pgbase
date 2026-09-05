@@ -18,6 +18,10 @@ import (
 	"github.com/arief-fajri/pgbase/tools/security"
 )
 
+// defaultMaxDownloadBytes is the default cap (32 MiB) applied when downloading
+// a file from a URL via [NewFileFromURL].
+const defaultMaxDownloadBytes = int64(32 << 20)
+
 // FileReader defines an interface for a file resource reader.
 type FileReader interface {
 	Open() (io.ReadSeekCloser, error)
@@ -92,6 +96,11 @@ func NewFileFromMultipart(mh *multipart.FileHeader) (*File, error) {
 // NewFileFromURL creates a new File from the provided url by
 // downloading the resource and load it as BytesReader.
 //
+// The download is performed through a SSRF-guarded client (see
+// [security.SafeHTTPClient]) and the response body is capped to
+// [defaultMaxDownloadBytes] bytes, so this method is safe to call with
+// untrusted user-provided URLs.
+//
 // Example
 //
 //	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -99,6 +108,16 @@ func NewFileFromMultipart(mh *multipart.FileHeader) (*File, error) {
 //
 //	file, err := filesystem.NewFileFromURL(ctx, "https://example.com/image.png")
 func NewFileFromURL(ctx context.Context, url string) (*File, error) {
+	return NewFileFromURLCapped(ctx, url, defaultMaxDownloadBytes)
+}
+
+// NewUnsafeFileFromURL is like [NewFileFromURL] but it relies on
+// http.DefaultClient and does NOT enforce a download size cap and does NOT
+// guard against private/loopback address resolution.
+//
+// It should be used ONLY for internal/trusted URLs. Using it with untrusted
+// user-provided URLs may lead to SSRF-style attacks (see F04).
+func NewUnsafeFileFromURL(ctx context.Context, url string) (*File, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -121,6 +140,52 @@ func NewFileFromURL(ctx context.Context, url string) (*File, error) {
 	}
 
 	return NewFileFromBytes(buf.Bytes(), path.Base(url))
+}
+
+// NewFileFromURLCapped downloads the url content using a SSRF-guarded client
+// and caps the total downloaded bytes to "limit" (inclusive).
+//
+// It is useful when the caller needs a different size cap than the
+// [defaultMaxDownloadBytes] used by [NewFileFromURL] (eg. to reuse an
+// application-level request body limit).
+func NewFileFromURLCapped(ctx context.Context, url string, limit int64) (*File, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := security.SafeHTTPClient().Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode > 399 {
+		return nil, fmt.Errorf("failed to download url %s (%d)", url, res.StatusCode)
+	}
+
+	raw, err := cappedBody(res.Body, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewFileFromBytes(raw, path.Base(url))
+}
+
+// cappedBody reads all of "r" while enforcing a total byte cap and returns the
+// read content. It returns an error if the content exceeds "limit" bytes.
+func cappedBody(r io.Reader, limit int64) ([]byte, error) {
+	var buf bytes.Buffer
+
+	if _, err := io.Copy(&buf, io.LimitReader(r, limit+1)); err != nil {
+		return nil, err
+	}
+
+	if int64(buf.Len()) > limit {
+		return nil, fmt.Errorf("downloaded file size exceeds the %d bytes limit", limit)
+	}
+
+	return buf.Bytes(), nil
 }
 
 // -------------------------------------------------------------------

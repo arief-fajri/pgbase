@@ -217,7 +217,9 @@ func normalizeSingleVsMultipleFieldChanges(app App, newCollection *Collection, o
 				return err
 			}
 			for _, view := range views {
-				_, err = txApp.DB().NewQuery(fmt.Sprintf(`DROP VIEW IF EXISTS "%s" CASCADE`, view.Name)).Execute()
+				_, err = txApp.DB().NewQuery(fmt.Sprintf(`DROP VIEW IF EXISTS %s CASCADE`,
+					dbutils.DefaultDialect.QuoteIdentifier(view.Name),
+				)).Execute()
 				if err != nil {
 					return err
 				}
@@ -309,7 +311,10 @@ func normalizeSingleVsMultipleFieldChanges(app App, newCollection *Collection, o
 			// (e.g. view1 before view2 -> view1). Ordering is required because a
 			// single failed statement would abort the whole PostgreSQL transaction.
 			for _, view := range views {
-				_, err = txApp.DB().NewQuery(fmt.Sprintf(`CREATE VIEW "%s" AS %s`, view.Name, view.SQL)).Execute()
+				_, err = txApp.DB().NewQuery(fmt.Sprintf(`CREATE VIEW %s AS %s`,
+					dbutils.DefaultDialect.QuoteIdentifier(view.Name),
+					view.SQL,
+				)).Execute()
 				if err != nil {
 					return err
 				}
@@ -335,7 +340,9 @@ func dropCollectionIndexes(app App, collection *Collection) error {
 				return fmt.Errorf("failed to dop index - missing index name: %s", raw)
 			}
 
-			_, err := txApp.DB().NewQuery(fmt.Sprintf("DROP INDEX IF EXISTS \"%s\"", parsed.IndexName)).Execute()
+			_, err := txApp.DB().NewQuery(fmt.Sprintf("DROP INDEX IF EXISTS %s",
+				dbutils.DefaultDialect.QuoteIdentifier(parsed.IndexName),
+			)).Execute()
 			if err != nil {
 				return err
 			}
@@ -496,7 +503,9 @@ func applyIndexDiffDrop(app App, oldCollection, newCollection *Collection) error
 			continue // unchanged
 		}
 
-		if _, err := app.DB().NewQuery(fmt.Sprintf("DROP INDEX IF EXISTS \"%s\"", parsed.IndexName)).Execute(); err != nil {
+		if _, err := app.DB().NewQuery(fmt.Sprintf("DROP INDEX IF EXISTS %s",
+			dbutils.DefaultDialect.QuoteIdentifier(parsed.IndexName),
+		)).Execute(); err != nil {
 			return err
 		}
 	}

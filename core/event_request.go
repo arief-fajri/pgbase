@@ -36,6 +36,13 @@ type RequestEvent struct {
 // NB!
 // Be careful when used in a security critical context as it relies on
 // the trusted proxy to be properly configured and your app to be accessible only through it.
+//
+// TrustedProxy must be enabled ONLY when the app is guaranteed to be reachable
+// exclusively through that trusted proxy: the configured header is trusted
+// verbatim, so a directly-reachable app (or one that accepts client-emitted
+// forwarded headers) can have its IP controls — rate limiting and the
+// SuperuserIPs whitelist — bypassed with a forged value (AUTH-F2).
+//
 // If you are not sure, use e.RemoteIP().
 func (e *RequestEvent) RealIP() string {
 	settings := e.App.Settings()

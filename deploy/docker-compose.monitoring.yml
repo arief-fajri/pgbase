@@ -17,7 +17,8 @@
 # Prometheus on the host instead, use deploy/prometheus.yml with 127.0.0.1:9090.
 services:
   prometheus:
-    image: prom/prometheus:latest
+    # pinned by digest (CFG-06); bump deliberately via `docker pull` + re-pin
+    image: prom/prometheus@sha256:e906cef998316bbe319f98711e1b4d8613ad37e14b08ff831d7036e77b7464f9
     restart: unless-stopped
     ports:
       - "127.0.0.1:9090:9090"
@@ -30,7 +31,8 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
 
   grafana:
-    image: grafana/grafana:latest
+    # pinned by digest (CFG-06)
+    image: grafana/grafana@sha256:1dec240d14e232597dce9bfa56dae55f4397b138cdc91e3ee92ac6b157e2fc49
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
@@ -45,7 +47,8 @@ services:
       - prometheus
 
   alertmanager:
-    image: prom/alertmanager:latest
+    # pinned by digest (CFG-06)
+    image: prom/alertmanager@sha256:268d4bf0e4bc0fe6dbdef6a59ce81a2918c88458bf8edf7dd0572ad372a093e6
     restart: unless-stopped
     ports:
       - "127.0.0.1:9093:9093"

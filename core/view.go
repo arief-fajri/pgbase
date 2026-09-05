@@ -29,8 +29,8 @@ func (app *BaseApp) DeleteView(dangerousViewName string) error {
 	// when its own DeleteView runs) or gets recreated by the post-save
 	// resaveViewsWithChangedFields pass, mirroring the upstream behavior.
 	_, err := app.DB().NewQuery(fmt.Sprintf(
-		"DROP VIEW IF EXISTS \"%s\" CASCADE",
-		dangerousViewName,
+		"DROP VIEW IF EXISTS %s CASCADE",
+		dbutils.DefaultDialect.QuoteIdentifier(dangerousViewName),
 	)).Execute()
 
 	return err
@@ -57,7 +57,10 @@ func (app *BaseApp) SaveView(dangerousViewName string, dangerousSelectQuery stri
 		//
 		// note: the query is wrapped in a secondary SELECT as a rudimentary
 		// measure to discourage multiple inline sql statements execution
-		viewQuery := fmt.Sprintf(`CREATE VIEW "%s" AS SELECT * FROM (%s)`, dangerousViewName, dangerousSelectQuery)
+		viewQuery := fmt.Sprintf(`CREATE VIEW %s AS SELECT * FROM (%s)`,
+			dbutils.DefaultDialect.QuoteIdentifier(dangerousViewName),
+			dangerousSelectQuery,
+		)
 		_, err = txApp.DB().NewQuery(viewQuery).Execute()
 		if err != nil {
 			return err
