@@ -1,3 +1,14 @@
+## v0.5.1
+
+Pure rebranding release — no behavioral changes.
+
+- Renamed the root package files to `pgbase.go` / `pgbase_test.go`.
+- Replaced all self-referencing "PocketBase" wording with **PGBase** across the core, JSVM `$app` type, dashboard UI, and legacy-backup docs/tests.
+- Pointed `ghupdate` defaults to the fork repository (`arief-fajri/pgbase`).
+- Rewrote `CONTRIBUTING.md` for the fork.
+- Regenerated `types.d.ts` and rebuilt `ui/dist`.
+- All references to the upstream PocketBase project are preserved.
+
 ## v0.5.0
 
 Ships the first performance and security remediation batch for PostgreSQL, adds opt-in Prometheus `/metrics` and a DB-backed cross-instance realtime outbox, and hardens the docker-compose / release pipeline.
