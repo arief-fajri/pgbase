@@ -82,6 +82,19 @@ func (app *BaseApp) pgConnInfo() (pgConn, error) {
 // explicit env override before falling back to a PATH lookup.
 func lookupPGBinary(name, envOverride string) (string, error) {
 	if custom := os.Getenv(envOverride); custom != "" {
+		// validate the override: it must reference a regular file with the
+		// executable bit set (guard against a path override silently pointing
+		// at a missing/non-executable file).
+		info, err := os.Stat(custom)
+		if err != nil {
+			return "", fmt.Errorf("%s (%q) is not accessible: %w", envOverride, custom, err)
+		}
+		if !info.Mode().IsRegular() {
+			return "", fmt.Errorf("%s (%q) does not reference a regular file", envOverride, custom)
+		}
+		if info.Mode().Perm()&0o111 == 0 {
+			return "", fmt.Errorf("%s (%q) is not executable", envOverride, custom)
+		}
 		return custom, nil
 	}
 

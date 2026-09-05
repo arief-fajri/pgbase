@@ -466,6 +466,7 @@ func (s *System) Serve(res http.ResponseWriter, req *http.Request, fileKey strin
 
 	setHeaderIfMissing(res, "Content-Disposition", disposition+"; filename="+name)
 	setHeaderIfMissing(res, "Content-Type", extContentType)
+	setHeaderIfMissing(res, "X-Content-Type-Options", "nosniff")
 	setHeaderIfMissing(res, "Content-Security-Policy", "default-src 'none'; media-src 'self'; style-src 'unsafe-inline'; sandbox")
 
 	// set a default cache-control header
