@@ -1,3 +1,40 @@
+## v0.5.2
+
+Comprehensive security hardening — SSRF protection, download size caps, supply chain integrity, and safer defaults across the board.
+
+### Security
+
+- **Shared SSRF guard**: extracted `SafeHTTPClient` into `tools/security/httputil.go` as a reusable, exported package; `NewFileFromURL()` now uses it automatically. Private/loopback/multicast addresses are rejected at dial time.
+- **Download size caps**: backup restore, `ghupdate` releases, and `filesystem.NewFileFromURL` all enforce byte limits (configurable per call site) to prevent self-DoS from oversized responses.
+- **HTTPS-only asset downloads**: `ghupdate` validates that release asset URLs use `https://` before downloading — a tampered URL can no longer point at a plaintext host.
+- **Impersonate token cap**: `PB_IMPERSONATE_MAX_TOKEN_DURATION` env var (default 30 days) limits the upper bound a superuser can request for an impersonate token, preventing leaked tokens from granting static access indefinitely.
+- **SQL identifier quoting**: replaced all hardcoded `"name"` quoting in view/index DDL with `dbutils.DefaultDialect.QuoteIdentifier()` — embedded double-quotes are now escaped correctly.
+- **`X-Content-Type-Options: nosniff`** added to file-serving responses.
+- **pg_dump/pg_restore binary validation**: `lookupPGBinary` now verifies the override path references a regular, executable file instead of silently accepting a missing or non-executable path.
+
+### Configuration
+
+- **Default `pg-sslmode` changed from `disable` to `prefer`** — new installations will use TLS when the server supports it. Existing `.env` files with `PB_POSTGRES_SSLMODE=disable` are unaffected.
+- **Startup warning hardened**: the missing-encryption-key banner now explicitly mentions the token-signing secret and states that `PB_ENCRYPTION_KEY` is **mandatory** for production (not merely "recommended").
+- **Non-loopback `sslmode=disable` warning (CFG-02)**: the server now logs a warning when connecting to a non-loopback PostgreSQL host with `sslmode=disable`, flagging plaintext database traffic in production.
+
+### Supply chain
+
+- **GitHub Actions pinned by full SHA** (CFG-07): `actions/checkout`, `actions/setup-node`, `actions/setup-go`, `goreleaser/goreleaser-action` — prevents tag-swapping attacks.
+- **Docker images pinned by digest** (CFG-06): `golang`, `alpine`, `prometheus`, `grafana`, `alertmanager` — bump deliberately by re-pinning.
+
+### Documentation
+
+- `PRODUCTION.md`: expanded `PB_ENCRYPTION_KEY` and `TrustedProxy` guidance with spoofing risk warnings.
+- `DEV.md`: encryption key docs updated to reflect mandatory status.
+- `.env.example`: `sslmode` and encryption key comments rewritten for clarity.
+
+### Internal
+
+- `NewUnsafeFileFromURL()` added to `tools/filesystem` for internal/trusted-URL use only (no SSRF guard, no size cap).
+- `ValidateDialAddress()` exported from `tools/security` for dial-time IP validation.
+- `jsvm` binds test updated to expect SSRF guard rejection on loopback `fileFromURL` calls.
+
 ## v0.5.1
 
 Pure rebranding release — no behavioral changes.
