@@ -21,22 +21,22 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/spf13/cast"
 
-	// pure-Go SQLite driver (no cgo), used ONLY to read a legacy PocketBase
+	// pure-Go SQLite driver (no cgo), used ONLY to read a legacy SQLite-based
 	// "data.db" backup during restore. Registers the "sqlite" driver name.
 	_ "modernc.org/sqlite"
 )
 
 // sqliteBackupDBName is the SQLite database file bundled inside legacy
-// (SQLite-based) PocketBase backups.
+// SQLite-based backups.
 const sqliteBackupDBName = "data.db"
 
 // Detected source schema generations of a bundled SQLite "data.db".
 const (
-	// sqliteBackupVersionV23 is the current PocketBase schema (v0.23+):
+	// sqliteBackupVersionV23 is the current SQLite schema (v0.23+):
 	// a "_superusers" table and a "fields" column on "_collections".
 	sqliteBackupVersionV23 = 23
 
-	// sqliteBackupVersionV22 is any pre-v0.23 PocketBase schema: an "_admins"
+	// sqliteBackupVersionV22 is any pre-v0.23 SQLite schema: an "_admins"
 	// table and/or a legacy "schema" column on "_collections". Base-collection
 	// data imports faithfully; auth/view collection options are best-effort
 	// (recreated with the v0.23 defaults). See convertLegacyField.
@@ -54,7 +54,7 @@ type sqliteCollMeta struct {
 	isView bool
 }
 
-// ImportFromSQLiteDir imports the data of a legacy SQLite-based PocketBase
+// ImportFromSQLiteDir imports the data of a legacy SQLite-based
 // backup (extracted at extractedDir, containing a "data.db") into the current
 // PostgreSQL-backed app.
 //
@@ -92,7 +92,7 @@ func (app *BaseApp) ImportFromSQLiteDir(ctx context.Context, extractedDir string
 	}
 
 	app.Logger().Info(
-		"[SQLite import] Detected a compatible PocketBase backup, starting import",
+		"[SQLite import] Detected a compatible legacy SQLite backup, starting import",
 		slog.Int("schemaVersion", version),
 	)
 
@@ -297,7 +297,7 @@ func detectSQLiteBackupVersion(db *sql.DB, tables []string) (int, error) {
 	}
 
 	return 0, fmt.Errorf(
-		"unrecognized backup format; expected a PocketBase SQLite database (tables found: %s)",
+		"unrecognized backup format; expected a legacy SQLite database (tables found: %s)",
 		strings.Join(tables, ", "),
 	)
 }

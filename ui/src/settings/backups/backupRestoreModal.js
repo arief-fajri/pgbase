@@ -104,7 +104,7 @@ function backupRestoreModal(key) {
                             ),
                             t.p(
                                 null,
-                                "If the backup was created by a legacy SQLite-based PocketBase (it contains a ",
+                                "If the backup was created by a legacy SQLite-based PGBase (it contains a ",
                                 t.code(null, "data.db"),
                                 " file), it will be detected automatically and imported into the current PostgreSQL database (collections, records, settings and files). Only v0.23+ SQLite backups are supported.",
                             ),

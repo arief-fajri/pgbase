@@ -1,3 +1,61 @@
+## v0.5.0
+
+Ships the first performance and security remediation batch for PostgreSQL, adds opt-in Prometheus `/metrics` and a DB-backed cross-instance realtime outbox, and hardens the docker-compose / release pipeline.
+
+### Performance
+
+- **Connection pool tuning**: data/aux pool sizes, `SetConnMaxLifetime` and `SetConnMaxIdleTime` are now env-tunable (`PB_POSTGRES_DATA_MAX_OPEN_CONNS`, `PB_POSTGRES_DATA_MAX_IDLE_CONNS`, `PB_POSTGRES_AUX_MAX_OPEN_CONNS`, `PB_POSTGRES_AUX_MAX_IDLE_CONNS`, `PB_POSTGRES_CONN_MAX_LIFETIME`, `PB_POSTGRES_CONN_MAX_IDLE_TIME`); defaults lowered (data 80 / aux 10) to stay under `max_connections`.
+
+- **Functional identity indexes**: case-insensitive unique `LOWER(...)` indexes for email and all password-auth identity fields, closing the case-variant duplicate-account loophole and serving login lookups by index scan (conversion migrations + the PostgreSQL 23505 error is normalized back to `validation_not_unique`).
+
+- **Batch log writes**: the log writer flushes chunked multi-row INSERTs (one round-trip instead of up to `BatchSize`) and skips the aux transaction wrapper for single-chunk flushes.
+
+- **Bulk MFA/OTP cleanup**: expired sessions are now removed with one bulk DELETE per auth collection instead of fetch-then-per-row deletes.
+
+- **gzip on API responses**: `/api` JSON is compressed on the wire (MinLength 1024); realtime SSE and file/backup downloads opt out.
+
+- **Expand batching**: indirect/back-relation expand resolves all parents in one query (N+1 removed) while preserving the per-record relation cap.
+
+- **Realtime access memoization**: record broadcast access-rule checks are cached per broadcast, and client queues are bounded (32) with non-blocking sends; slow-consumer drops are recorded per client via `DroppedCount()`.
+
+- **Index-diff sync**: collection index sync is now three-tier — cosmetic field changes no longer rebuild indexes, index-only edits rebuild only the changed ones, structural changes keep the rebuild-all fallback; analyze is scoped to the changed table only.
+
+- **Bounded writes**: model writes carry a client-side deadline (mirroring read timeouts) so dead connections self-heal without exhausting the pool; `connect_timeout` added to the DSN (`PB_POSTGRES_CONNECT_TIMEOUT`, default 10s).
+
+- **Cron advisory locks**: each DB-touching cron (MFA/OTP, audit, logs, vacuum, auto-backup, heartbeat cleanup) runs under a non-blocking `pg_try_advisory_lock` so one instance executes it; the VACUUM cron is off by default.
+
+- Statement/timeout configuration via `ALTER ROLE CURRENT_USER` at boot, a PgBouncer-compatible `default_query_exec_mode` toggle, and indexed cached collections for O(1) lookup.
+
+### Cross-instance realtime (opt-in)
+
+- **DB-backed outbox**: `core.PublishRealtimeEvent` writes outbox rows (create/update store record ids; delete stores the full pre-delete snapshot) and wakes listeners via `NOTIFY pb_realtime_outbox`. Enabled with `PB_REALTIME_OUTBOX`; default off means zero single-instance overhead.
+
+- **Outbox listener**: consumes rows on every instance for local re-fanout, with reconnect/backoff + catch-up, a forward `(created,id)` cursor (fixes the stuck-window and unbounded memory growth), and per-instance origin stamping so instances skip their own events.
+
+### Metrics
+
+- **Opt-in Prometheus `/metrics`** on a dedicated listener (`PB_METRICS_ADDR`; loopback enforced unless `PB_METRICS_EXPOSE`): request duration histograms by route template, sql.DB pool stats (data + aux), realtime clients + dropped-message totals, Go runtime/process collectors.
+
+### Security & hardening
+
+- Dependency bumps close all `govulncheck` findings (pgx v5.9.2, x/image, toolchain `go1.25.14`) — `govulncheck ./...` and `npm audit` report 0 vulnerabilities / clean.
+
+- Compose no longer ships a default DB password (fails fast without `.env`), binds Postgres to `127.0.0.1`, and the release image runs non-root with `--encryptionEnv` wiring.
+
+- Server-side HTML allow-list sanitization for editor fields (on write and SQLite import) and an href scheme allow-list for the URL field; a startup warning when `--encryptionEnv` is missing.
+
+- Opt-in HSTS (`PB_HSTS`), `Referrer-Policy` and tightened CSP; `ghupdate` restricted to HTTPS + `checksums.txt` verification; sensitive query params redacted from request logs.
+
+- Backups bounded: `pg_dump` now runs outside the transaction (no pinned `xmin` horizon) and archive extraction is capped by `PB_BACKUP_MAX_EXTRACT_BYTES`.
+
+### Deployment
+
+- New `PRODUCTION.md` runbook, `docker-compose.prod.yml` (Caddy auto-HTTPS) and a monitoring stack under `deploy/` (Prometheus + Grafana + Alertmanager); README linked; `/pb_migrations` and `.env` gitignored.
+
+### Migrations
+
+- `email_functional_index`, `identity_functional_index`, `instance_heartbeats_init`, `logs_autovacuum_tuning`, `realtime_outbox_init`, `realtime_outbox_origin`, `realtime_outbox_indexes`.
+
 ## v0.4.0
 
 Makes **native PostgreSQL `pg_dump` / `pg_restore` the default backup format** — a faithful, full-database snapshot — and demotes the portable SQLite dump to an opt-in legacy format. Adds offline `backup` / `restore` CLI commands.

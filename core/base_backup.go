@@ -352,7 +352,7 @@ func (app *BaseApp) restoreBackup(ctx context.Context, name string, restartAfter
 			return nil
 		}
 
-		// A legacy SQLite-based PocketBase backup bundles its whole database as
+		// A legacy SQLite-based backup bundles its whole database as
 		// a single "data.db" file. Since this fork stores everything in a
 		// separate PostgreSQL server, the plain pb_data file-swap below would
 		// only copy that file as dead weight and never touch Postgres. Detect

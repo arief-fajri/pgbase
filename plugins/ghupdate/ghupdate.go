@@ -1,5 +1,5 @@
 // Package ghupdate implements a new command to selfupdate the current
-// PocketBase executable with the latest GitHub release.
+// PGBase executable with the latest GitHub release.
 //
 // Example usage:
 //
@@ -39,14 +39,14 @@ type HttpClient interface {
 //
 // NB! This plugin is considered experimental and its config options may change in the future.
 type Config struct {
-	// Owner specifies the account owner of the repository (default to "pocketbase").
+	// Owner specifies the account owner of the repository (default to "arief-fajri").
 	Owner string
 
-	// Repo specifies the name of the repository (default to "pocketbase").
+	// Repo specifies the name of the repository (default to "pgbase").
 	Repo string
 
 	// ArchiveExecutable specifies the name of the executable file in the release archive
-	// (default to "pocketbase"; an additional ".exe" check is also performed as a fallback).
+	// (default to "pgbase"; an additional ".exe" check is also performed as a fallback).
 	ArchiveExecutable string
 
 	// BaseURL is the base URL of the GitHub API (or similar compatible)
@@ -80,15 +80,15 @@ func Register(app core.App, rootCmd *cobra.Command, config Config) error {
 	}
 
 	if p.config.Owner == "" {
-		p.config.Owner = "pocketbase"
+		p.config.Owner = "arief-fajri"
 	}
 
 	if p.config.Repo == "" {
-		p.config.Repo = "pocketbase"
+		p.config.Repo = "pgbase"
 	}
 
 	if p.config.ArchiveExecutable == "" {
-		p.config.ArchiveExecutable = "pocketbase"
+		p.config.ArchiveExecutable = "pgbase"
 	}
 
 	if p.config.BaseURL == "" {

@@ -49,7 +49,7 @@ const sqliteExportParamsDDL = `CREATE TABLE _params (
 // destPath.
 //
 // It is the exact inverse of [BaseApp.ImportFromSQLiteDir]: the produced file
-// can be bundled inside a backup archive and later restored on any PocketBase
+// can be bundled inside a backup archive and later restored on any PGBase
 // instance (SQLite or this Postgres fork). It intentionally does NOT dump the
 // request/audit logs (they live in a separate auxiliary database) nor the
 // "_migrations" table (the restore target owns its own migration history).

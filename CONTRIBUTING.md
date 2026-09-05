@@ -1,25 +1,28 @@
-# Contributing to PocketBase
+# Contributing to PGBase
 
 > [!IMPORTANT]
-> Due to recent LLM spam, PRs are temporary disabled and only existing collaborators can open a PR.
-> If you stumble on a problem that you want to fix, please consider instead opening an issue or discussion with link to your fork _(if not obvious - LLM contributions are not welcome)_.
-> This status may change in the future in case GitHub finally decide to do something about the constant spam, or when I find time to move the project somewhere else.
+> PGBase is a hard fork of [PocketBase](https://github.com/pocketbase/pocketbase)
+> with the embedded SQLite database replaced by PostgreSQL. When in doubt about
+> upstream behavior, refer to the [PocketBase repository](https://github.com/pocketbase/pocketbase)
+> and [PocketBase docs](https://pocketbase.io/docs) — the public API and DB schema
+> are intentionally PocketBase-compatible.
 
 This document describes how to prepare a PR for a change in the main repository.
 
 - [Prerequisites](#prerequisites)
 - [Making changes in the Go code](#making-changes-in-the-go-code)
-- [Making changes in the Superuser UI](#making-changes-in-the-admin-ui)
+- [Making changes in the Superuser UI](#making-changes-in-the-superuser-ui)
 
 ## Prerequisites
 
 - Go 1.25+ (for making changes in the Go code)
 - Node 24+ (for making changes in the Superuser UI)
+- PostgreSQL (for running the tests, see `DEV.md`)
 
 If you haven't already, you can fork the main repository and clone your fork so that you can work locally:
 
 ```
-git clone https://github.com/your_username/pocketbase.git
+git clone https://github.com/your_username/pgbase.git
 ```
 
 > [!IMPORTANT]
@@ -28,11 +31,11 @@ git clone https://github.com/your_username/pocketbase.git
 
 ## Making changes in the Go code
 
-PocketBase is distributed as a Go package, which means that in order to run the project you'll have to create a Go `main` program that imports the package.
+PGBase is distributed as a Go package, which means that in order to run the project you'll have to create a Go `main` program that imports the package.
 
 The repository already includes such program, located in `examples/base`, that is also used for the prebuilt executables.
 
-So, let's assume that you already done some changes in the PocketBase Go code and you want now to run them:
+So, let's assume that you already done some changes in the PGBase Go code and you want now to run them:
 
 1. Navigate to `examples/base`
 2. Run `go run main.go serve`
@@ -62,7 +65,7 @@ This will start a web server on `http://localhost:8090` with the embedded prebui
 
 ## Making changes in the Superuser UI
 
-PocketBase Superuser UI is a single-page application (SPA) built with Svelte and Vite.
+PGBase Superuser UI is a single-page application (SPA) built with Shablon and Vite.
 
 To start the Superuser UI:
 
@@ -75,11 +78,11 @@ To start the Superuser UI:
 
 You could open the browser and access the running Superuser UI at `http://localhost:5173`.
 
-Since the Superuser UI is just a client-side application, you need to have the PocketBase backend server also running in the background (either manually running the `examples/base/main.go` or download a prebuilt executable).
+Since the Superuser UI is just a client-side application, you need to have the PGBase backend server also running in the background (either manually running the `examples/base/main.go` or download a prebuilt executable).
 
 > [!NOTE]
 > By default, the Superuser UI is expecting the backend server to be started at `http://localhost:8090`, but you could change that by creating a new `ui/.env.development.local` file with `PB_BACKEND_URL = YOUR_ADDRESS` variable inside it.
 
 Every change you make in the Superuser UI should be automatically reflected in the browser at `http://localhost:5173` without reloading the page.
 
-Once you are done with your changes, you have to build the Superuser UI with `npm run build`, so that it can be embedded in the go package. And that's it - you can make your PR to the main PocketBase repository.
+Once you are done with your changes, you have to build the Superuser UI with `npm run build`, so that it can be embedded in the go package. And that's it - you can make your PR to the main PGBase repository.

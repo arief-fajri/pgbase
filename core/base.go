@@ -49,7 +49,7 @@ const (
 	LocalStorageDirName       string = "storage"
 	LocalBackupsDirName       string = "backups"
 	LocalAutocertCacheDirName string = ".autocert_cache"
-	LocalNotifyDirName        string = ".notify"            // optional watched directory that is used as a cross-platform workaround for synchronizing various runtime states between multiple PocketBase instances pointing to the same pb_data
+	LocalNotifyDirName        string = ".notify"            // optional watched directory that is used as a cross-platform workaround for synchronizing various runtime states between multiple PGBase instances pointing to the same pb_data
 	LocalTempDirName          string = ".pb_temp_to_delete" // temp pb_data sub directory that will be deleted on each app.Bootstrap()
 
 	// @todo consider removing after backups refactoring
@@ -229,7 +229,7 @@ func NewBaseApp(config BaseAppConfig) *BaseApp {
 	// apply config defaults
 	//
 	// The connection-pool sizes fall back to (in order of precedence):
-	//   1. the explicit BaseAppConfig value (e.g. set via pocketbase.Config),
+	//   1. the explicit BaseAppConfig value (e.g. set via pgbase.Config),
 	//   2. the matching PB_POSTGRES_*_CONNS env var (operator override without a
 	//      rebuild), then
 	//   3. the built-in Default*Conns constants.
