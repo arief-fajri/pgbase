@@ -92,6 +92,7 @@ type BaseApp struct {
 	logger              *slog.Logger
 	dataDB              dbx.Builder
 	auxDB               dbx.Builder
+	dbConfig            DBConfig // resolved connection config captured at init time for outbox listener
 
 	// instanceHeartbeatGuard tracks multi-instance presence (R-1b) once wired.
 	instanceHeartbeatGuard *instanceHeartbeatGuard
@@ -508,6 +509,7 @@ func (app *BaseApp) ResetBootstrapState() error {
 
 	app.dataDB = nil
 	app.auxDB = nil
+	app.dbConfig = DBConfig{}
 
 	if len(errs) > 0 {
 		return errors.Join(errs...)
@@ -1157,13 +1159,21 @@ func (app *BaseApp) OnBatchRequest() *hook.Hook[*BatchRequestEvent] {
 // -------------------------------------------------------------------
 
 func (app *BaseApp) initDataDB() error {
-	db, err := app.config.DBConnect(DBConfig{
+	inputConfig := DBConfig{
 		MaxOpenConns: app.config.DataMaxOpenConns,
 		MaxIdleConns: app.config.DataMaxIdleConns,
-	})
+	}
+
+	db, err := app.config.DBConnect(inputConfig)
 	if err != nil {
 		return err
 	}
+
+	// Capture the resolved connection config for the outbox listener so it
+	// reconnects to the same host/port/user/database without re-resolving
+	// from PB_POSTGRES_* env vars (which may differ from a custom DBConnect
+	// closure used by the test harness).
+	app.dbConfig = ResolveDBConfig(inputConfig)
 
 	if app.IsDev() {
 		db.QueryLogFunc = func(ctx context.Context, t time.Duration, sql string, rows *sql.Rows, err error) {

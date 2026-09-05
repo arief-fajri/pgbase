@@ -1,4 +1,5 @@
-FROM golang:1.25-alpine AS builder
+# base images are pinned by digest (CFG-06); bump deliberately by re-pinning
+FROM golang:1.25-alpine@sha256:78c9e40f10516d7070156948a1747347cc5093022f06deeff3c9decd5faa3af7 AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 COPY third_party ./third_party
@@ -6,7 +7,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o pgbase ./examples/base
 
-FROM alpine:3.19
+FROM alpine:3.19@sha256:b58899f069c47216f6002a6850143dc6fae0d35eb8b0df9300bbe6327b9c2171
 RUN apk --no-cache add ca-certificates tzdata postgresql16-client
 COPY --from=builder /app/pgbase /usr/local/bin/
 # run as an unprivileged user to limit the blast radius of any RCE/traversal

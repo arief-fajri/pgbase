@@ -51,8 +51,9 @@ Still yours to do (not automatable):
 
 - **Periodic backups** — use the built-in backup API/dashboard (native
   `pg_dump`) on a cron and copy archives off the machine.
-- **Set `PB_ENCRYPTION_KEY`** (no default; without it settings secrets are
-  plaintext at rest) and **enable rate limiting** in the dashboard.
+- **Set `PB_ENCRYPTION_KEY`** (mandatory; no default — without it settings
+  secrets, incl. the token-signing secret, are plaintext at rest and travel
+  unencrypted into backups) and **enable rate limiting** in the dashboard.
 - Keep `.env` out of VCS and rotate secrets like a normal credential.
 
 > This is a **single machine** — fine up to a few thousand users. For high availability / managed Postgres / S3 storage / zero-downtime deploys, see the topology in [#6](#6-recommended-production-topology) and monitoring in [#8](#8-monitoring-prometheus).
@@ -86,7 +87,7 @@ Flags take precedence over environment variables. Set these in production:
 | `PB_POSTGRES_PASSWORD` | yes | DB password (inject from a secret store, never a committed file). |
 | `PB_POSTGRES_DBNAME` | yes | DB name (run app migrations on a dedicated database). |
 | `PB_POSTGRES_SSLMODE` | **strongly recommended** | `require` for production, `verify-full` if your CA is available. **Do not run `disable` in production** (plaintext DB traffic). |
-| `PB_ENCRYPTION_KEY` | **strongly recommended** | **32-character** key used to encrypt settings secrets at rest (SMTP/S3/OAuth2 + JWT signing secret). Without it those values are stored base64-encoded **but unencrypted** (PGB-M02). The app reads it from the env var named by `--encryptionEnv`. |
+| `PB_ENCRYPTION_KEY` | **mandatory** | **32-character** key used to encrypt settings secrets at rest (SMTP/S3/OAuth2 + JWT token-signing secret, whose leak would allow forging auth tokens). Without it those values are stored base64-encoded **but unencrypted** (PGB-M02/CFG-01). The app reads it from the env var named by `--encryptionEnv`. |
 | `PB_HSTS` | optional | `true` to emit `Strict-Transport-Security` (2y, includeSubDomains). Only meaningful when the app is served over HTTPS. |
 | `PB_METRICS_ADDR` | optional | Bind address for the Prometheus `/metrics` listener (e.g. `127.0.0.1:9090`). Off when unset. |
 | `PB_METRICS_EXPOSE` | optional | `true` only if you deliberately bind `/metrics` on a non-loopback address (e.g. inside a container behind a NetworkPolicy). Non-loopback binds **fail to start** without it. |
@@ -137,6 +138,14 @@ When running behind a reverse proxy, also set **`TrustedProxy`** in the
 dashboard settings so `RealIP`, IP rate limiting, and OAuth CSRF checks see the
 client IP instead of the proxy's.
 
+> **`TrustedProxy` only if ALL inbound traffic passes through the trusted
+> proxy.** `RealIP()` trusts the configured `X-Forwarded-For` header verbatim —
+> any host that can reach the app directly (or emit its own header) can spoof it.
+> That directly weakens IP-based controls: rate limits and the `SuperuserIPs`
+> whitelist can be bypassed with a forged header. Apply the same rule at the
+> network edge: only the trusted proxy may reach the app port (bind loopback /
+> internal network), and strip forged headers at the proxy itself.
+
 ---
 
 ## 5. Dashboard settings to enable for production
@@ -147,7 +156,9 @@ client IP instead of the proxy's.
 - **Superuser IP whitelist** — *Settings → Admin* → `SuperuserIPs` to restrict
   which IPs may sign in as superuser.
 - **Trusted proxy** — `TrustedProxy` headers (e.g. `X-Forwarded-For`) when
-  behind a proxy.
+  behind a proxy. **Only set it when the app is guaranteed to be reachable
+  exclusively through that trusted proxy** — otherwise the forwarded header can
+  be spoofed to bypass rate limiting and the `SuperuserIPs` whitelist.
 - Consider rotating and storing the `PB_ENCRYPTION_KEY` externally — losing it
   makes existing encrypted settings undecryptable.
 

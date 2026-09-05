@@ -55,7 +55,7 @@ Then create a superuser and open the dashboard:
 | `PB_POSTGRES_USER` | `--pg-user` | — |
 | `PB_POSTGRES_PASSWORD` | `--pg-password` | — |
 | `PB_POSTGRES_DBNAME` | `--pg-dbname` | — |
-| `PB_POSTGRES_SSLMODE` | `--pg-sslmode` | `disable` |
+| `PB_POSTGRES_SSLMODE` | `--pg-sslmode` | `prefer` |
 
 Flags take precedence over environment variables.
 

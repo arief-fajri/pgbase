@@ -1,11 +1,32 @@
 package apis
 
 import (
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/core"
 )
+
+// impersonateMaxDurationEnv overrides the upper bound (in seconds) allowed for a
+// superuser-issued impersonate token duration. Defaults to [defaultImpersonateMaxDuration]
+// (30 days) so a leaked token cannot grant static auth access for an unbounded period.
+const impersonateMaxDurationEnv = "PB_IMPERSONATE_MAX_TOKEN_DURATION"
+
+// defaultImpersonateMaxDuration is the default cap (30 days in seconds).
+const defaultImpersonateMaxDuration = int64(30 * 24 * 60 * 60)
+
+// maxImpersonateDuration returns the configured cap in seconds.
+func maxImpersonateDuration() int64 {
+	if raw := strings.TrimSpace(os.Getenv(impersonateMaxDurationEnv)); raw != "" {
+		if v, err := strconv.ParseInt(raw, 10, 64); err == nil && v > 0 {
+			return v
+		}
+	}
+	return defaultImpersonateMaxDuration
+}
 
 // note: for now allow superusers but it may change in the future to allow access
 // also to users with "Manage API" rule access depending on the use cases that will arise
@@ -49,6 +70,6 @@ type impersonateForm struct {
 
 func (form *impersonateForm) validate() error {
 	return validation.ValidateStruct(form,
-		validation.Field(&form.Duration, validation.Min(0)),
+		validation.Field(&form.Duration, validation.Min(0), validation.Max(maxImpersonateDuration())),
 	)
 }

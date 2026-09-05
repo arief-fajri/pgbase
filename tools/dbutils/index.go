@@ -58,18 +58,16 @@ func (idx Index) Build() string {
 	}
 
 	if idx.SchemaName != "" {
-		str.WriteString(`"`)
-		str.WriteString(idx.SchemaName)
-		str.WriteString(`".`)
+		str.WriteString(DefaultDialect.QuoteIdentifier(idx.SchemaName))
+		str.WriteString(".")
 	}
 
-	str.WriteString(`"`)
-	str.WriteString(idx.IndexName)
-	str.WriteString(`" `)
+	str.WriteString(DefaultDialect.QuoteIdentifier(idx.IndexName))
+	str.WriteString(" ")
 
-	str.WriteString(`ON "`)
-	str.WriteString(idx.TableName)
-	str.WriteString(`" (`)
+	str.WriteString("ON ")
+	str.WriteString(DefaultDialect.QuoteIdentifier(idx.TableName))
+	str.WriteString(" (")
 
 	if len(idx.Columns) > 1 {
 		str.WriteString("\n  ")
@@ -87,11 +85,12 @@ func (idx Index) Build() string {
 		}
 
 		if strings.Contains(col.Name, "(") || strings.Contains(col.Name, " ") {
+			// functional expressions and multi-part names are emitted verbatim by
+			// design (they cannot be quoted); their safety relies on the
+			// ParseIndex/regex parsing and the superuser-only gate.
 			str.WriteString(trimmedColName)
 		} else {
-			str.WriteString(`"`)
-			str.WriteString(trimmedColName)
-			str.WriteString(`"`)
+			str.WriteString(DefaultDialect.QuoteIdentifier(trimmedColName))
 		}
 
 		if col.Sort != "" {
