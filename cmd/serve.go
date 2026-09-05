@@ -113,7 +113,7 @@ func NewServeCommand(app core.App, showStartBanner bool) *cobra.Command {
 	command.PersistentFlags().StringVar(
 		&pgSSLMode,
 		"pg-sslmode",
-		"disable",
+		"prefer",
 		"PostgreSQL SSL mode (or PB_POSTGRES_SSLMODE env var)",
 	)
 

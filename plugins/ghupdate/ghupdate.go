@@ -189,6 +189,10 @@ func (p *plugin) update(withBackup bool) error {
 		return err
 	}
 
+	if err := validateAssetURL(asset.DownloadUrl); err != nil {
+		return err
+	}
+
 	releaseDir := filepath.Join(p.app.DataDir(), core.LocalTempDirName)
 	defer os.RemoveAll(releaseDir)
 
@@ -354,8 +358,14 @@ func downloadFile(
 	}
 	defer dest.Close()
 
-	if _, err := io.Copy(dest, res.Body); err != nil {
+	// bound the download size to guard against self-DoS from an oversized
+	// response (checked by io.LimitReader).
+	written, err := io.Copy(dest, io.LimitReader(res.Body, maxDownloadBytes+1))
+	if err != nil {
 		return err
+	}
+	if written > maxDownloadBytes {
+		return fmt.Errorf("download exceeds the %d byte limit", maxDownloadBytes)
 	}
 
 	return nil
@@ -364,6 +374,26 @@ func downloadFile(
 // checksumsAssetName is the goreleaser checksums file name. GoReleaser publishes
 // a "checksums.txt" asset whose lines are "<hex sha256>  <archive filename>".
 const checksumsAssetName = "checksums.txt"
+
+// maxDownloadBytes caps the size of a single downloaded release artifact
+// (the asset archive or the checksums file) to guard against self-DoS from a
+// maliciously sized response.
+const maxDownloadBytes = int64(1 << 30) // 1 GiB
+
+// validateAssetURL refuses to download release artifacts over plaintext or
+// non-HTTP URLs (a tampered URL could point at a malicious host).
+func validateAssetURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid download URL %q: %w", raw, err)
+	}
+
+	if u.Scheme != "https" {
+		return fmt.Errorf("download URL must be https:// (got %q)", raw)
+	}
+
+	return nil
+}
 
 // validateBaseURL refuses non-HTTPS base URLs (loopback http is allowed for
 // local mirrors / tests) - PGB-L09.
@@ -404,6 +434,10 @@ func verifyAssetChecksum(
 			"missing %s asset in the release; refusing to update without a checksum",
 			checksumsAssetName,
 		)
+	}
+
+	if err := validateAssetURL(checksumsAsset.DownloadUrl); err != nil {
+		return fmt.Errorf("invalid %s download URL: %w", checksumsAssetName, err)
 	}
 
 	checksumsPath := assetPath + ".checksums.txt"

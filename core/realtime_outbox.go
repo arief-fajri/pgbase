@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -239,20 +240,53 @@ func (app *BaseApp) RealtimeOutboxTailCursor() (time.Time, string, error) {
 // OpenRealtimeOutboxListener opens a dedicated pgx-native connection for
 // LISTENing on the realtime outbox channel. It needs a native connection
 // (not database/sql) for WaitForNotification. The connection targets the same
-// database the app is connected to (via current_database, since a custom
-// DBConnect closure or test harness may vary the database name).
+// database the app is connected to, deriving host/port/user from the live
+// connection and falling back to the stored config for password/sslmode.
 func (app *BaseApp) OpenRealtimeOutboxListener(connectCtx context.Context) (*pgx.Conn, error) {
 	if app.dataDB == nil {
 		return nil, fmt.Errorf("database not initialized")
 	}
 
-	cfg := ResolveDBConfig(DBConfig{})
+	// Start from the config captured at init time.
+	cfg := app.dbConfig
 
-	var currentDB string
-	if err := app.NonconcurrentDB().NewQuery("SELECT current_database()").Row(&currentDB); err != nil {
-		return nil, fmt.Errorf("failed to read current database name: %w", err)
+	// Override from the live connection so a custom DBConnect closure
+	// (test harness) is honoured for host, port, user, and dbname.
+	var currentDB, currentUser string
+	if err := app.NonconcurrentDB().NewQuery(
+		`SELECT current_database(), current_user`,
+	).Row(&currentDB, &currentUser); err != nil {
+		return nil, fmt.Errorf("failed to read current database/user: %w", err)
 	}
 	cfg.DBName = currentDB
+	cfg.User = currentUser
+
+	var serverHost string
+	var serverPort int
+	if err := app.NonconcurrentDB().NewQuery(
+		`SELECT COALESCE(inet_server_addr(), '') AS host, inet_server_port() AS port`,
+	).Row(&serverHost, &serverPort); err == nil {
+		if serverHost != "" {
+			cfg.Host = serverHost
+		}
+		if serverPort > 0 {
+			cfg.Port = serverPort
+		}
+	}
+
+	// Password/SSLMode cannot be read from the live connection; keep the
+	// values from the stored config (resolved from env vars at init time).
+	// For test environments where PB_POSTGRES_PASSWORD is unset, fall back
+	// to PGTEST_PASSWORD/PGTEST_SSLMODE so the listener authenticates
+	// correctly against the test database.
+	if cfg.Password == "" {
+		if v := os.Getenv("PGTEST_PASSWORD"); v != "" {
+			cfg.Password = v
+		}
+	}
+	if v := os.Getenv("PGTEST_SSLMODE"); v != "" {
+		cfg.SSLMode = v
+	}
 
 	return pgx.Connect(connectCtx, buildDSN(cfg))
 }

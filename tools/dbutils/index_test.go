@@ -220,6 +220,18 @@ func TestIndexBuild(t *testing.T) {
 			},
 			"CREATE UNIQUE INDEX IF NOT EXISTS \"schema\".\"index\" ON \"table\" (\n  \"col1\" ASC,\n  \"col2\" DESC,\n  " + `json_extract("col3", "$.a")` + "\n) WHERE test = 1 OR test = 2",
 		},
+		{
+			"embedded double-quotes are escaped",
+			dbutils.Index{
+				IndexName:  `in"dex`,
+				TableName:  `ta"ble`,
+				SchemaName: `s"chema`,
+				Columns: []dbutils.IndexColumn{
+					{Name: `co"l`},
+				},
+			},
+			`CREATE INDEX "s""chema"."in""dex" ON "ta""ble" ("co""l")`,
+		},
 	}
 
 	for _, s := range scenarios {
