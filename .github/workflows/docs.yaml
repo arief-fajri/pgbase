@@ -1,0 +1,94 @@
+name: docs
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - '.markdownlint.json'
+      - '.github/workflows/docs.yaml'
+      - 'Makefile'
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - '.markdownlint.json'
+      - '.github/workflows/docs.yaml'
+      - 'Makefile'
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '>=25.2.1'
+          cache: npm
+          cache-dependency-path: docs/package.json
+
+      - name: Lint markdown
+        run: npx --yes markdownlint-cli "docs/**/*.md" "ROADMAP.md" --ignore "docs/node_modules/**"
+
+      - name: Install docs deps
+        run: npm --prefix docs ci
+
+      - name: Build docs site
+        run: npm --prefix docs run docs:build
+
+      - name: Check links (lychee)
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --no-progress --exclude-mail 'docs/**/*.md'
+
+  # Publishes the VitePress site to GitHub Pages (project pages:
+  # https://arief-fajri.github.io/pgbase/ — hence base '/pgbase/' in config).
+  # Runs only on pushes to main (PRs just validate via the `docs` job above).
+  # One-time manual setup required: repo Settings → Pages → Source: GitHub Actions.
+  deploy:
+    needs: docs
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        # pinned by full SHA (CFG-07); was actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Node.js
+        # pinned by full SHA (CFG-07); was actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '>=25.2.1'
+          cache: npm
+          cache-dependency-path: docs/package.json
+
+      - name: Install docs deps
+        run: npm --prefix docs ci
+
+      - name: Build docs site
+        run: npm --prefix docs run docs:build
+
+      - name: Upload Pages artifact
+        # pinned by full SHA (CFG-07); tracks actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
+        with:
+          path: docs/.vitepress/dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        # pinned by full SHA (CFG-07); tracks actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
