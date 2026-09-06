@@ -1,4 +1,16 @@
-.PHONY: build test docker-build docker-run docker-stop migrate superuser clean lint jstypes test-report
+.PHONY: build test docker-build docker-run docker-stop migrate superuser clean lint jstypes test-report docs-install docs-dev docs-build docs-check
+
+docs-install:
+	npm --prefix docs install
+
+docs-dev:
+	npm --prefix docs run docs:dev
+
+docs-build:
+	npm --prefix docs run docs:build
+
+docs-check:
+	npx --yes markdownlint-cli "docs/**/*.md" "ROADMAP.md" --ignore "docs/node_modules/**"
 
 build:
 	go build -o pgbase ./examples/base
