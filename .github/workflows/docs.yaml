@@ -42,9 +42,12 @@ jobs:
         run: npm --prefix docs run docs:build
 
       - name: Check links (lychee)
+        # NOTE: current lychee (bundled in lychee-action@v2) has no
+        # --exclude-mail flag; mail links are excluded by default
+        # (opt back in with --include-mail if ever needed).
         uses: lycheeverse/lychee-action@v2
         with:
-          args: --no-progress --exclude-mail 'docs/**/*.md'
+          args: --no-progress 'docs/**/*.md'
 
   # Publishes the VitePress site to GitHub Pages (project pages:
   # https://arief-fajri.github.io/pgbase/ — hence base '/pgbase/' in config).
