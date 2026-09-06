@@ -1,0 +1,13 @@
+# Keep the Docker build context lean. `COPY . .` in the Dockerfile would
+# otherwise ship the docs toolchain, caches, VCS metadata, and local
+# runtime data to the daemon on every build. None of it affects the Go
+# binary (which embeds only ui/dist via ui/embed.go).
+docs/node_modules
+docs/.vitepress
+ui/node_modules
+.git
+pb_data
+pb_migrations
+pgbase
+coverage.out
+*.todo

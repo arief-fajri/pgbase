@@ -30,6 +30,13 @@ CHANGELOG.html
 LICENSE.html
 .feature-plan
 
+# docs site (isolated VitePress package; must stay untracked so
+# `goreleaser release --clean` never aborts on a dirty tree)
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+docs/.vitepress/*.timestamp-*.mjs
+
 # SQLite sidecar files created when tests open a committed .db fixture
 # (WAL index / rollback journal). Never committed; keep the tree clean so
 # `goreleaser release --clean` doesn't abort on a dirty state.
