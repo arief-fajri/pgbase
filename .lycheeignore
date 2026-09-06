@@ -1,0 +1,17 @@
+# Excluded from lychee link checking (one regex per line).
+# Auto-loaded by lychee from the repository root.
+# Vendored README links are NOT handled here: docs/node_modules/ is kept out
+# via the one-level input globs in .github/workflows/docs.yaml instead.
+# Local dev addresses can never resolve in CI — nothing listens on the
+# runner — so checking them only produces false positives (or hangs).
+http://localhost.*
+http://127\.0\.0\.1.*
+# pocketbase.io: automated TLS clients deterministically fail verification
+# here (expired-chain/UnknownIssuer errors, reproduced identically on GitHub
+# runners and locally via act, lychee v0.24.2) while system TLS succeeds.
+# External, unfixable from this repo — revisit if the host chain changes.
+https://pocketbase\.io.*
+# Project Pages URL: 404 until the first successful Pages deploy goes live.
+# Revisit (remove) once https://arief-fajri.github.io/pgbase/ serves 200;
+# until then it would fail the check on every run. Same TLS note as above.
+https://arief-fajri\.github\.io.*

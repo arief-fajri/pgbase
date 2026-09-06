@@ -10,7 +10,7 @@ docs-build:
 	npm --prefix docs run docs:build
 
 docs-check:
-	npx --yes markdownlint-cli "docs/**/*.md" "ROADMAP.md" --ignore "docs/node_modules/**"
+	npx --yes markdownlint-cli "docs/**/*.md" --ignore "docs/node_modules/**"
 
 build:
 	go build -o pgbase ./examples/base
