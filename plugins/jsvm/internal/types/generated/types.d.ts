@@ -12596,11 +12596,11 @@ namespace core {
  /**
   * instanceHeartbeatGuard tracks multi-instance presence via a DB-plane
   * heartbeat table and warns on the single -> multi transition (R-1b, spec
-  * §5.2a).
+  * #5.2a).
   * 
   * It is read-only with respect to app behavior: it only detects peers and
   * logs/warns. It never takes locks or elects leaders (that is the advisory
-  * lock split of §5.1).
+  * lock split of #5.1).
   */
  interface instanceHeartbeatGuard {
  }

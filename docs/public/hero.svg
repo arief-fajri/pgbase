@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 360" width="400" height="360" fill="none" role="img" aria-label="PGBase system diagram — a central app connected to Auth, Realtime, Files, API rules, Audit trails and Backup">
+  <defs>
+    <linearGradient id="pgHub" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3f79a8"/>
+      <stop offset="1" stop-color="#5aa0d6"/>
+    </linearGradient>
+    <radialGradient id="pgGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#4a90c8" stop-opacity="0.42"/>
+      <stop offset="0.55" stop-color="#4a90c8" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#4a90c8" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="pgSoft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+  </defs>
+
+  <!-- ambient glow -->
+  <ellipse cx="200" cy="178" rx="186" ry="152" fill="url(#pgGlow)"/>
+
+  <!-- connection lines (center -> satellites) -->
+  <g stroke="#4a80a8" stroke-opacity="0.4" stroke-width="1.6" stroke-linecap="round">
+    <path id="pgLrules"    d="M244 178 L312 178"/>
+    <path id="pgLrealtime" d="M225 141 L253 99"/>
+    <path id="pgLauth"     d="M175 141 L147 99"/>
+    <path id="pgLfiles"    d="M156 178 L88 178"/>
+    <path id="pgLjsonb"    d="M175 215 L147 257"/>
+    <path id="pgLbackup"   d="M225 215 L253 257"/>
+  </g>
+
+  <!-- traveling data packets (staggered) -->
+  <g fill="#5aa0d6">
+    <circle r="2.6" opacity="0"><animateMotion dur="2.6s" begin="0s"    repeatCount="indefinite"><mpath href="#pgLrules"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" dur="2.6s" begin="0s"    repeatCount="indefinite"/></circle>
+    <circle r="2.6" opacity="0"><animateMotion dur="2.6s" begin="0.43s" repeatCount="indefinite"><mpath href="#pgLrealtime"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" dur="2.6s" begin="0.43s" repeatCount="indefinite"/></circle>
+    <circle r="2.6" opacity="0"><animateMotion dur="2.6s" begin="0.87s" repeatCount="indefinite"><mpath href="#pgLauth"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" dur="2.6s" begin="0.87s" repeatCount="indefinite"/></circle>
+    <circle r="2.6" opacity="0"><animateMotion dur="2.6s" begin="1.30s" repeatCount="indefinite"><mpath href="#pgLfiles"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" dur="2.6s" begin="1.30s" repeatCount="indefinite"/></circle>
+    <circle r="2.6" opacity="0"><animateMotion dur="2.6s" begin="1.73s" repeatCount="indefinite"><mpath href="#pgLjsonb"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" dur="2.6s" begin="1.73s" repeatCount="indefinite"/></circle>
+    <circle r="2.6" opacity="0"><animateMotion dur="2.6s" begin="2.17s" repeatCount="indefinite"><mpath href="#pgLbackup"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" dur="2.6s" begin="2.17s" repeatCount="indefinite"/></circle>
+  </g>
+
+  <!-- ============ SATELLITE NODES ============ -->
+  <!-- Auth (130,72) -->
+  <g>
+    <rect x="104" y="46" width="52" height="52" rx="14" fill="#ffffff" fill-opacity="0.96" stroke="#cbdcee" stroke-width="1.4"/>
+    <g stroke="#35719c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M125.5 71 v-3.5 a4.5 4.5 0 0 1 9 0 v3.5" fill="none"/>
+      <rect x="121.5" y="71" width="17" height="12" rx="2.5" fill="none"/>
+      <path d="M130 76 v2.6" fill="none"/>
+    </g>
+    <text x="130" y="39" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="13" font-weight="600" fill="#6a86a0">Auth</text>
+  </g>
+
+  <!-- Realtime (270,72) -->
+  <g>
+    <rect x="244" y="46" width="52" height="52" rx="14" fill="#ffffff" fill-opacity="0.96" stroke="#cbdcee" stroke-width="1.4"/>
+    <path d="M272 62 L262 74 L269 74 L267 83 L278 70 L271 70 Z" fill="#35719c"/>
+    <text x="270" y="39" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="13" font-weight="600" fill="#6a86a0">Realtime</text>
+  </g>
+
+  <!-- Files (60,178) -->
+  <g>
+    <rect x="34" y="152" width="52" height="52" rx="14" fill="#ffffff" fill-opacity="0.96" stroke="#cbdcee" stroke-width="1.4"/>
+    <g stroke="#35719c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M53 168 h9 l6 6 v14 h-21 Z"/>
+      <path d="M62 168 v6 h6"/>
+      <path d="M57 182 h7 M57 187 h7"/>
+    </g>
+    <text x="60" y="221" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="13" font-weight="600" fill="#6a86a0">Files</text>
+  </g>
+
+  <!-- API rules (340,178) -->
+  <g>
+    <rect x="314" y="152" width="52" height="52" rx="14" fill="#ffffff" fill-opacity="0.96" stroke="#cbdcee" stroke-width="1.4"/>
+    <g stroke="#35719c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M340 167 l8 3 v6 q0 7 -8 10 q-8 -3 -8 -10 v-6 Z"/>
+      <path d="M336 178 l3 3 l5.5 -6.5"/>
+    </g>
+    <text x="340" y="145" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="13" font-weight="600" fill="#6a86a0">API rules</text>
+  </g>
+
+  <!-- Audit trails (130,284) -->
+  <g>
+    <rect x="104" y="258" width="52" height="52" rx="14" fill="#ffffff" fill-opacity="0.96" stroke="#cbdcee" stroke-width="1.4"/>
+    <g stroke="#35719c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <rect x="121" y="274" width="18" height="22" rx="2.5"/>
+      <rect x="126" y="270.5" width="8" height="5" rx="1.6"/>
+      <path d="M124.6 282.2 l1.8 1.8 l3 -3.4"/>
+      <path d="M132 282 h4"/>
+      <path d="M124.6 289.2 l1.8 1.8 l3 -3.4"/>
+      <path d="M132 289 h4"/>
+    </g>
+    <text x="130" y="327" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="13" font-weight="600" fill="#6a86a0">Audit trails</text>
+  </g>
+
+  <!-- Backup (270,284) -->
+  <g>
+    <rect x="244" y="258" width="52" height="52" rx="14" fill="#ffffff" fill-opacity="0.96" stroke="#cbdcee" stroke-width="1.4"/>
+    <g stroke="#35719c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <ellipse cx="270" cy="275" rx="9" ry="3.2"/>
+      <path d="M261 275 v12 a9 3.2 0 0 0 18 0 v-12"/>
+      <path d="M261 281 a9 3.2 0 0 0 18 0"/>
+    </g>
+    <text x="270" y="327" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="13" font-weight="600" fill="#6a86a0">Backup</text>
+  </g>
+
+  <!-- ============ CENTRAL HUB ============ -->
+  <ellipse cx="200" cy="188" rx="48" ry="42" fill="#14324a" opacity="0.20" filter="url(#pgSoft)"/>
+  <!-- radar pulse -->
+  <g transform="translate(200 178)">
+    <rect x="-40" y="-40" width="80" height="80" rx="20" fill="none" stroke="#5aa0d6" stroke-width="2" stroke-opacity="0">
+      <animateTransform attributeName="transform" type="scale" values="1;1.4" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="stroke-opacity" values="0.5;0" dur="3s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+  <rect x="160" y="138" width="80" height="80" rx="20" fill="url(#pgHub)"/>
+  <rect x="160" y="138" width="80" height="40" rx="20" fill="#ffffff" fill-opacity="0.09"/>
+  <text x="200" y="178" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="30" font-weight="700" fill="#ffffff">PG</text>
+</svg>

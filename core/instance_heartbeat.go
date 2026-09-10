@@ -17,7 +17,7 @@ const instanceHeartbeatsTableName = "_instance_heartbeats"
 const systemHookIdInstanceHeartbeat = "__pbInstanceHeartbeatSystemHook__"
 
 // defaultInstanceHeartbeatInterval is how often each instance upserts its
-// presence (see addendum §5.2a). The per-guard interval defaults to this and
+// presence (see addendum #5.2a). The per-guard interval defaults to this and
 // can be overridden in tests without sharing a mutable global.
 const defaultInstanceHeartbeatInterval = 10 * time.Second
 
@@ -33,11 +33,11 @@ const instanceHeartbeatsCleanupCronKey = "__pbInstanceHeartbeatsCleanup__"
 
 // instanceHeartbeatGuard tracks multi-instance presence via a DB-plane
 // heartbeat table and warns on the single -> multi transition (R-1b, spec
-// §5.2a).
+// #5.2a).
 //
 // It is read-only with respect to app behavior: it only detects peers and
 // logs/warns. It never takes locks or elects leaders (that is the advisory
-// lock split of §5.1).
+// lock split of #5.1).
 type instanceHeartbeatGuard struct {
 	app        *BaseApp
 	instanceID string

@@ -1,6 +1,6 @@
 # PG-BASE
 
-PostgreSQL-powered backend as a service — a fork of [PocketBase v0.39.11 (WIP)](https://pocketbase.io).
+PostgreSQL-powered backend as a service — a fork of [PocketBase v0.39.11](https://pocketbase.io).
 
 ## Features
 
@@ -19,8 +19,7 @@ PostgreSQL-powered backend as a service — a fork of [PocketBase v0.39.11 (WIP)
 docker compose up
 ```
 
-The API + dashboard are then available at <http://localhost:8090/_/>. Create a
-superuser to log in:
+The API + dashboard are then available at <http://localhost:8090/_/>. Create a superuser to log in:
 
 ```bash
 docker compose exec pgbase pgbase superuser create admin@example.com "changeme123"
@@ -28,8 +27,7 @@ docker compose exec pgbase pgbase superuser create admin@example.com "changeme12
 
 ### Binary
 
-The runnable entrypoint lives in `examples/base` (the root package is a
-library):
+The runnable entrypoint lives in `examples/base` (the root package is a library):
 
 ```bash
 # Build
@@ -61,18 +59,15 @@ Flags take precedence over environment variables.
 
 ## Configuration
 
-Connection settings are configured via CLI flags or environment variables (not
-stored in the database).
+Connection settings are configured via CLI flags or environment variables (not stored in the database).
 
 ## Production
 
-See **[PRODUCTION.md](PRODUCTION.md)** for a deployment runbook — builds, env
-vars, TLS, hardening and a go-live checklist.
+See the **[production runbook](https://arief-fajri.github.io/pgbase/production)** for a deployment guide — builds, env vars, TLS, hardening and a go-live checklist.
 
 ## Development
 
-See **[DEV.md](DEV.md)** — the single source of truth for running, testing, and
-contributing locally (PostgreSQL setup, dev servers, migrations, tests, lint).
+See the **[developer guide](https://arief-fajri.github.io/pgbase/developing)** — the single source of truth for running, testing, and contributing locally (PostgreSQL setup, dev servers, migrations, tests, lint). For the PR flow, see the [contributing guide](https://arief-fajri.github.io/pgbase/contributing).
 
 ## API
 

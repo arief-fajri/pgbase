@@ -3,5 +3,9 @@
     "MD013": false,
     "MD060": false,
     "MD024": { "siblings_only": true },
+    "MD028": false,
+    "MD029": false,
+    "MD033": { "allowed_elements": ["DocMeta", "code"] },
+    "MD036": false,
     "commands": { "show": true }
 }

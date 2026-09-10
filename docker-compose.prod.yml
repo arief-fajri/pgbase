@@ -12,8 +12,8 @@
 #   docker compose -f docker-compose.prod.yml up -d
 #   docker compose -f docker-compose.prod.yml exec pgbase pgbase superuser create admin@example.com "<STRONG-password>"
 #
-# For production hardening notes see PRODUCTION.md (§6, §9), .env.example and
-# DEV.md — in particular: use sslmode=require/verify-full only when the DB is
+# For production hardening notes see the production runbook + developer guide at
+# https://arief-fajri.github.io/pgbase/ — in particular: use sslmode=require/verify-full only when the DB is
 # on a different host + network (here it is inside the same private network,
 # so `disable` is acceptable); keep PB_ENCRYPTION_KEY set.
 services:
@@ -51,7 +51,7 @@ services:
       - PB_HSTS=${PB_HSTS:-true}
       # optional metrics: loopback inside the container is not reachable from
       # the host; to expose /metrics to Prometheus bind 0.0.0.0:9090 and publish
-      # a loopback port, and set PB_METRICS_EXPOSE=true (see DEV.md 3d).
+      # a loopback port, and set PB_METRICS_EXPOSE=true (see https://arief-fajri.github.io/pgbase/developing).
       #   PB_METRICS_ADDR=0.0.0.0:9090
       #   PB_METRICS_EXPOSE=true
       #   + on this service:  ports: ["127.0.0.1:9090:9090"]

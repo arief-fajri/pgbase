@@ -333,7 +333,7 @@ func Serve(app core.App, config ServeConfig) error {
 		if os.Getenv(app.EncryptionEnv()) == "" {
 			warn := color.New(color.FgYellow)
 			warn.Printf(
-				"⚠ Settings are stored UNENCRYPTED at rest (incl. the token-signing secret). For production, PB_ENCRYPTION_KEY is MANDATORY: set --encryptionEnv=<ENV_VAR> (32-char key) to encrypt them (see DEV.md).\n",
+				"⚠ Settings are stored UNENCRYPTED at rest (incl. the token-signing secret). For production, PB_ENCRYPTION_KEY is MANDATORY: set --encryptionEnv=<ENV_VAR> (32-char key) to encrypt them (see https://arief-fajri.github.io/pgbase/developing).\n",
 			)
 		}
 	}
