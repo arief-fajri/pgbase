@@ -54,9 +54,9 @@ features:
 
 ## Conventions & badges
 
-- **`stable`** — verified on the current tag. **`experimental`** — opt-in, still hardening (realtime outbox). **`roadmap-open`** — planned, not yet built (see the [roadmap](/roadmap)).
+- **`stable`** — verified on the current tag. **`experimental`** — opt-in, still hardening (realtime outbox). **`roadmap-open`** — planned, not yet built (see the [roadmap](./roadmap.md)).
 - File references use `path:line` (e.g. `core/base.go:43`) so you can jump straight to the source.
-- Environment defaults live **only** in the [env reference](/reference/env); every other page links there.
+- Environment defaults live **only** in the [env reference](./reference/env.md); every other page links there.
 - If a page's **Verified** badge is older than the current release, treat the code as truth and open a docs issue.
 
 > **Live site:** <https://arief-fajri.github.io/pgbase/> — auto-deployed from `main` on docs changes. Local preview: `npm --prefix docs run docs:dev` (serves at `http://localhost:5174/pgbase/`).
