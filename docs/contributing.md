@@ -1,11 +1,9 @@
 # Contributing to PGBase
 
+<DocMeta audience="Contributor" status="stable" verified="v0.5.2 (923e860)" />
+
 > [!IMPORTANT]
-> PGBase is a hard fork of [PocketBase](https://github.com/pocketbase/pocketbase)
-> with the embedded SQLite database replaced by PostgreSQL. When in doubt about
-> upstream behavior, refer to the [PocketBase repository](https://github.com/pocketbase/pocketbase)
-> and [PocketBase docs](https://pocketbase.io/docs) — the public API and DB schema
-> are intentionally PocketBase-compatible.
+> PGBase is a hard fork of [PocketBase](https://github.com/pocketbase/pocketbase) with the embedded SQLite database replaced by PostgreSQL. When in doubt about upstream behavior, refer to the [PocketBase repository](https://github.com/pocketbase/pocketbase) and [PocketBase docs](https://pocketbase.io/docs) — the public API and DB schema are intentionally PocketBase-compatible.
 
 This document describes how to prepare a PR for a change in the main repository.
 
@@ -17,17 +15,16 @@ This document describes how to prepare a PR for a change in the main repository.
 
 - Go 1.25+ (for making changes in the Go code)
 - Node 24+ (for making changes in the Superuser UI)
-- PostgreSQL (for running the tests, see `DEV.md`)
+- PostgreSQL (for running the tests, see [Developing](./developing))
 
 If you haven't already, you can fork the main repository and clone your fork so that you can work locally:
 
-```
-git clone https://github.com/your_username/pgbase.git
+```bash
+git clone https://github.com/arief-fajri/pgbase.git
 ```
 
 > [!IMPORTANT]
-> It is recommended to create a new branch from master for each of your bugfixes and features.
-> This is required if you are planning to submit multiple PRs in order to keep the changes separate for review until they eventually get merged.
+> It is recommended to create a new branch from master for each of your bugfixes and features. This is required if you are planning to submit multiple PRs in order to keep the changes separate for review until they eventually get merged.
 
 ## Making changes in the Go code
 
@@ -44,8 +41,7 @@ This will start a web server on `http://localhost:8090` with the embedded prebui
 
 **Before making a PR to the main repository, it is a good idea to:**
 
-- Add unit/integration tests for your changes (we are using the standard `testing` go package).
-  To run the tests, you could execute (while in the root project directory):
+- Add unit/integration tests for your changes (we are using the standard `testing` go package). To run the tests, you could execute (while in the root project directory):
 
   ```sh
   go test ./...
@@ -72,6 +68,7 @@ To start the Superuser UI:
 1. Navigate to the `ui` project directory
 2. Run `npm install` to install the node dependencies
 3. Start vite's dev server
+
    ```sh
    npm run dev
    ```

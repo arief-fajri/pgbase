@@ -1,14 +1,10 @@
 # Reference: Environment Variables (canonical)
 
-> Audience: All · Status: stable · Last verified: v0.5.2 (`923e860`)
+<DocMeta audience="All" status="stable" verified="v0.5.2 (923e860)" />
 
-**Single source of truth.** `README.md`, `DEV.md`, `PRODUCTION.md` tables are
-frozen pointers here. Code truth: `core/db_connect.go:37-139`,
-`core/base.go:43-46,245-259`, `apis/metrics.go:34-59`, `apis/serve.go:84`,
-`tools/archive/extract.go:16-39`, `core/realtime_outbox.go:47-51`.
+**Single source of truth.** `README.md`, `developing.md`, `production.md` tables are frozen pointers here. Code truth: `core/db_connect.go:37-139`, `core/base.go:43-46,245-259`, `apis/metrics.go:34-59`, `apis/serve.go:84`, `tools/archive/extract.go:16-39`, `core/realtime_outbox.go:47-51`.
 
-Flags take precedence over env where both exist. `--pg-*` serve flags are
-**not wired** to the connection — set `PB_POSTGRES_*` env vars (`../DEV.md` §3).
+Flags take precedence over env where both exist. `--pg-*` serve flags are **not wired** to the connection — set `PB_POSTGRES_*` env vars (`developing.md` #3).
 
 ## PostgreSQL connection
 
@@ -23,8 +19,7 @@ Flags take precedence over env where both exist. `--pg-*` serve flags are
 
 ## Pool sizing and timeouts
 
-Effective ceiling per instance = `DATA_MAX_OPEN + AUX_MAX_OPEN` (default **90**).
-Rule: `(DATA+AUX) × instances ≤ max_connections − reserved`.
+Effective ceiling per instance = `DATA_MAX_OPEN + AUX_MAX_OPEN` (default **90**). Rule: `(DATA+AUX) × instances ≤ max_connections − reserved`.
 
 | Variable | Default | Pool / meaning |
 |---|---|---|
@@ -40,8 +35,7 @@ Rule: `(DATA+AUX) × instances ≤ max_connections − reserved`.
 | `PB_POSTGRES_DEFAULT_QUERY_EXEC_MODE` | *(unset)* | `exec`/`simple_protocol` for PgBouncer transaction pooling |
 | `PB_DB_VACUUM_CRON` | *(unset, off)* | daily whole-DB `VACUUM` schedule (e.g. `0 0 * * *`); autovacuum covers it |
 
-App also enforces `DefaultQueryTimeout ~30s` on reads (`queryTimeoutHook`) and
-writes (`withWriteDeadline`); caller context (HTTP disconnect) wins.
+App also enforces `DefaultQueryTimeout ~30s` on reads (`queryTimeoutHook`) and writes (`withWriteDeadline`); caller context (HTTP disconnect) wins.
 
 ## Realtime, metrics, backups, auth, misc
 
@@ -58,7 +52,4 @@ writes (`withWriteDeadline`); caller context (HTTP disconnect) wins.
 
 ## Test harness (separate prefix)
 
-`tests/app.go` reads `PGTEST_HOST/PORT/USER/PASSWORD/DBNAME`
-(defaults `localhost:5433/test/test/pgbase_test`). Raw core tests
-(`base_test`, `log_printer_test`, …) use the production `PB_POSTGRES_*` path —
-point both at the test DB in CI (`../DEV.md` §10).
+`tests/app.go` reads `PGTEST_HOST/PORT/USER/PASSWORD/DBNAME` (defaults `localhost:5433/test/test/pgbase_test`). Raw core tests (`base_test`, `log_printer_test`, …) use the production `PB_POSTGRES_*` path — point both at the test DB in CI (`developing.md` #10).

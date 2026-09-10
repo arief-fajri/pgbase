@@ -1,7 +1,7 @@
 # Prometheus config for scraping the pgbase /metrics endpoint.
 #
 # For a single-host prod-compose setup, enable the metrics listener on the
-# pgbase service (see docker-compose.prod.yml / PRODUCTION.md §8) and publish it
+# pgbase service (see docker-compose.prod.yml / https://arief-fajri.github.io/pgbase/production) and publish it
 # loopback-only, then set the target below to 127.0.0.1:9090 (host) or
 # pgbase:9090 (if this runs as a compose service sharing the network).
 global:

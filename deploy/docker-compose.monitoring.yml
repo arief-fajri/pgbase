@@ -4,7 +4,7 @@
 #   docker compose -f docker-compose.prod.yml \
 #                  -f deploy/docker-compose.monitoring.yml up -d
 #
-# Make sure the pgbase service exposes /metrics (see PRODUCTION.md §8):
+# Make sure the pgbase service exposes /metrics (see https://arief-fajri.github.io/pgbase/production):
 #   PB_METRICS_ADDR=0.0.0.0:9090 ; PB_METRICS_EXPOSE=true ; publish loopback port
 #
 # UIs (change the default Grafana password!):

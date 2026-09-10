@@ -1,0 +1,71 @@
+/**
+ * PGBase docs theme — PostgreSQL-blue brand palette.
+ * Base hue (#336791) matches the `classDef` used in the end-to-end mermaid diagram.
+ */
+
+:root {
+  --vp-c-brand-1: #2f6690;
+  --vp-c-brand-2: #336791;
+  --vp-c-brand-3: #4a80a8;
+  --vp-c-brand-soft: rgba(51, 103, 145, 0.14);
+
+  /* Home hero gradient (name + logo glow) */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #336791 30%, #5aa0d6);
+  --vp-home-hero-image-background-image: linear-gradient(-45deg, #336791 40%, #5aa0d6 60%);
+  --vp-home-hero-image-filter: blur(44px);
+}
+
+.dark {
+  --vp-c-brand-1: #7db3dd;
+  --vp-c-brand-2: #5c9fd1;
+  --vp-c-brand-3: #336791;
+  --vp-c-brand-soft: rgba(125, 179, 221, 0.16);
+
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #7db3dd 30%, #a9d0ee);
+  --vp-home-hero-image-background-image: linear-gradient(-45deg, #336791 40%, #5aa0d6 60%);
+}
+
+/* Slightly denser feature cards on the home page */
+.VPFeature .title {
+  font-weight: 600;
+}
+
+:root {
+  --vp-layout-max-width: 1680px;
+}
+
+.VPDoc.has-aside .content .content-container {
+  max-width: 1040px;
+}
+
+/* Widen the home hero + features (theme caps them at 1152px). */
+.VPHome .VPHero .container,
+.VPHome .VPFeatures .container,
+.VPHome .vp-doc.container {
+  max-width: 1440px;
+}
+
+/* Hero illustration: render the SVG at ~2x (max-width alone can't upscale
+   past the 400x360 intrinsic size — need an explicit width) and give the
+   band vertical room so the near-square art doesn't overlap neighbours. */
+@media (min-width: 960px) {
+  .VPHome .VPHero .image,
+  .VPHome .VPHero .image-container {
+    min-height: 480px;
+  }
+}
+.VPHome .VPHero .image-container .image-src {
+  width: 520px;
+  height: auto;
+  max-width: 100%;
+  max-height: none;
+}
+.VPHome .VPHero .image-bg {
+  opacity: 0.45;
+}
+
+/* Drop the hero's bottom padding (theme sets 48–64px). */
+.VPHome .VPHero {
+  padding-bottom: 0;
+}
