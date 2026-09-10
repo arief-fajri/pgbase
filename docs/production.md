@@ -1,22 +1,16 @@
-# PRODUCTION.md — Running pgbase in Production
+# Production Runbook
 
-A short, self-contained runbook for deploying and operating **pgbase** (the
-PostgreSQL fork of PocketBase) in production. It assumes you already built the
-binary or image (see [Build](#1-build)) and have a PostgreSQL database to point
-at.
+<DocMeta audience="Operator" status="stable" verified="v0.5.2 (923e860)" />
 
-> Security posture: this document reflects the hardening applied up to the
-> current codebase — non-root container, opt-in settings encryption, opt-in
-> HSTS, guarded `/metrics`, bounded backup/restore, and a checksum-verified
+A short, self-contained runbook for deploying and operating **pgbase** (the PostgreSQL fork of PocketBase) in production. It assumes you already built the binary or image (see [Build](#1-build)) and have a PostgreSQL database to point at.
+
+> Security posture: this document reflects the hardening applied up to the current codebase — non-root container, opt-in settings encryption, opt-in HSTS, guarded `/metrics`, bounded backup/restore, and a checksum-verified
 
 ---
 
 ## 0. Quick single-host production (Docker Compose)
 
-The simplest real production topology for small/medium workloads is **one VPS**,
-`docker compose` with the bundled production file, and automatic HTTPS via
-Caddy — effectively "docker compose up" plus the minimal configuration that
-turns a demo into production.
+The simplest real production topology for small/medium workloads is **one VPS**, `docker compose` with the bundled production file, and automatic HTTPS via Caddy — effectively "docker compose up" plus the minimal configuration that turns a demo into production.
 
 ```bash
 # 1) on the VPS (Docker installed), clone/copy the repo
@@ -39,21 +33,15 @@ docker compose -f docker-compose.prod.yml exec pgbase pgbase superuser create ad
 What this gives you out of the box:
 
 - **HTTPS + certificate automatically** (Caddy/Let's Encrypt) — no manual TLS.
-- **Only ports 80/443 are published**; the app (`:8090`) and database are
-  reachable **only via Caddy** on the internal compose network. The DB port is
-  never exposed, even on loopback.
+- **Only ports 80/443 are published**; the app (`:8090`) and database are reachable **only via Caddy** on the internal compose network. The DB port is never exposed, even on loopback.
 - **Restart policies & health checks** so services recover after crashes/boots.
-- **The production hardening of the image** (non-root user, `--encryptionEnv`
-  wiring for `PB_ENCRYPTION_KEY`) plus `PB_HSTS=true` behind TLS.
+- **The production hardening of the image** (non-root user, `--encryptionEnv` wiring for `PB_ENCRYPTION_KEY`) plus `PB_HSTS=true` behind TLS.
 - pgcrypto preinstalled (avoids the first-boot extension deadlock).
 
 Still yours to do (not automatable):
 
-- **Periodic backups** — use the built-in backup API/dashboard (native
-  `pg_dump`) on a cron and copy archives off the machine.
-- **Set `PB_ENCRYPTION_KEY`** (mandatory; no default — without it settings
-  secrets, incl. the token-signing secret, are plaintext at rest and travel
-  unencrypted into backups) and **enable rate limiting** in the dashboard.
+- **Periodic backups** — use the built-in backup API/dashboard (native `pg_dump`) on a cron and copy archives off the machine.
+- **Set `PB_ENCRYPTION_KEY`** (mandatory; no default — without it settings secrets, incl. the token-signing secret, are plaintext at rest and travel unencrypted into backups) and **enable rate limiting** in the dashboard.
 - Keep `.env` out of VCS and rotate secrets like a normal credential.
 
 > This is a **single machine** — fine up to a few thousand users. For high availability / managed Postgres / S3 storage / zero-downtime deploys, see the topology in [#6](#6-recommended-production-topology) and monitoring in [#8](#8-monitoring-prometheus).
@@ -70,8 +58,7 @@ make build          # -> ./pgbase   (equivalent to: go build -o pgbase ./example
 docker build -t pgbase .
 ```
 
-The runnable entrypoint lives in `examples/base`; the root Go package is a
-library. Multi-platform release builds are configured via `.goreleaser.yaml`.
+The runnable entrypoint lives in `examples/base`; the root Go package is a library. Multi-platform release builds are configured via `.goreleaser.yaml`.
 
 ---
 
@@ -99,11 +86,9 @@ Example `.env` — see [Appendix A](#appendix-a-envproduction-example).
 
 ## 3. First run & migrations
 
-Migrations run automatically on the first `serve` (schema bootstrap includes the
-auth functional `LOWER()` unique indexes and the realtime outbox index).
+Migrations run automatically on the first `serve` (schema bootstrap includes the auth functional `LOWER()` unique indexes and the realtime outbox index).
 
-Create the initial superuser — this works before or after `serve` (it connects
-to the database directly):
+Create the initial superuser — this works before or after `serve` (it connects to the database directly):
 
 ```bash
 ./pgbase superuser create admin@example.com '<STRONG-password>'
@@ -130,43 +115,26 @@ Migrate manually if you prefer (equivalent to what `serve` does on start):
 ./pgbase serve --http="127.0.0.1:8090"
 ```
 
-CORS: `serve` accepts `--origins <list>` (default `["*"]`). This is safe with
-Bearer-token auth and `AllowCredentials=false` (PGB-I05); set the real origin
-list if the dashboard is served from a different origin.
+CORS: `serve` accepts `--origins <list>` (default `["*"]`). This is safe with Bearer-token auth and `AllowCredentials=false` (PGB-I05); set the real origin list if the dashboard is served from a different origin.
 
-When running behind a reverse proxy, also set **`TrustedProxy`** in the
-dashboard settings so `RealIP`, IP rate limiting, and OAuth CSRF checks see the
-client IP instead of the proxy's.
+When running behind a reverse proxy, also set **`TrustedProxy`** in the dashboard settings so `RealIP`, IP rate limiting, and OAuth CSRF checks see the client IP instead of the proxy's.
 
-> **`TrustedProxy` only if ALL inbound traffic passes through the trusted
-> proxy.** `RealIP()` trusts the configured `X-Forwarded-For` header verbatim —
-> any host that can reach the app directly (or emit its own header) can spoof it.
-> That directly weakens IP-based controls: rate limits and the `SuperuserIPs`
-> whitelist can be bypassed with a forged header. Apply the same rule at the
-> network edge: only the trusted proxy may reach the app port (bind loopback /
-> internal network), and strip forged headers at the proxy itself.
+> **`TrustedProxy` only if ALL inbound traffic passes through the trusted proxy.** `RealIP()` trusts the configured `X-Forwarded-For` header verbatim — any host that can reach the app directly (or emit its own header) can spoof it. That directly weakens IP-based controls: rate limits and the `SuperuserIPs` whitelist can be bypassed with a forged header. Apply the same rule at the network edge: only the trusted proxy may reach the app port (bind loopback / internal network), and strip forged headers at the proxy itself.
 
 ---
 
 ## 5. Dashboard settings to enable for production
 
-- **Rate limiting** — off by default (PGB-I03); enable in
-  *Settings → Rate Limits* (login, auth, files, API). Login also has a built-in
-  dummy-hash timing mitigation; OTP has a hardcoded 5/180s limiter.
-- **Superuser IP whitelist** — *Settings → Admin* → `SuperuserIPs` to restrict
-  which IPs may sign in as superuser.
-- **Trusted proxy** — `TrustedProxy` headers (e.g. `X-Forwarded-For`) when
-  behind a proxy. **Only set it when the app is guaranteed to be reachable
-  exclusively through that trusted proxy** — otherwise the forwarded header can
-  be spoofed to bypass rate limiting and the `SuperuserIPs` whitelist.
-- Consider rotating and storing the `PB_ENCRYPTION_KEY` externally — losing it
-  makes existing encrypted settings undecryptable.
+- **Rate limiting** — off by default (PGB-I03); enable in *Settings → Rate Limits* (login, auth, files, API). Login also has a built-in dummy-hash timing mitigation; OTP has a hardcoded 5/180s limiter.
+- **Superuser IP whitelist** — *Settings → Admin* → `SuperuserIPs` to restrict which IPs may sign in as superuser.
+- **Trusted proxy** — `TrustedProxy` headers (e.g. `X-Forwarded-For`) when behind a proxy. **Only set it when the app is guaranteed to be reachable exclusively through that trusted proxy** — otherwise the forwarded header can be spoofed to bypass rate limiting and the `SuperuserIPs` whitelist.
+- Consider rotating and storing the `PB_ENCRYPTION_KEY` externally — losing it makes existing encrypted settings undecryptable.
 
 ---
 
 ## 6. Recommended production topology
 
-```
+```text
       Client
         │  (TLS, :443)
         ▼
@@ -179,41 +147,28 @@ client IP instead of the proxy's.
  Managed PostgreSQL (16+)
 ```
 
-**Fast path:** the diagram above is exactly what
-[`docker-compose.prod.yml`](#0-quick-single-host-production-docker-compose)
-wires for you on one host — Caddy terminates TLS, `pgbase` stays on the internal
-network, and (for a single-host stack) the postgres service is colocated instead
-of managed.
+**Fast path:** the diagram above is exactly what [`docker-compose.prod.yml`](#0-quick-single-host-production-docker-compose) wires for you on one host — Caddy terminates TLS, `pgbase` stays on the internal network, and (for a single-host stack) the postgres service is colocated instead of managed.
 
-- **Never** expose the database port publicly (the demo compose binds it to
-  `127.0.0.1` only).
-- **Never** run the process as root (the shipped Dockerfile already runs as an
-  unprivileged user; `/pb_data` is chowned accordingly).
-- Keep `pb_data`, backups, and the metrics listener off the public internet;
-  bind `/metrics` to loopback (PGB-N01).
+- **Never** expose the database port publicly (the demo compose binds it to `127.0.0.1` only).
+- **Never** run the process as root (the shipped Dockerfile already runs as an unprivileged user; `/pb_data` is chowned accordingly).
+- Keep `pb_data`, backups, and the metrics listener off the public internet; bind `/metrics` to loopback (PGB-N01).
 
 ---
 
 ## 7. Backup & restore
 
-- Backups use the **native `pg_dump`/`pg_restore`** format by default; create,
-  download, upload, delete and restore are **superuser-only** (`/api/backups…`).
-- Backup creation is bounded (default 10 min) and restore is bounded to 10 min;
-  decompression is capped by `PB_BACKUP_MAX_EXTRACT_BYTES` (default 8 GiB).
-- **Warning:** restore replays the archive via `pg_restore --clean`, i.e. it
-  executes arbitrary SQL from the dump. Treat the backups bucket/filesystem as a
-  full-DB-trust boundary (a tampered archive = DB takeover, PGB-N03). Guard it
-  like your database backup credentials.
+- Backups use the **native `pg_dump`/`pg_restore`** format by default; create, download, upload, delete and restore are **superuser-only** (`/api/backups…`).
+- Backup creation is bounded (default 10 min) and restore is bounded to 10 min; decompression is capped by `PB_BACKUP_MAX_EXTRACT_BYTES` (default 8 GiB).
+- **Warning:** restore replays the archive via `pg_restore --clean`, i.e. it executes arbitrary SQL from the dump. Treat the backups bucket/filesystem as a full-DB-trust boundary (a tampered archive = DB takeover, PGB-N03). Guard it like your database backup credentials.
 
 ---
 
 ## 8. Monitoring (Prometheus)
 
-pgbase ships an **opt-in** Prometheus endpoint on a **separate listener** from
-the API. It is unauthenticated (PGB-N01), so traffic must stay on loopback (or a
-protected internal interface).
+pgbase ships an **opt-in** Prometheus endpoint on a **separate listener** from the API. It is unauthenticated (PGB-N01), so traffic must stay on loopback (or a protected internal interface).
 
 **Enable**
+
 ```bash
 PB_METRICS_ADDR=127.0.0.1:9090 ./pgbase serve --http=0.0.0.0:8090
 curl http://127.0.0.1:9090/metrics    # Prometheus text format
@@ -236,10 +191,7 @@ curl http://127.0.0.1:9090/metrics    # Prometheus text format
 **Security note:** no authentication is applied to `/metrics`. Keep it:
 
 - **loopback**: `127.0.0.1:9090` (host) — Prometheus on the same machine, or
-- **internal-only**: bind a private interface; **or** publish the container
-  port on `127.0.0.1` only (see compose note), **or** protect it with a
-  reverse-proxy `basic_auth`, mTLS, or a firewall/NetworkPolicy. Non-loopback
-  binds require `PB_METRICS_EXPOSE=true` (the app refuses otherwise).
+- **internal-only**: bind a private interface; **or** publish the container port on `127.0.0.1` only (see compose note), **or** protect it with a reverse-proxy `basic_auth`, mTLS, or a firewall/NetworkPolicy. Non-loopback binds require `PB_METRICS_EXPOSE=true` (the app refuses otherwise).
 
 ### 8.1 Scraping — examples
 
@@ -266,9 +218,7 @@ PB_METRICS_EXPOSE=true              # acknowledge the bind (guard)
 # -> host Prometheus scrapes http://127.0.0.1:9090/metrics
 ```
 
-**Bundled stack (optional)** — include `deploy/docker-compose.monitoring.yml`
-(Prometheus + Grafana + Alertmanager on an internal network scraping
-`pgbase:9090`). Enable the listener on the app first:
+**Bundled stack (optional)** — include `deploy/docker-compose.monitoring.yml` (Prometheus + Grafana + Alertmanager on an internal network scraping `pgbase:9090`). Enable the listener on the app first:
 
 ```bash
 # .env
@@ -279,20 +229,13 @@ docker compose -f docker-compose.prod.yml -f deploy/docker-compose.monitoring.ym
 # Prometheus: http://localhost:9090  ·  Grafana: http://localhost:3000  ·  Alertmanager: http://localhost:9093
 ```
 
-For a Prometheus running on the host (not a container), use
-`deploy/prometheus.yml` (target `127.0.0.1:9090`).
+For a Prometheus running on the host (not a container), use `deploy/prometheus.yml` (target `127.0.0.1:9090`).
 
-**Cloud / external Prometheus:** bind the metrics listener on a private
-interface (e.g. `10.0.0.5:9090`) with `PB_METRICS_EXPOSE=true`, and restrict the
-security group / firewall to the Prometheus source only. Never publish it
-publicly.
+**Cloud / external Prometheus:** bind the metrics listener on a private interface (e.g. `10.0.0.5:9090`) with `PB_METRICS_EXPOSE=true`, and restrict the security group / firewall to the Prometheus source only. Never publish it publicly.
 
-Alerting is your standard Prometheus stack — e.g. Alertmanager + webhooks. A
-minimal, useful rule to start with: alert when
-`rate(pgbase_db_wait_count_total[5m]) > 0` (pool saturation) or when
-`pgbase_http_request_duration_seconds` p99 rises (see `deploy/prometheus.yml`).
+Alerting is your standard Prometheus stack — e.g. Alertmanager + webhooks. A minimal, useful rule to start with: alert when `rate(pgbase_db_wait_count_total[5m]) > 0` (pool saturation) or when `pgbase_http_request_duration_seconds` p99 rises (see `deploy/prometheus.yml`).
 
-See also `DEV.md §3d` for implementation details and the exact env semantics.
+See also `developing.md #3d` for implementation details and the exact env semantics.
 
 ---
 
@@ -301,9 +244,8 @@ See also `DEV.md §3d` for implementation details and the exact env semantics.
 ```bash
 ./pgbase update
 ```
-It **refuses non-HTTPS sources** and **verifies the asset sha256 against the
-release `checksums.txt`** before replacing the binary (PGB-L09). Prefer
-image-based deploys in containers.
+
+It **refuses non-HTTPS sources** and **verifies the asset sha256 against the release `checksums.txt`** before replacing the binary (PGB-L09). Prefer image-based deploys in containers.
 
 ---
 
@@ -383,8 +325,7 @@ server {
 }
 ```
 
-> If the proxy sets these headers, configure `TrustedProxy` (dashboard settings)
-> so the app trusts `X-Forwarded-For` from the proxy only.
+> If the proxy sets these headers, configure `TrustedProxy` (dashboard settings) so the app trusts `X-Forwarded-For` from the proxy only.
 
 ## Appendix C: systemd unit (`/etc/systemd/system/pgbase.service`)
 
@@ -416,4 +357,4 @@ WantedBy=multi-user.target
 
 ---
 
-*See also `DEV.md` (development) and `README.md` (quick start)*
+*See also [Developing](./developing) and the [README](https://github.com/arief-fajri/pgbase/blob/main/README.md).*

@@ -8,8 +8,12 @@
         "docs:preview": "vitepress preview --port 5174"
     },
     "devDependencies": {
+        "@mermaid-js/layout-elk": "^0.2.3",
+        "d3-selection": "^3.0.0",
+        "d3-zoom": "^3.0.0",
+        "mermaid": "^11.17.2",
         "vitepress": "1.6.4",
-        "vue": "^3.4.0",
-        "vitepress-plugin-mermaid": "^2.0.0"
+        "vitepress-plugin-mermaid": "^2.0.0",
+        "vue": "^3.4.0"
     }
 }

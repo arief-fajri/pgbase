@@ -36,7 +36,7 @@ const MetricsAddrEnv = "PB_METRICS_ADDR"
 // MetricsExposeEnv is the env var that explicitly acknowledges that the
 // metrics listener is bound to a non-loopback address (e.g. "0.0.0.0:9090"
 // inside a container fronted by a NetworkPolicy). Without it, non-loopback
-// binds fail fast, because /metrics is unauthenticated (see DEV.md).
+// binds fail fast, because /metrics is unauthenticated (see https://arief-fajri.github.io/pgbase/developing).
 const MetricsExposeEnv = "PB_METRICS_EXPOSE"
 
 // metricsNamespace prefixes every custom pgbase metric.

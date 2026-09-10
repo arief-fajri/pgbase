@@ -36,8 +36,9 @@ const (
 	// DefaultDataMaxOpenConns + DefaultAuxMaxOpenConns (= 90), kept below the
 	// stock Postgres max_connections=100 with headroom for superuser/maintenance
 	// sessions. Raise via the PB_POSTGRES_*_CONNS env vars (or BaseAppConfig)
-	// when the server max_connections is raised; see DEV.md for the sizing
-	// formula and PgBouncer guidance. NB: pushing many more than a few dozen
+	// when the server max_connections is raised; see
+	// https://arief-fajri.github.io/pgbase/developing for the sizing formula
+	// and PgBouncer guidance. NB: pushing many more than a few dozen
 	// active connections at Postgres usually hurts (server-side contention)
 	// rather than helps - front it with PgBouncer instead.
 	DefaultDataMaxOpenConns int           = 80
@@ -237,7 +238,8 @@ func NewBaseApp(config BaseAppConfig) *BaseApp {
 	//
 	// NB: the effective single-instance ceiling is Data+Aux open conns. Keep it
 	// below the Postgres server "max_connections" (minus a superuser reserve),
-	// divided by the number of app instances. See DEV.md for the sizing formula
+	// divided by the number of app instances. See
+	// https://arief-fajri.github.io/pgbase/developing for the sizing formula
 	// and PgBouncer guidance.
 	if app.config.DBConnect == nil {
 		app.config.DBConnect = DefaultDBConnect

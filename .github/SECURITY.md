@@ -46,8 +46,7 @@ Raw SQL statements, table and column names are not parameterized and they are vu
 <details>
 <summary><strong>Race conditions</strong></summary>
 
-To avoid DB locks PocketBase deliberately tries to minimize the use of DB transactions.
-This means that operations like record update don't wrap out of the box for example the `SELECT` and `UPDATE` SQL statements in a single transaction, and this can technically lead to a race condition if multiple users edit the same record.
+To avoid DB locks PocketBase deliberately tries to minimize the use of DB transactions. This means that operations like record update don't wrap out of the box for example the `SELECT` and `UPDATE` SQL statements in a single transaction, and this can technically lead to a race condition if multiple users edit the same record.
 
 This is an accepted tradeoff and for the majority of cases it has no security implications.
 
@@ -71,8 +70,7 @@ If you are concerned about timing attacks and have security sensitive collection
 
 Because PocketBase v0.23+ supports automatically uploading the OAuth2 avatar on user create _(need to be specified from the auth collection OAuth2 fields mapping)_ some security researchers raised a concern regarding a Blind SSRF but this implies that an attacker controls the OAuth2 vendor and this is a very serious assumption in the first place.
 
-The entire OAuth2 flow relies that the application server (PocketBase) trusts the configured OAuth2 vendor.
-If you suspect that an OAuth2 vendor is malicious and cannot be trusted then you MUST NOT use that OAuth2 vendor at all and you should report it.
+The entire OAuth2 flow relies that the application server (PocketBase) trusts the configured OAuth2 vendor. If you suspect that an OAuth2 vendor is malicious and cannot be trusted then you MUST NOT use that OAuth2 vendor at all and you should report it.
 
 If someone is able to tamper with the OAuth2 responses then the entire OAuth2 flow can be thrown out of the window because they will be practically able to authenticate as any of your existing users and the eventual avatar URL probing request is the least of your problem.
 

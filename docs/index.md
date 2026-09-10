@@ -1,48 +1,62 @@
-# PGBase Documentation
+---
+layout: home
 
-> Audience: All (Contributor | Operator | App Builder) · Status: stable · Last verified: v0.5.2 (`923e860`)
+hero:
+  name: PGBase
+  text: PocketBase, powered by PostgreSQL
+  tagline: A PostgreSQL-only backend-as-a-service — the PocketBase developer experience with Postgres durability, JSONB, and room to scale.
+  image:
+    src: /hero.svg
+    alt: PGBase — a central app connected to auth, realtime, files, API rules, audit trails and backup
+  actions:
+    - theme: alt
+      text: Fork deltas
+      link: /fork-deltas
+    - theme: alt
+      text: Architecture
+      link: /architecture/end-to-end
+    - theme: alt
+      text: GitHub
+      link: https://github.com/arief-fajri/pgbase
 
-PGBase is a PostgreSQL-only backend-as-a-service, forked from PocketBase v0.39.11 (WIP).
-It keeps the PocketBase REST API compatible while replacing SQLite with PostgreSQL
-(`pgx` v5 + `dbx`, JSONB columns, `timestamptz`, `pgcrypto` IDs).
+features:
+  - icon: 🧩
+    title: Build
+    details: Collections, API rules, auth, and realtime from a dashboard — the PocketBase API you already know.
+    link: /collections-and-api-rules
+    linkText: Collections & API rules
+  - icon: 🛠️
+    title: Operate
+    details: Single-host Compose + Caddy, native pg_dump backups, Prometheus metrics, and a go-live checklist.
+    link: /single-host-production
+    linkText: Production guide
+  - icon: 🧪
+    title: Contribute
+    details: Local dev, the test harness, linting, the release flow, and architecture deep-dives.
+    link: /contributing
+    linkText: Start contributing
+  - icon: 🐘
+    title: PostgreSQL-native
+    details: pgx v5 + dbx, JSONB columns, timestamptz, pgcrypto IDs, and month-partitioned audit tables.
+    link: /fork-deltas
+    linkText: What changed vs upstream
+  - icon: ⚡
+    title: Realtime
+    details: SSE subscriptions with per-message rule re-checks, plus an opt-in cross-instance outbox.
+    link: /flows/realtime
+    linkText: Realtime flows
+  - icon: 📋
+    title: Audit trails
+    details: Separate write and read trails with per-field diffs and independent retention windows.
+    link: /architecture/audit-design
+    linkText: Audit design
+---
 
-> **Live site:** <https://arief-fajri.github.io/pgbase/> (auto-deployed from `main`
-> on docs changes). Local preview: `npm --prefix docs run docs:dev`
-> (serves at `http://localhost:5174/pgbase/`).
+## Conventions & badges
 
-## Where to start (pick your track)
+- **`stable`** — verified on the current tag. **`experimental`** — opt-in, still hardening (realtime outbox). **`roadmap-open`** — planned, not yet built (see the [roadmap](/roadmap)).
+- File references use `path:line` (e.g. `core/base.go:43`) so you can jump straight to the source.
+- Environment defaults live **only** in the [env reference](/reference/env); every other page links there.
+- If a page's **Verified** badge is older than the current release, treat the code as truth and open a docs issue.
 
-| Track | Start here | Existing runbooks (do not duplicate) |
-|---|---|---|
-| **App Builder** (use the dashboard + API) | `fork-deltas.md` → `collections-and-api-rules.md` | Upstream [PocketBase docs](https://pocketbase.io/docs) apply except the deltas listed |
-| **Operator** (self-host, backup, monitor) | `single-host-production.md` → `backup-restore-observability.md` → `reference/env.md` | `../PRODUCTION.md` is the production runbook; `../DEV.md` §3 covers pool tuning |
-| **Contributor** (build, test, release) | `contributing-releasing.md` | `../DEV.md` is the single source of truth for dev; `../CONTRIBUTING.md` for PR flow |
-
-## Page index
-
-| Page | Audience | Status | Purpose |
-|---|---|---|---|
-| `fork-deltas.md` | Builder | stable | PG-only behavior deltas vs upstream (must-read before building) |
-| `collections-and-api-rules.md` | Builder | stable | How to use collections + API rules + in-dashboard API preview |
-| `single-host-production.md` | Operator | stable | Single-host Compose + Caddy topology, secrets, go-live checklist |
-| `backup-restore-observability.md` | Operator | stable | `pg_dump` vs `sqlite` formats, offline restore, `/metrics` |
-| `contributing-releasing.md` | Contributor | stable | Branch → test → lint → UI build → PR → tag → draft release |
-| `reference/env.md` | All | stable | **Canonical** `PB_*` environment variable table (single source) |
-| `architecture/backend-layers.md` | Contributor | stable | Layers, bootstrap chain, dual-pool DB, middleware execution order |
-| `flows/auth.md` | All | stable | Password / OAuth2 / OTP / MFA / refresh / impersonate flows |
-| `flows/realtime.md` | All | stable / experimental (outbox) | SSE + opt-in cross-instance outbox |
-| `roadmap.md` | All | living document | Phased roadmap (multi-instance, perf, upstream tracking, observability) |
-
-Badges: `stable` = verified on this tag. `experimental` = opt-in, needs hardening
-(realtime outbox). `roadmap-open` = tracked in `roadmap.md`, not yet built
-(multi-instance HA, `_logs` partitioning, GIN JSONB, OTel, PITR/WAL, K8s, SDK matrix).
-
-## Conventions used in all pages
-
-- File references use `path:line` (e.g. `core/base.go:43`).
-- Mermaid diagrams render natively on GitHub; ASCII is used only where
-  `../PRODUCTION.md` §6 already has the topology.
-- Env defaults live **only** in `reference/env.md`. Other pages link there;
-  `../README.md`, `../DEV.md`, `../PRODUCTION.md` tables are frozen pointers.
-- Version stamp: if a page says `last-verified` older than the current tag,
-  treat code as truth and open a docs issue.
+> **Live site:** <https://arief-fajri.github.io/pgbase/> — auto-deployed from `main` on docs changes. Local preview: `npm --prefix docs run docs:dev` (serves at `http://localhost:5174/pgbase/`).
