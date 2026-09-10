@@ -636,7 +636,7 @@ docker compose -f tests/docker-compose.test.yml down -v
 ## 11. Lint & Formatting
 
 ```bash
-# Go linter (requires golangci-lint: https://golangci-lint.run/usage/install/)
+# Go linter (requires golangci-lint: https://golangci-lint.run/docs/welcome/install/)
 make lint
 # → golangci-lint run -c ./golangci.yml ./...
 
@@ -648,7 +648,7 @@ cd ui && npx dprint fmt && cd ..
 make jstypes
 ```
 
-Run **all** of the above before opening a PR. See [Contributing](./contributing) for the PR flow.
+Run **all** of the above before opening a PR. See [Contributing](./contributing.md) for the PR flow.
 
 ---
 
@@ -723,7 +723,7 @@ pgbase/
 3. Add or update tests (standard `testing` package; use the `tests.TestApp` harness for anything touching the DB).
 4. Run the relevant tests and `make lint` (sections 9 & 10).
 5. If you changed the UI, run `npm run build` before building the binary.
-6. Open a PR against `main` and follow the contribution notes in [Contributing](./contributing).
+6. Open a PR against `main` and follow the contribution notes in [Contributing](./contributing.md).
 7. Once merged, cut a release by updating `CHANGELOG.md` and pushing a version tag (see section 15).
 8. Reference upstream behavior via the [PocketBase docs](https://pocketbase.io/docs) — the public API and DB schema are intentionally PocketBase-compatible.
 

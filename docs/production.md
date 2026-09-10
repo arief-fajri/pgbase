@@ -357,4 +357,4 @@ WantedBy=multi-user.target
 
 ---
 
-*See also [Developing](./developing) and the [README](https://github.com/arief-fajri/pgbase/blob/main/README.md).*
+*See also [Developing](./developing.md) and the [README](https://github.com/arief-fajri/pgbase/blob/main/README.md).*

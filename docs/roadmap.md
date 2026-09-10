@@ -39,7 +39,7 @@ and several rounds of performance hardening.
   updates with checksum verification, SQL identifier quoting, pinned CI actions
   and Docker digests, `sslmode=prefer` default, mandatory encryption-key guidance.
   (v0.5.1 rebrand, v0.5.2)
-- **Production docs** — [production runbook](./production), `docker-compose.prod.yml`
+- **Production docs** — [production runbook](./production.md), `docker-compose.prod.yml`
   (Caddy auto-HTTPS), monitoring stack under `deploy/`.
 
 **Health snapshot:** build + full suite green (`-p 4`); `govulncheck ./...` and
@@ -74,7 +74,7 @@ This is the single biggest gap. Several subsystems assume one process.
 | **Cron coordination** | `pg_try_advisory_lock` guards (done) + instance heartbeat | Verify single-fire under N instances; document leader semantics | P2 / S |
 | **Session / token revocation** | Stateless JWT | Optional shared revocation list for immediate logout across instances | P2 / M |
 
-**Deliverable:** a "Running multiple instances" section in the [production runbook](./production) with a
+**Deliverable:** a "Running multiple instances" section in the [production runbook](./production.md) with a
 tested topology (LB → N app instances → shared PG), plus the outbox and rate
 limiter promoted from experimental.
 
@@ -90,7 +90,7 @@ scope decisions).
 | **PERF-I04** | Partition `_logs` (currently a plain table; retention = 6-hourly bulk DELETE → dead-tuple churn/bloat) | RANGE-partition like `_audits` → DROP partition; or lighter per-table autovacuum tuning (partial: `logs_autovacuum_tuning` migration exists) | P1 / L |
 | **PERF-I02** | GIN / expression indexes on JSONB multi-value columns (every multi-value filter/expand = full scan) | (a) allow `USING GIN (col jsonb_path_ops)` in validation+sync; (b) rewrite multi-value filters to `@>` containment so GIN is used | P2 / L |
 | **PERF-I05** | Audit `DEFAULT` partition holds current-month rows and is never pruned | Pre-create current-month partition + migrate `DEFAULT` rows | P2 / M |
-| **PERF-I08** | User index-add on populated collections uses blocking `CREATE INDEX` inside a tx | Out-of-tx `CREATE INDEX CONCURRENTLY` path (documented escape hatch exists in [developing](./developing) #5b) | P2 / L |
+| **PERF-I08** | User index-add on populated collections uses blocking `CREATE INDEX` inside a tx | Out-of-tx `CREATE INDEX CONCURRENTLY` path (documented escape hatch exists in [developing](./developing.md) #5b) | P2 / L |
 | **PERF-I07** | Random 15-char TEXT primary keys (random B-tree insert, bloat, no time-order) | Architectural/upstream; awareness only, likely won't change (API contract) | P2 / — |
 
 **Deliverable:** a load-test harness (see Theme E) to quantify each before/after,
@@ -207,4 +207,4 @@ A pragmatic order that front-loads risk reduction and unblocks the rest:
 
 Open a discussion/issue referencing the theme and item ID (e.g. *"Theme B /
 PERF-I04"*). Perf items should come with a load-test scenario; scale-out items
-should include a multi-instance test plan. See [Contributing](./contributing) and [Developing](./developing).
+should include a multi-instance test plan. See [Contributing](./contributing.md) and [Developing](./developing.md).

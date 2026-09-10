@@ -15,7 +15,7 @@ This document describes how to prepare a PR for a change in the main repository.
 
 - Go 1.25+ (for making changes in the Go code)
 - Node 24+ (for making changes in the Superuser UI)
-- PostgreSQL (for running the tests, see [Developing](./developing))
+- PostgreSQL (for running the tests, see [Developing](./developing.md))
 
 If you haven't already, you can fork the main repository and clone your fork so that you can work locally:
 
@@ -50,7 +50,7 @@ This will start a web server on `http://localhost:8090` with the embedded prebui
   make test
   ```
 
-- Run the linter - **golangci** ([see how to install](https://golangci-lint.run/usage/install/#local-installation)):
+- Run the linter - **golangci** ([see how to install](https://golangci-lint.run/docs/welcome/install/#local-installation)):
 
   ```sh
   golangci-lint run -c ./golangci.yml ./...
