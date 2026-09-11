@@ -1,7 +1,6 @@
 package core_test
 
 import (
-	"os"
 	"strings"
 	"testing"
 
@@ -80,7 +79,11 @@ func TestReloadSettingsWithEncryption(t *testing.T) {
 	app, _ := tests.NewTestApp()
 	defer app.Cleanup()
 
-	os.Setenv("pb_test_env", strings.Repeat("a", 32))
+	// t.Setenv (auto-restored on test exit) instead of os.Setenv: the latter
+	// leaked the key for the rest of the test binary and re-broke the
+	// "no encryption" scenario of TestSettings_DBExport on -count=2 reruns
+	// (DBExport then returned an encrypted string instead of raw bytes).
+	t.Setenv("pb_test_env", strings.Repeat("a", 32))
 
 	// cleanup all stored settings
 	// ---
