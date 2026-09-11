@@ -5,9 +5,9 @@ import (
 	"net/url"
 	"slices"
 
+	"github.com/arief-fajri/pgbase/core/validators"
 	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/pocketbase/ozzo-validation/v4/is"
-	"github.com/arief-fajri/pgbase/core/validators"
 	"github.com/spf13/cast"
 )
 

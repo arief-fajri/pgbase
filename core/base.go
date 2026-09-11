@@ -13,10 +13,9 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/fatih/color"
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/cron"
 	"github.com/arief-fajri/pgbase/tools/filesystem"
 	"github.com/arief-fajri/pgbase/tools/hook"
@@ -27,6 +26,8 @@ import (
 	"github.com/arief-fajri/pgbase/tools/store"
 	"github.com/arief-fajri/pgbase/tools/subscriptions"
 	"github.com/arief-fajri/pgbase/tools/types"
+	"github.com/fatih/color"
+	"github.com/pocketbase/dbx"
 	"github.com/spf13/cast"
 	"golang.org/x/sync/semaphore"
 )
@@ -91,9 +92,19 @@ type BaseApp struct {
 	settings            *Settings
 	subscriptionsBroker *subscriptions.Broker
 	logger              *slog.Logger
-	dataDB              dbx.Builder
-	auxDB               dbx.Builder
-	dbConfig            DBConfig // resolved connection config captured at init time for outbox listener
+	// bootstrapMu guards dataDB/auxDB/dbConfig: background goroutines (notify
+	// dir watcher, log/audit batch writers, realtime outbox listener) read
+	// these fields without joining the owner goroutine, so the
+	// Bootstrap()/ResetBootstrapState() mutations must be synchronized —
+	// the CI -race job caught IsBootstrapped() racing the teardown writes.
+	// It is a pointer on purpose: BaseApp is shallow-copied for transaction
+	// apps (createTxApp) and UnsafeWithoutHooks(), and the copies must share
+	// the same lock instance (a copied lock value is both a vet copylocks
+	// error and a synchronization no-op).
+	bootstrapMu *sync.RWMutex
+	dataDB      dbx.Builder
+	auxDB       dbx.Builder
+	dbConfig    DBConfig // resolved connection config captured at init time for outbox listener
 
 	// instanceHeartbeatGuard tracks multi-instance presence (R-1b) once wired.
 	instanceHeartbeatGuard *instanceHeartbeatGuard
@@ -223,6 +234,7 @@ func NewBaseApp(config BaseAppConfig) *BaseApp {
 		cron:                cron.New(),
 		subscriptionsBroker: subscriptions.NewBroker(),
 		config:              &config,
+		bootstrapMu:         &sync.RWMutex{},
 
 		// stable per-process identity for the cross-instance realtime outbox
 		realtimeOutboxOrigin: "@" + security.PseudorandomString(10),
@@ -416,6 +428,8 @@ func (app *BaseApp) IsTransactional() bool {
 // IsBootstrapped checks if the application was initialized
 // (aka. whether Bootstrap() was called).
 func (app *BaseApp) IsBootstrapped() bool {
+	app.bootstrapMu.RLock()
+	defer app.bootstrapMu.RUnlock()
 	return app.dataDB != nil && app.auxDB != nil
 }
 
@@ -493,10 +507,16 @@ func (app *BaseApp) ResetBootstrapState() error {
 
 	var errs []error
 
+	// snapshot the handles under the read lock; the Close() I/O itself stays
+	// outside the critical section (database/sql handles are safe for
+	// concurrent Close/use, so a background reader that grabbed a handle just
+	// before the reset only ever sees a closed pool, never a torn read)
+	app.bootstrapMu.RLock()
 	dbs := []dbx.Builder{
 		app.dataDB,
 		app.auxDB,
 	}
+	app.bootstrapMu.RUnlock()
 
 	for _, db := range dbs {
 		if db == nil {
@@ -509,9 +529,11 @@ func (app *BaseApp) ResetBootstrapState() error {
 		}
 	}
 
+	app.bootstrapMu.Lock()
 	app.dataDB = nil
 	app.auxDB = nil
 	app.dbConfig = DBConfig{}
+	app.bootstrapMu.Unlock()
 
 	if len(errs) > 0 {
 		return errors.Join(errs...)
@@ -522,6 +544,8 @@ func (app *BaseApp) ResetBootstrapState() error {
 
 // DB returns the default app database builder instance.
 func (app *BaseApp) DB() dbx.Builder {
+	app.bootstrapMu.RLock()
+	defer app.bootstrapMu.RUnlock()
 	return app.dataDB
 }
 
@@ -533,6 +557,8 @@ func (app *BaseApp) DB() dbx.Builder {
 // Most users should use simply DB() as it will automatically
 // route the query execution to ConcurrentDB() or NonconcurrentDB().
 func (app *BaseApp) ConcurrentDB() dbx.Builder {
+	app.bootstrapMu.RLock()
+	defer app.bootstrapMu.RUnlock()
 	return app.dataDB
 }
 
@@ -541,11 +567,15 @@ func (app *BaseApp) ConcurrentDB() dbx.Builder {
 // Most users should use simply DB() as it will automatically
 // route the query execution to ConcurrentDB() or NonconcurrentDB().
 func (app *BaseApp) NonconcurrentDB() dbx.Builder {
+	app.bootstrapMu.RLock()
+	defer app.bootstrapMu.RUnlock()
 	return app.dataDB
 }
 
 // AuxDB returns the app auxiliary.db builder instance.
 func (app *BaseApp) AuxDB() dbx.Builder {
+	app.bootstrapMu.RLock()
+	defer app.bootstrapMu.RUnlock()
 	return app.auxDB
 }
 
@@ -554,6 +584,8 @@ func (app *BaseApp) AuxDB() dbx.Builder {
 // Most users should use simply AuxDB() as it will automatically
 // route the query execution to AuxConcurrentDB() or AuxNonconcurrentDB().
 func (app *BaseApp) AuxConcurrentDB() dbx.Builder {
+	app.bootstrapMu.RLock()
+	defer app.bootstrapMu.RUnlock()
 	return app.auxDB
 }
 
@@ -562,6 +594,8 @@ func (app *BaseApp) AuxConcurrentDB() dbx.Builder {
 // Most users should use simply AuxDB() as it will automatically
 // route the query execution to AuxConcurrentDB() or AuxNonconcurrentDB().
 func (app *BaseApp) AuxNonconcurrentDB() dbx.Builder {
+	app.bootstrapMu.RLock()
+	defer app.bootstrapMu.RUnlock()
 	return app.auxDB
 }
 
@@ -701,15 +735,19 @@ func (app *BaseApp) NewMailClient() mailer.Mailer {
 // NB! Make sure to call Close() on the returned result
 // after you are done working with it.
 func (app *BaseApp) NewFilesystem() (*filesystem.System, error) {
-	if app.settings != nil && app.settings.S3.Enabled {
-		return filesystem.NewS3(
-			app.settings.S3.Bucket,
-			app.settings.S3.Region,
-			app.settings.S3.Endpoint,
-			app.settings.S3.AccessKey,
-			app.settings.S3.Secret,
-			app.settings.S3.ForcePathStyle,
-		)
+	// snapshot: the async storage-delete hook calls this from a detached
+	// goroutine, potentially concurrent with a settings reload
+	if app.settings != nil {
+		if cfg := app.settings.snapshot(); cfg.S3.Enabled {
+			return filesystem.NewS3(
+				cfg.S3.Bucket,
+				cfg.S3.Region,
+				cfg.S3.Endpoint,
+				cfg.S3.AccessKey,
+				cfg.S3.Secret,
+				cfg.S3.ForcePathStyle,
+			)
+		}
 	}
 
 	// fallback to local filesystem
@@ -722,15 +760,19 @@ func (app *BaseApp) NewFilesystem() (*filesystem.System, error) {
 // NB! Make sure to call Close() on the returned result
 // after you are done working with it.
 func (app *BaseApp) NewBackupsFilesystem() (*filesystem.System, error) {
-	if app.settings != nil && app.settings.Backups.S3.Enabled {
-		return filesystem.NewS3(
-			app.settings.Backups.S3.Bucket,
-			app.settings.Backups.S3.Region,
-			app.settings.Backups.S3.Endpoint,
-			app.settings.Backups.S3.AccessKey,
-			app.settings.Backups.S3.Secret,
-			app.settings.Backups.S3.ForcePathStyle,
-		)
+	// snapshot: the autobackup cron calls this from a detached goroutine,
+	// potentially concurrent with a settings reload
+	if app.settings != nil {
+		if cfg := app.settings.snapshot(); cfg.Backups.S3.Enabled {
+			return filesystem.NewS3(
+				cfg.Backups.S3.Bucket,
+				cfg.Backups.S3.Region,
+				cfg.Backups.S3.Endpoint,
+				cfg.Backups.S3.AccessKey,
+				cfg.Backups.S3.Secret,
+				cfg.Backups.S3.ForcePathStyle,
+			)
+		}
 	}
 
 	// fallback to local filesystem
@@ -1171,12 +1213,6 @@ func (app *BaseApp) initDataDB() error {
 		return err
 	}
 
-	// Capture the resolved connection config for the outbox listener so it
-	// reconnects to the same host/port/user/database without re-resolving
-	// from PB_POSTGRES_* env vars (which may differ from a custom DBConnect
-	// closure used by the test harness).
-	app.dbConfig = ResolveDBConfig(inputConfig)
-
 	if app.IsDev() {
 		db.QueryLogFunc = func(ctx context.Context, t time.Duration, sql string, rows *sql.Rows, err error) {
 			color.HiBlack("[%.2fms] %v\n", float64(t.Milliseconds()), normalizeSQLLog(sql))
@@ -1186,7 +1222,15 @@ func (app *BaseApp) initDataDB() error {
 		}
 	}
 
+	// Capture the resolved connection config for the outbox listener so it
+	// reconnects to the same host/port/user/database without re-resolving
+	// from PB_POSTGRES_* env vars (which may differ from a custom DBConnect
+	// closure used by the test harness). Assigned together with the handle
+	// in one synchronized section (see bootstrapMu).
+	app.bootstrapMu.Lock()
+	app.dbConfig = ResolveDBConfig(inputConfig)
 	app.dataDB = db
+	app.bootstrapMu.Unlock()
 
 	return nil
 }
@@ -1224,7 +1268,9 @@ func (app *BaseApp) initAuxDB() error {
 		return err
 	}
 
+	app.bootstrapMu.Lock()
 	app.auxDB = db
+	app.bootstrapMu.Unlock()
 
 	return nil
 }
@@ -1257,13 +1303,7 @@ func supportFiles(m Model) bool {
 }
 
 func (app *BaseApp) registerBaseHooks() {
-	deletePrefix := func(prefix string) error {
-		fs, err := app.NewFilesystem()
-		if err != nil {
-			return err
-		}
-		defer fs.Close()
-
+	deletePrefix := func(fs *filesystem.System, prefix string) error {
 		failed := fs.DeletePrefix(prefix)
 		if len(failed) > 0 {
 			return errors.New("failed to delete the files at " + prefix)
@@ -1288,9 +1328,26 @@ func (app *BaseApp) registerBaseHooks() {
 				// (https://github.com/arief-fajri/pgbase/discussions/5246#discussioncomment-10128955)
 				prefix := strings.TrimRight(m.BaseFilesPath(), "/") + "/"
 
+				// Resolve the filesystem on THIS goroutine (inside the delete
+				// transaction) instead of inside the async worker below: the
+				// worker must never touch the app settings, because an
+				// in-place settings mutation on another goroutine (the
+				// documented app.Settings().Field = x pattern bypasses the
+				// settings mutex) would race it — caught by the CI -race job.
+				fs, fsErr := e.App.NewFilesystem()
+				if fsErr != nil {
+					app.Logger().Error(
+						"Failed to delete storage prefix (couldn't resolve the filesystem)",
+						slog.String("prefix", prefix),
+						slog.String("error", fsErr.Error()),
+					)
+					return e.Next()
+				}
+
 				// note: for now assume no context cancellation
 				err := deleteSem.Acquire(context.Background(), 1)
 				if err != nil {
+					fs.Close()
 					app.Logger().Error(
 						"Failed to delete storage prefix (couldn't acquire a worker)",
 						slog.String("prefix", prefix),
@@ -1300,8 +1357,9 @@ func (app *BaseApp) registerBaseHooks() {
 					// run in the background for "optimistic" delete to avoid blocking the delete transaction
 					routine.FireAndForget(func() {
 						defer deleteSem.Release(1)
+						defer fs.Close()
 
-						if err := deletePrefix(prefix); err != nil {
+						if err := deletePrefix(fs, prefix); err != nil {
 							app.Logger().Error(
 								"Failed to delete storage prefix (non critical error; usually could happen because of S3 api limits)",
 								slog.String("prefix", prefix),
@@ -1373,7 +1431,9 @@ func getLoggerMinLevel(app App) slog.Level {
 	if app.IsDev() {
 		minLevel = -99999
 	} else if app.Settings() != nil {
-		minLevel = slog.Level(app.Settings().Logs.MinLevel)
+		// snapshot: the log handler level can be re-resolved on the settings
+		// reload hook while background goroutines are logging
+		minLevel = slog.Level(app.Settings().snapshot().Logs.MinLevel)
 	}
 
 	return minLevel
@@ -1388,21 +1448,26 @@ func (app *BaseApp) initLogger() error {
 		Level:     getLoggerMinLevel(app),
 		BatchSize: 200,
 		BeforeAddFunc: func(ctx context.Context, log *logger.Log) bool {
+			// snapshot: logs are added from arbitrary goroutines, potentially
+			// concurrent with a settings reload
+			logsSettings := app.Settings().snapshot().Logs
+
 			if app.IsDev() {
 				printLog(log)
 
 				// manually check the log level and skip if necessary
-				if log.Level < slog.Level(app.Settings().Logs.MinLevel) {
+				if log.Level < slog.Level(logsSettings.MinLevel) {
 					return false
 				}
 			}
 
 			ticker.Reset(duration)
 
-			return app.Settings().Logs.MaxDays > 0
+			return logsSettings.MaxDays > 0
 		},
 		WriteFunc: func(ctx context.Context, logs []*logger.Log) error {
-			if !app.IsBootstrapped() || app.Settings().Logs.MaxDays == 0 {
+			// snapshot: runs on the batch-writer goroutine
+			if !app.IsBootstrapped() || app.Settings().snapshot().Logs.MaxDays == 0 {
 				return nil
 			}
 
@@ -1545,7 +1610,8 @@ func (app *BaseApp) initLogger() error {
 	// cleanup old logs
 	app.Cron().Add("__pbLogsCleanup__", "0 */6 * * *", func() {
 		err := app.runWithCronLock("__pbLogsCleanup__", app.Logger(), func() error {
-			return app.DeleteOldLogs(time.Now().AddDate(0, 0, -1*app.Settings().Logs.MaxDays))
+			// snapshot: runs on the cron goroutine
+			return app.DeleteOldLogs(time.Now().AddDate(0, 0, -1*app.Settings().snapshot().Logs.MaxDays))
 		})
 		if err != nil {
 			app.Logger().Warn("Failed to delete old logs", "error", err)

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/mails"
 	"github.com/arief-fajri/pgbase/tools/router"
@@ -16,6 +15,7 @@ import (
 	"github.com/arief-fajri/pgbase/tools/search"
 	"github.com/arief-fajri/pgbase/tools/security"
 	"github.com/arief-fajri/pgbase/tools/types"
+	"github.com/pocketbase/dbx"
 )
 
 const (

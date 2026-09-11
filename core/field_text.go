@@ -8,10 +8,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/pocketbase/dbx"
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/core/validators"
 	"github.com/arief-fajri/pgbase/tools/security"
+	"github.com/pocketbase/dbx"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/spf13/cast"
 )
 

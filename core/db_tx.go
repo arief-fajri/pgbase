@@ -50,13 +50,17 @@ func (app *BaseApp) runInTransaction(db dbx.Builder, fn func(txApp App) error, i
 
 // createTxApp shallow clones the current app and assigns a new tx state.
 func (app *BaseApp) createTxApp(tx *dbx.Tx, isForAuxDB bool) *BaseApp {
-	clone := *app
+	clone := *app // shares bootstrapMu with the parent (see BaseApp docs)
 
+	// swap the db handle under the shared bootstrap lock to keep the
+	// "all dataDB/auxDB access goes through bootstrapMu" invariant uniform
+	clone.bootstrapMu.Lock()
 	if isForAuxDB {
 		clone.auxDB = tx
 	} else {
 		clone.dataDB = tx
 	}
+	clone.bootstrapMu.Unlock()
 
 	clone.txInfo = &TxAppInfo{
 		parent:     app,

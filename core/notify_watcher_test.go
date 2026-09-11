@@ -7,14 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tools/store"
+	"github.com/pocketbase/dbx"
 	"golang.org/x/sync/semaphore"
 )
 
 func TestNotifyWatcher_SettingsUpdate(t *testing.T) {
-
 	testEvents := store.New[core.App, int](nil)
 
 	tmpDir, err := os.MkdirTemp("", "pb_notify_test*")
@@ -85,7 +84,6 @@ func TestNotifyWatcher_SettingsUpdate(t *testing.T) {
 }
 
 func TestNotifyWatcher_CollectionsUpdate(t *testing.T) {
-
 	tmpDir, err := os.MkdirTemp("", "pb_notify_test*")
 	if err != nil {
 		t.Fatal(err)

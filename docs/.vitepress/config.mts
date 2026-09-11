@@ -67,6 +67,8 @@ export default withMermaid(defineConfig({
                 text: "Get started",
                 items: [
                     { text: "Overview", link: "/" },
+                    { text: "For AI agents", link: "/agents" },
+                    { text: "Comparison & positioning", link: "/comparison" },
                     { text: "Fork deltas", link: "/fork-deltas" },
                 ],
             },

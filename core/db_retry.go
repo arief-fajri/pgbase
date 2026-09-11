@@ -16,7 +16,10 @@ func queryTimeoutHook(timeout time.Duration) dbx.ExecHookFunc {
 			cancelCtx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer func() {
 				cancel()
-				q.WithContext(nil)
+				// SA1012: intentionally pass nil to reset the dbx query
+				// context after use, so the pooled query never carries a
+				// canceled context into a later execution.
+				q.WithContext(nil) //nolint:staticcheck
 			}()
 			q.WithContext(cancelCtx)
 		}

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/types"
+	"github.com/pocketbase/dbx"
 )
 
 // FindAllMFAsByRecord returns all MFA models linked to the provided auth record.

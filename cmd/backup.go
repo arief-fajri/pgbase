@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fatih/color"
 	"github.com/arief-fajri/pgbase/core"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 

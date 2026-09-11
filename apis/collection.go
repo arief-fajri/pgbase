@@ -6,12 +6,12 @@ import (
 	"slices"
 	"strings"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tools/auth"
 	"github.com/arief-fajri/pgbase/tools/router"
 	"github.com/arief-fajri/pgbase/tools/search"
 	"github.com/arief-fajri/pgbase/tools/security"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 // bindCollectionApi registers the collection api endpoints and the corresponding handlers.

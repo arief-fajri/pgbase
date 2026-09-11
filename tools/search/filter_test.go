@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/search"
+	"github.com/pocketbase/dbx"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )

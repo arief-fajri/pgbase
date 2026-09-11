@@ -13,11 +13,8 @@ func TestSuperuserUpsertCommand(t *testing.T) {
 	// Note: no t.Parallel() to avoid shared DB state conflicts
 
 	app, err := tests.NewTestApp()
-
 	if err != nil {
-
 		t.Fatal(err)
-
 	}
 	defer app.Cleanup()
 
@@ -102,11 +99,8 @@ func TestSuperuserCreateCommand(t *testing.T) {
 	// Note: no t.Parallel() to avoid shared DB state conflicts
 
 	app, err := tests.NewTestApp()
-
 	if err != nil {
-
 		t.Fatal(err)
-
 	}
 	defer app.Cleanup()
 

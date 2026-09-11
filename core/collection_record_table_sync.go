@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pocketbase/dbx"
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/tools/dbutils"
 	"github.com/arief-fajri/pgbase/tools/security"
+	"github.com/pocketbase/dbx"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 // SyncRecordTableSchema compares the two provided collections
@@ -244,8 +244,8 @@ func normalizeSingleVsMultipleFieldChanges(app App, newCollection *Collection, o
 
 			if !isOldMultiple && isNewMultiple {
 				// single -> multiple (convert to array)
-			copyQuery = txApp.DB().NewQuery(fmt.Sprintf(
-				`UPDATE "%s" set "%s" = (
+				copyQuery = txApp.DB().NewQuery(fmt.Sprintf(
+					`UPDATE "%s" set "%s" = (
 						CASE
 							WHEN COALESCE("%s"::text, '') = ''
 							THEN '[]'::jsonb
@@ -258,20 +258,20 @@ func normalizeSingleVsMultipleFieldChanges(app App, newCollection *Collection, o
 							)
 						END
 					)`,
-				newCollection.Name,
-				originalName,
-				oldTempName,
-				oldTempName,
-				oldTempName,
-				oldTempName,
-			))
+					newCollection.Name,
+					originalName,
+					oldTempName,
+					oldTempName,
+					oldTempName,
+					oldTempName,
+				))
 			} else {
 				// multiple -> single (keep only the last element)
 				//
 				// note: for file fields the actual file objects are not
 				// deleted allowing additional custom handling via migration
-			copyQuery = txApp.DB().NewQuery(fmt.Sprintf(
-				`UPDATE "%s" set "%s" = (
+				copyQuery = txApp.DB().NewQuery(fmt.Sprintf(
+					`UPDATE "%s" set "%s" = (
 					CASE
 						WHEN COALESCE("%s"::text, '[]') = '[]'
 						THEN ''
@@ -284,14 +284,14 @@ func normalizeSingleVsMultipleFieldChanges(app App, newCollection *Collection, o
 						)
 					END
 				)`,
-				newCollection.Name,
-				originalName,
-				oldTempName,
-				oldTempName,
-				oldTempName,
-				oldTempName,
-				oldTempName,
-			))
+					newCollection.Name,
+					originalName,
+					oldTempName,
+					oldTempName,
+					oldTempName,
+					oldTempName,
+					oldTempName,
+				))
 			}
 
 			// copy the normalized values

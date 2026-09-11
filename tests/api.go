@@ -100,10 +100,10 @@ type ApiScenario struct {
 	// test hooks
 	// ---------------------------------------------------------------
 
-	TestAppFactory func(t testing.TB) *TestApp
-	BeforeTestFunc func(t testing.TB, app *TestApp, e *core.ServeEvent)
+	TestAppFactory    func(t testing.TB) *TestApp
+	BeforeTestFunc    func(t testing.TB, app *TestApp, e *core.ServeEvent)
 	BeforeRequestFunc func(t testing.TB, app *TestApp, req *http.Request)
-	AfterTestFunc  func(t testing.TB, app *TestApp, res *http.Response)
+	AfterTestFunc     func(t testing.TB, app *TestApp, res *http.Response)
 }
 
 // Test executes the test scenario.

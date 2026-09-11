@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/dbutils"
 	"github.com/arief-fajri/pgbase/tools/inflector"
 	"github.com/arief-fajri/pgbase/tools/routine"
+	"github.com/pocketbase/dbx"
 	"golang.org/x/sync/errgroup"
 )
 

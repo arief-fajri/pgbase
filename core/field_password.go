@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/core/validators"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/spf13/cast"
 	"golang.org/x/crypto/bcrypt"
 )

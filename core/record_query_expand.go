@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/dbutils"
 	"github.com/arief-fajri/pgbase/tools/list"
+	"github.com/pocketbase/dbx"
 )
 
 // ExpandFetchFunc defines the function that is used to fetch the expanded relation records.

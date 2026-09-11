@@ -8,11 +8,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/dbutils"
 	"github.com/arief-fajri/pgbase/tools/inflector"
 	"github.com/arief-fajri/pgbase/tools/security"
 	"github.com/arief-fajri/pgbase/tools/tokenizer"
+	"github.com/pocketbase/dbx"
 )
 
 // DeleteView drops the specified view name.

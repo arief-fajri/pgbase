@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/core"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 func collectionsImport(e *core.RequestEvent) error {

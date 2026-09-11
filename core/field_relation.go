@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql/driver"
 
-	"github.com/pocketbase/dbx"
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/tools/list"
 	"github.com/arief-fajri/pgbase/tools/types"
+	"github.com/pocketbase/dbx"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 func init() {

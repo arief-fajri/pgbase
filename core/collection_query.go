@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/list"
+	"github.com/pocketbase/dbx"
 )
 
 const StoreKeyCachedCollections = "pbAppCachedCollections"

@@ -13,14 +13,14 @@ import (
 	"sync"
 	"time"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
-	"github.com/pocketbase/ozzo-validation/v4/is"
 	"github.com/arief-fajri/pgbase/core/validators"
 	"github.com/arief-fajri/pgbase/tools/cron"
 	"github.com/arief-fajri/pgbase/tools/hook"
 	"github.com/arief-fajri/pgbase/tools/mailer"
 	"github.com/arief-fajri/pgbase/tools/security"
 	"github.com/arief-fajri/pgbase/tools/types"
+	validation "github.com/pocketbase/ozzo-validation/v4"
+	"github.com/pocketbase/ozzo-validation/v4/is"
 )
 
 const (
@@ -144,7 +144,7 @@ type Settings struct {
 }
 
 func newDefaultSettings() *Settings {
-	return &Settings{
+	s := &Settings{
 		isNew: true,
 		settings: settings{
 			Meta: MetaConfig{
@@ -186,6 +186,8 @@ func newDefaultSettings() *Settings {
 			},
 		},
 	}
+
+	return s
 }
 
 // TableName implements [Model.TableName] interface method.
@@ -332,6 +334,26 @@ func (s *Settings) Clone() (*Settings, error) {
 	}
 
 	return clone, nil
+}
+
+// snapshot returns a copy of the settings data under s.mu.
+//
+// It guards a reader against the sanctioned writers (loadParam/Merge, which
+// unmarshal over the live struct under s.mu). The documented in-place
+// mutation pattern (app.Settings().Field = x) bypasses s.mu by design, so
+// callers must only use this helper from the app/request goroutines or from
+// detached goroutines that are guaranteed not to overlap such mutations —
+// the CI -race job caught NewFilesystem racing an in-place test mutation
+// from the async storage-delete goroutine (fixed by resolving the
+// filesystem handle synchronously before going async).
+//
+// The copy is shallow: slice-valued configs (RateLimits.Rules,
+// Audit.Collections, SuperuserIPs) share their backing arrays with the live
+// struct — treat them as read-only.
+func (s *Settings) snapshot() settings {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.settings
 }
 
 // MarshalJSON implements the [json.Marshaler] interface.

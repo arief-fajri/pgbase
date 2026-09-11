@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/core"
+	"github.com/pocketbase/dbx"
 )
 
 // automigrateOnCollectionChange handles the automigration snapshot

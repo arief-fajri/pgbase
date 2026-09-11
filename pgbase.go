@@ -9,11 +9,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/arief-fajri/pgbase/cmd"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tools/list"
 	"github.com/arief-fajri/pgbase/tools/osutils"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	_ "github.com/arief-fajri/pgbase/migrations"

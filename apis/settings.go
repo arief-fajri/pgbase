@@ -3,10 +3,10 @@ package apis
 import (
 	"net/http"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/forms"
 	"github.com/arief-fajri/pgbase/tools/router"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 // bindSettingsApi registers the settings api endpoints.

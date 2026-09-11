@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/forms"
 	"github.com/arief-fajri/pgbase/tests"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 func TestEmailSendValidateAndSubmit(t *testing.T) {

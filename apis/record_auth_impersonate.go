@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/core"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 // impersonateMaxDurationEnv overrides the upper bound (in seconds) allowed for a

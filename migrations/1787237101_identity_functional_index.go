@@ -12,7 +12,7 @@ import (
 // IDX-1: extend the PERF-I01 email functional-index fix to every password-auth
 // identity field (eg. username, custom identity fields).
 //
-// The auth lookups build `LOWER(field) = LOWER($1) AND field <> ''` for every
+// The auth lookups build `LOWER(field) = LOWER($1) AND field <> ”` for every
 // identity field. Email already gets a functional partial unique index
 // (initEmailField + migration 1787237100), but username and any other identity
 // field previously only had a plain case-sensitive unique index, forcing a

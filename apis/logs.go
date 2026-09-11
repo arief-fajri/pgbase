@@ -3,10 +3,10 @@ package apis
 import (
 	"net/http"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tools/router"
 	"github.com/arief-fajri/pgbase/tools/search"
+	"github.com/pocketbase/dbx"
 )
 
 // bindLogsApi registers the request logs api endpoints.

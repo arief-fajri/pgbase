@@ -23,10 +23,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tools/archive"
 	"github.com/arief-fajri/pgbase/tools/osutils"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 

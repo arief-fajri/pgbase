@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tools/osutils"
 	"github.com/arief-fajri/pgbase/ui"
+	"github.com/fatih/color"
+	"github.com/pocketbase/dbx"
 )
 
 // DefaultInstallerFunc is the default PG-Base installer function.

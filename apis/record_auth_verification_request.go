@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"time"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
-	"github.com/pocketbase/ozzo-validation/v4/is"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/mails"
 	"github.com/arief-fajri/pgbase/tools/routine"
+	validation "github.com/pocketbase/ozzo-validation/v4"
+	"github.com/pocketbase/ozzo-validation/v4/is"
 )
 
 func recordRequestVerification(e *core.RequestEvent) error {

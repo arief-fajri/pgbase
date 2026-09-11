@@ -768,7 +768,7 @@ Releases are **git-tag driven** and produced by [GoReleaser](https://goreleaser.
 
 ### How the draft release notes are generated
 
-`.goreleaser.yaml` keeps GoReleaser's auto-changelog **disabled** (`changelog.disable: true`) so the pre-fork PocketBase history is never pulled in, and `release.draft: true` makes every release a draft. Instead of an auto-changelog, the workflow extracts the newest `CHANGELOG.md` section into a file and hands it to GoReleaser via `--release-notes`:
+`.goreleaser.yaml` leaves GoReleaser's changelog pipe **enabled** (there is no `changelog.disable`), and `release.draft: true` makes every release a draft. The workflow extracts the newest `CHANGELOG.md` section into a file and hands it to GoReleaser via `--release-notes`; because that file is non-empty, GoReleaser uses it verbatim as the release body and skips the git-log changelog — so the pre-fork PocketBase history is never pulled in:
 
 ```bash
 # runs in CI on tag pushes — prints the body of the first "## " section

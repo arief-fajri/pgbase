@@ -95,11 +95,15 @@ func sendSystemAlert(app App, superuser *Record, subject string, details string)
 		return errors.New("system alerts subject and details are required")
 	}
 
+	// snapshot: system alerts are sent from detached goroutines (autobackup
+	// cron, etc.), potentially concurrent with a settings reload
+	meta := app.Settings().snapshot().Meta
+
 	data := struct {
 		AppName      string
 		AlertDetails string
 	}{
-		AppName:      app.Settings().Meta.AppName,
+		AppName:      meta.AppName,
 		AlertDetails: details,
 	}
 
@@ -119,11 +123,11 @@ func sendSystemAlert(app App, superuser *Record, subject string, details string)
 
 	message := &mailer.Message{
 		From: mail.Address{
-			Name:    app.Settings().Meta.SenderName,
-			Address: app.Settings().Meta.SenderAddress,
+			Name:    meta.SenderName,
+			Address: meta.SenderAddress,
 		},
 		To:      []mail.Address{{Address: superuser.Email()}},
-		Subject: "[" + app.Settings().Meta.AppName + " system alert] " + html.EscapeString(subject),
+		Subject: "[" + meta.AppName + " system alert] " + html.EscapeString(subject),
 		HTML:    buff.String(),
 	}
 

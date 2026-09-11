@@ -13,9 +13,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gabriel-vasile/mimetype"
 	"github.com/arief-fajri/pgbase/tools/inflector"
 	"github.com/arief-fajri/pgbase/tools/security"
+	"github.com/gabriel-vasile/mimetype"
 )
 
 // defaultMaxDownloadBytes is the default cap (32 MiB) applied when downloading

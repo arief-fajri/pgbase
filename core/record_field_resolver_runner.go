@@ -9,12 +9,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/dbutils"
 	"github.com/arief-fajri/pgbase/tools/inflector"
 	"github.com/arief-fajri/pgbase/tools/list"
 	"github.com/arief-fajri/pgbase/tools/search"
 	"github.com/arief-fajri/pgbase/tools/security"
+	"github.com/pocketbase/dbx"
 	"github.com/spf13/cast"
 )
 

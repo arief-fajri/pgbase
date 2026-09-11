@@ -24,6 +24,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/arief-fajri/pgbase/core"
+	"github.com/arief-fajri/pgbase/plugins/jsvm/internal/types/generated"
+	"github.com/arief-fajri/pgbase/tools/routine"
+	"github.com/arief-fajri/pgbase/tools/template"
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/buffer"
 	"github.com/dop251/goja_nodejs/console"
@@ -31,10 +35,6 @@ import (
 	"github.com/dop251/goja_nodejs/require"
 	"github.com/fatih/color"
 	"github.com/fsnotify/fsnotify"
-	"github.com/arief-fajri/pgbase/core"
-	"github.com/arief-fajri/pgbase/plugins/jsvm/internal/types/generated"
-	"github.com/arief-fajri/pgbase/tools/routine"
-	"github.com/arief-fajri/pgbase/tools/template"
 )
 
 const typesFileName = "types.d.ts"

@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/dbutils"
 	"github.com/arief-fajri/pgbase/tools/hook"
 	"github.com/arief-fajri/pgbase/tools/list"
 	"github.com/arief-fajri/pgbase/tools/security"
 	"github.com/arief-fajri/pgbase/tools/types"
+	"github.com/pocketbase/dbx"
 	"github.com/spf13/cast"
 )
 
@@ -349,7 +349,7 @@ func (app *BaseApp) registerCollectionHooks() {
 }
 
 // @todo experiment eventually replacing the rules *string with a struct?
-	// @todo consider changing the Indexes field to a "getter" for the pg_indexes view?
+// @todo consider changing the Indexes field to a "getter" for the pg_indexes view?
 type baseCollection struct {
 	BaseModel
 

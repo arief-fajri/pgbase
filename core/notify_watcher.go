@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
-	"github.com/fsnotify/fsnotify"
 	"github.com/arief-fajri/pgbase/tools/hook"
 	"github.com/arief-fajri/pgbase/tools/routine"
 	"github.com/arief-fajri/pgbase/tools/security"
+	"github.com/fatih/color"
+	"github.com/fsnotify/fsnotify"
 )
 
 const systemHookIdNotifyWatcher = "__pbNotifyWatcherSystemHook__"

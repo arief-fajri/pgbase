@@ -5,9 +5,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tests"
+	"github.com/pocketbase/dbx"
 )
 
 func TestFindAllExternalAuthsByRecord(t *testing.T) {

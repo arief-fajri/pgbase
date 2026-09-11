@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/arief-fajri/pgbase/tools/security"
 	"github.com/ganigeorgiev/fexpr"
 	"github.com/pocketbase/dbx"
-	"github.com/arief-fajri/pgbase/tools/security"
 )
 
 func TestTokenFunctionsGeoDistance(t *testing.T) {

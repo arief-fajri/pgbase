@@ -18,8 +18,8 @@ import (
 	"strings"
 	"testing"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/tools/router"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 type unwrapTester struct {

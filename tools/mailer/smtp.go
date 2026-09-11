@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/domodwyer/mailyak/v3"
 	"github.com/arief-fajri/pgbase/tools/hook"
 	"github.com/arief-fajri/pgbase/tools/security"
+	"github.com/domodwyer/mailyak/v3"
 )
 
 var _ Mailer = (*SMTPClient)(nil)
