@@ -113,7 +113,9 @@ func (app *BaseApp) CreateBackup(ctx context.Context, name string) error {
 		// ---
 		tempPath := filepath.Join(localTempDir, "pb_backup_"+security.PseudorandomString(6))
 
-		format := backupFormatOrDefault(e.App.Settings().Backups.Format)
+		// snapshot: the backup hooks can run on the cron/serve goroutines,
+		// potentially concurrent with a settings reload
+		format := backupFormatOrDefault(e.App.Settings().snapshot().Backups.Format)
 
 		dbDumpName := pgBackupDumpName
 		if format == BackupFormatSQLite {
@@ -277,7 +279,8 @@ func (app *BaseApp) restoreBackup(ctx context.Context, name string, restartAfter
 		defer os.RemoveAll(extractedDataDir)
 
 		// extract the zip
-		if e.App.Settings().Backups.S3.Enabled {
+		// (snapshot: restore can run on a detached goroutine via the CLI)
+		if e.App.Settings().snapshot().Backups.S3.Enabled {
 			br, err := fsys.GetReader(name)
 			if err != nil {
 				return err
@@ -447,7 +450,8 @@ func (app *BaseApp) registerAutobackupHooks() {
 	const jobId = "__pbAutoBackup__"
 
 	loadJob := func() {
-		rawSchedule := app.Settings().Backups.Cron
+		// snapshot: also invoked from the settings reload hook
+		rawSchedule := app.Settings().snapshot().Backups.Cron
 		if rawSchedule == "" {
 			app.Cron().Remove(jobId)
 			return
@@ -483,7 +487,8 @@ func (app *BaseApp) registerAutobackupHooks() {
 					return nil // already logged + alerted
 				}
 
-				maxKeep := app.Settings().Backups.CronMaxKeep
+				// snapshot: runs on the cron goroutine
+				maxKeep := app.Settings().snapshot().Backups.CronMaxKeep
 
 				if maxKeep == 0 {
 					return nil // no explicit limit
@@ -560,7 +565,8 @@ func (app *BaseApp) registerAutobackupHooks() {
 }
 
 func generateBackupName(app App, prefix string) string {
-	appName := inflector.Snakecase(app.Settings().Meta.AppName)
+	// snapshot: called from the autobackup cron goroutine
+	appName := inflector.Snakecase(app.Settings().snapshot().Meta.AppName)
 	if len(appName) > 50 {
 		appName = appName[:50]
 	}
