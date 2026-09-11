@@ -69,7 +69,7 @@ groups — the v0.5.1 rebrand once broke this; keep the tree clean).
 - `third_party/dbx` — forked query builder (PgSQL dialect)
 - `plugins/` — optional: jsvm hooks, migratecmd, ghupdate
 - `tests/` — test harness (`tests/app.go`)
-- `ui/src` — Svelte dashboard (14 field types, `ui/src/fields/<type>/`)
+- `ui/src` — dashboard SPA (vanilla-JS custom reactive framework, not React/Svelte/Vue; 14 field types under `ui/src/fields/<type>/`)
 
 ## Hard rules
 
