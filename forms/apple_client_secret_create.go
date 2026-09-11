@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/arief-fajri/pgbase/core"
 	"github.com/golang-jwt/jwt/v5"
 	validation "github.com/pocketbase/ozzo-validation/v4"
-	"github.com/arief-fajri/pgbase/core"
 )
 
 var privateKeyRegex = regexp.MustCompile(`(?m)-----BEGIN PRIVATE KEY----[\s\S]+-----END PRIVATE KEY-----`)

@@ -15,8 +15,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/arief-fajri/pgbase/tools/auth/internal/jwk"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type publicKey interface {

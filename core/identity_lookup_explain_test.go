@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tests"
+	"github.com/pocketbase/dbx"
 )
 
 // functionalIndexesOnTable returns the index definitions (pg_indexes.indexdef)
@@ -36,7 +36,7 @@ func functionalIndexesOnTable(t testing.TB, app *tests.TestApp, tableName string
 }
 
 // explainWithSeqScanDisabled returns the EXPLAIN output for the exact auth
-// identity lookup shape (LOWER(field) = LOWER($1) AND field <> '') with the
+// identity lookup shape (LOWER(field) = LOWER($1) AND field <> ”) with the
 // planner forced to consider index scans (enable_seqscan = off). This proves
 // the functional index is USABLE for the lookup, independent of table size.
 func explainWithSeqScanDisabled(t testing.TB, app *tests.TestApp, tableName string, fieldName string) string {

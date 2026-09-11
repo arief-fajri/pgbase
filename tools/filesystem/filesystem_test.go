@@ -15,8 +15,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gabriel-vasile/mimetype"
 	"github.com/arief-fajri/pgbase/tools/filesystem"
+	"github.com/gabriel-vasile/mimetype"
 )
 
 func TestFileSystemExists(t *testing.T) {

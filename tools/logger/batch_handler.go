@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"sync"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/tools/types"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 var _ slog.Handler = (*BatchHandler)(nil)

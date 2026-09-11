@@ -18,10 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dop251/goja"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/pocketbase/dbx"
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/apis"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/forms"
@@ -35,6 +31,10 @@ import (
 	"github.com/arief-fajri/pgbase/tools/store"
 	"github.com/arief-fajri/pgbase/tools/subscriptions"
 	"github.com/arief-fajri/pgbase/tools/types"
+	"github.com/dop251/goja"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/pocketbase/dbx"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/spf13/cast"
 	"github.com/spf13/cobra"
 )

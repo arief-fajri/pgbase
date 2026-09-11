@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/dbutils"
 	"github.com/arief-fajri/pgbase/tools/inflector"
 	"github.com/arief-fajri/pgbase/tools/list"
+	"github.com/pocketbase/dbx"
 )
 
 type NullFallbackPreference int

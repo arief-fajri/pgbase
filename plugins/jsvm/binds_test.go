@@ -16,8 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dop251/goja"
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/apis"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tests"
@@ -25,6 +23,8 @@ import (
 	"github.com/arief-fajri/pgbase/tools/mailer"
 	"github.com/arief-fajri/pgbase/tools/router"
 	"github.com/arief-fajri/pgbase/tools/types"
+	"github.com/dop251/goja"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/spf13/cast"
 )
 

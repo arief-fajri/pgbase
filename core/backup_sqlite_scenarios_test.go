@@ -389,11 +389,11 @@ func TestScenarioRuleNilVsEmptyRoundTrip(t *testing.T) {
 
 	perms := core.NewBaseCollection("perms")
 	perms.Fields.Add(&core.TextField{Name: "label"})
-	perms.ListRule = nil        // locked
-	perms.ViewRule = &public    // public
-	perms.CreateRule = &custom  // custom expression
-	perms.UpdateRule = nil      // locked
-	perms.DeleteRule = &public  // public
+	perms.ListRule = nil       // locked
+	perms.ViewRule = &public   // public
+	perms.CreateRule = &custom // custom expression
+	perms.UpdateRule = nil     // locked
+	perms.DeleteRule = &public // public
 	if err := app.Save(perms); err != nil {
 		t.Fatalf("create perms: %v", err)
 	}

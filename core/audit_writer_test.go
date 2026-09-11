@@ -3,9 +3,9 @@ package core_test
 import (
 	"testing"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tests"
+	"github.com/pocketbase/dbx"
 )
 
 func TestFindAuditById(t *testing.T) {

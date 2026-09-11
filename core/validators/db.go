@@ -6,10 +6,10 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/arief-fajri/pgbase/tools/dbutils"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pocketbase/dbx"
 	validation "github.com/pocketbase/ozzo-validation/v4"
-	"github.com/arief-fajri/pgbase/tools/dbutils"
 )
 
 // pgUniqueDetailKeyRegex extracts the offending column name(s) from a
@@ -21,7 +21,6 @@ import (
 // a nested functional expression (eg. lower(email)) is captured whole instead
 // of being truncated at its inner closing parenthesis.
 var pgUniqueDetailKeyRegex = regexp.MustCompile(`(?i)Key \((.+?)\)=\(`)
-
 
 // UniqueId checks whether a field string id already exists in the specified table.
 //

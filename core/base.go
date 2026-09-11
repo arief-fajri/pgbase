@@ -15,8 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/cron"
 	"github.com/arief-fajri/pgbase/tools/filesystem"
 	"github.com/arief-fajri/pgbase/tools/hook"
@@ -27,6 +25,8 @@ import (
 	"github.com/arief-fajri/pgbase/tools/store"
 	"github.com/arief-fajri/pgbase/tools/subscriptions"
 	"github.com/arief-fajri/pgbase/tools/types"
+	"github.com/fatih/color"
+	"github.com/pocketbase/dbx"
 	"github.com/spf13/cast"
 	"golang.org/x/sync/semaphore"
 )

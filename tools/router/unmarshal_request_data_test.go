@@ -445,13 +445,14 @@ func TestUnmarshalRequestData(t *testing.T) {
 func TestUnmarshalRequestDataUnexportedFields(t *testing.T) {
 	t.Parallel()
 
-	//nolint:all
 	type TestStruct struct {
 		Exported string
 
 		unexported string
 		// to ensure that the reflection doesn't take tags with higher priority than the exported state
-		unexportedWithTag string `form:"unexportedWithTag" json:"unexportedWithTag"`
+		// (NB! no json tag as `go vet` since Go 1.25 reports json tags on unexported fields;
+		// UnmarshalRequestData consults only the structTagKey/"form" tag anyway)
+		unexportedWithTag string `form:"unexportedWithTag"`
 	}
 
 	dst := &TestStruct{}

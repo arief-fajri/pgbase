@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tools/dbutils"
+	"github.com/pocketbase/dbx"
 )
 
 // see https://github.com/arief-fajri/pgbase/issues/7689
