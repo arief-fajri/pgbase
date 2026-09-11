@@ -3,11 +3,11 @@ package core_test
 import (
 	"testing"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tests"
 	"github.com/arief-fajri/pgbase/tools/list"
 	"github.com/arief-fajri/pgbase/tools/types"
+	"github.com/pocketbase/dbx"
 )
 
 // numericIndexOids returns the physical index relational identifiers for a table,

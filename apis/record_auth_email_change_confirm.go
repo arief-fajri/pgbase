@@ -3,9 +3,9 @@ package apis
 import (
 	"net/http"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tools/security"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 func recordConfirmEmailChange(e *core.RequestEvent) error {

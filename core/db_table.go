@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/dbutils"
+	"github.com/pocketbase/dbx"
 )
 
 func (app *BaseApp) TableColumns(tableName string) ([]string, error) {

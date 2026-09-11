@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/core/validators"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 func TestJoinValidationErrors(t *testing.T) {

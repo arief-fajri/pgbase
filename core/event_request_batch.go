@@ -3,8 +3,8 @@ package core
 import (
 	"net/http"
 
-	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/arief-fajri/pgbase/tools/hook"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 type BatchRequestEvent struct {

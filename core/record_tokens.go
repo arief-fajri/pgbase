@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/arief-fajri/pgbase/tools/security"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // Supported record token types

@@ -8,7 +8,6 @@ import (
 )
 
 func TestSendSystemAlert(t *testing.T) {
-
 	testDataDir, err := os.MkdirTemp("", "sendSystemAlert_pb_data")
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +60,6 @@ func TestSendSystemAlert(t *testing.T) {
 }
 
 func TestSendSystemAlertToAllSuperusers(t *testing.T) {
-
 	testDataDir, err := os.MkdirTemp("", "sendSystemAlertToAllSuperusers_pb_data")
 	if err != nil {
 		t.Fatal(err)

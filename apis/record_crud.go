@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/forms"
 	"github.com/arief-fajri/pgbase/tools/filesystem"
@@ -18,6 +17,7 @@ import (
 	"github.com/arief-fajri/pgbase/tools/router"
 	"github.com/arief-fajri/pgbase/tools/search"
 	"github.com/arief-fajri/pgbase/tools/security"
+	"github.com/pocketbase/dbx"
 )
 
 // bindRecordCrudApi registers the record crud api endpoints and

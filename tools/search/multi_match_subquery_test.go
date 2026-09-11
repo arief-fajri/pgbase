@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/search"
+	"github.com/pocketbase/dbx"
 )
 
 func TestMultiMatchSubqueryBuild(t *testing.T) {

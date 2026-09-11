@@ -3,9 +3,9 @@ package migrations_test
 import (
 	"testing"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tests"
+	"github.com/pocketbase/dbx"
 )
 
 // TestLogsAutovacuumTuning verifies that the _logs table carries the tuned

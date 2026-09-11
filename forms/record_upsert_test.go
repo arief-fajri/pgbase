@@ -438,7 +438,6 @@ func TestRecordUpsertDrySubmitUpdateSuccess(t *testing.T) {
 }
 
 func TestRecordUpsertSubmitValidations(t *testing.T) {
-
 	app, _ := tests.NewTestApp()
 	defer app.Cleanup()
 

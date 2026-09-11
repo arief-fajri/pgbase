@@ -154,7 +154,7 @@ type postgresRoleTimeoutAction struct {
 // "off"/"0" explicitly resets the role setting (RESET) so the previous boot's
 // value does not linger.
 func defaultPostgresRoleTimeoutActions() []postgresRoleTimeoutAction {
-	var actions []postgresRoleTimeoutAction
+	actions := make([]postgresRoleTimeoutAction, 0, 2)
 
 	for _, d := range []struct {
 		param string

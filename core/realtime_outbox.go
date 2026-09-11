@@ -243,12 +243,15 @@ func (app *BaseApp) RealtimeOutboxTailCursor() (time.Time, string, error) {
 // database the app is connected to, deriving host/port/user from the live
 // connection and falling back to the stored config for password/sslmode.
 func (app *BaseApp) OpenRealtimeOutboxListener(connectCtx context.Context) (*pgx.Conn, error) {
-	if app.dataDB == nil {
-		return nil, fmt.Errorf("database not initialized")
-	}
-
+	app.bootstrapMu.RLock()
+	bootstrapped := app.dataDB != nil
 	// Start from the config captured at init time.
 	cfg := app.dbConfig
+	app.bootstrapMu.RUnlock()
+
+	if !bootstrapped {
+		return nil, fmt.Errorf("database not initialized")
+	}
 
 	// Override from the live connection so a custom DBConnect closure
 	// (test harness) is honoured for host, port, user, and dbname.

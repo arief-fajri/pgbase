@@ -14,12 +14,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tools/hook"
 	"github.com/arief-fajri/pgbase/tools/list"
 	"github.com/arief-fajri/pgbase/tools/routine"
 	"github.com/arief-fajri/pgbase/ui"
+	"github.com/fatih/color"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )

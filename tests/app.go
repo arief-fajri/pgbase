@@ -296,8 +296,8 @@ func NewTestApp(optTestDataDir ...string) (*TestApp, error) {
 	}
 
 	return NewTestAppWithConfig(core.BaseAppConfig{
-		DataDir:         testDataDir,
-		EncryptionEnv:   "pb_test_env",
+		DataDir:          testDataDir,
+		EncryptionEnv:    "pb_test_env",
 		DataMaxOpenConns: 2,
 		AuxMaxOpenConns:  1,
 	})

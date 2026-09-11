@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/migrations"
 	"github.com/arief-fajri/pgbase/tests"
 	"github.com/arief-fajri/pgbase/tools/dbutils"
 	"github.com/arief-fajri/pgbase/tools/types"
+	"github.com/pocketbase/dbx"
 )
 
 // readIndexDef returns the physical PostgreSQL definition of the named index

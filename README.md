@@ -13,7 +13,19 @@ PostgreSQL-powered backend as a service — a fork of [PocketBase v0.39.11](http
 
 ## Quick Start
 
-### Docker (Recommended)
+### One command (Docker)
+
+Boots PG-BASE + PostgreSQL with generated credentials and a first superuser:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/arief-fajri/pgbase/main/deploy/quickstart.sh | sh
+```
+
+The API + dashboard are then available at <http://localhost:8090/_/> with the
+printed credentials. Deploying via an AI agent? See the
+[agent quick start](https://arief-fajri.github.io/pgbase/agents).
+
+### Docker (from a checkout)
 
 ```bash
 docker compose up
@@ -22,25 +34,28 @@ docker compose up
 The API + dashboard are then available at <http://localhost:8090/_/>. Create a superuser to log in:
 
 ```bash
-docker compose exec pgbase pgbase superuser create admin@example.com "changeme123"
+docker compose exec pgbase pgbase superuser upsert admin@example.com "changeme123"
 ```
 
 ### Binary
 
-The runnable entrypoint lives in `examples/base` (the root package is a library):
+```bash
+# Install the latest release (checksum-verified) …
+curl -fsSL https://raw.githubusercontent.com/arief-fajri/pgbase/main/install.sh | sh
+# … or build from source
+go build -o pgbase ./examples/base
+```
+
+The runnable entrypoint lives in `examples/base` (the root package is a library). Run with env vars or `--pg-*` flags:
 
 ```bash
-# Build
-go build -o pgbase ./examples/base
-
-# Run (env vars or --pg-* flags, see below)
 ./pgbase serve --http="127.0.0.1:8090"
 ```
 
 Then create a superuser and open the dashboard:
 
 ```bash
-./pgbase superuser create admin@example.com "changeme123"
+./pgbase superuser upsert admin@example.com "changeme123"
 # → http://127.0.0.1:8090/_/
 ```
 

@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	"github.com/arief-fajri/pgbase/tools/hook"
 	"github.com/arief-fajri/pgbase/tools/types"
+	"github.com/pocketbase/dbx"
 )
 
 // auditActors bridges the request actor (auth/ip/ua) captured in the record
