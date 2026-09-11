@@ -2,6 +2,10 @@
 # Auto-loaded by lychee from the repository root.
 # Vendored README links are NOT handled here: docs/node_modules/ is kept out
 # via the one-level input globs in .github/workflows/docs.yaml instead.
+# NOTE: the docs workflow sets failIfEmpty: true — the scanned doc set is
+# expected to contain checkable URLs that are NOT matched here (github.com,
+# the project Pages site, tooling sites). If you add a pattern below, make
+# sure it only excludes genuinely uncheckable targets.
 # Local dev addresses can never resolve in CI — nothing listens on the
 # runner — so checking them only produces false positives (or hangs).
 http://localhost.*

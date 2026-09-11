@@ -1,0 +1,74 @@
+name: security-scan
+
+# Scheduled dependency-vulnerability scans (Sprint 0a CI hygiene):
+# - govulncheck over the Go module (symbol-level analysis: fails only when a
+#   reachable vulnerability is found)
+# - npm audit over the embedded dashboard (ui/) and the docs site (docs/)
+#
+# Scheduled workflows run against the default branch only. `workflow_dispatch`
+# allows manual runs (e.g. right after an advisory drops).
+on:
+  schedule:
+    - cron: '0 6 * * 1' # every Monday 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  govulncheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        # pinned by full SHA (CFG-07); was actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Go
+        # pinned by full SHA (CFG-07); was actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: '>=1.26.5'
+
+      # @latest on purpose: the scanner and its detection rules evolve
+      # together; the Go module proxy serves checksum-verified zips, so the
+      # download is reproducible and tamper-checked.
+      - name: Install govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # Exits non-zero when any vulnerability is reachable from this code
+      # (symbol-level analysis — advisories in modules you require but never
+      # call are reported as informational, not failures).
+      - name: Run govulncheck
+        run: govulncheck ./...
+
+  npm-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        # pinned by full SHA (CFG-07); was actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Node.js
+        # pinned by full SHA (CFG-07); was actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '>=25.2.1'
+
+      # The dashboard is shipped inside the binary, so its FULL dependency
+      # tree (dev included — it builds the embedded ui/dist) must stay clean
+      # at high severity and above.
+      - name: npm audit (ui)
+        run: npm --prefix ui audit --audit-level=high
+
+      # The docs site is a dev-time VitePress toolchain: its vite/vitepress/
+      # esbuild chain currently carries advisories with "no fix available"
+      # that only affect the dev server, not the built site or any runtime.
+      # Audit the production dependency set only; revisit when the toolchain
+      # advisories get fixes upstream.
+      - name: npm audit (docs, production deps only)
+        run: npm --prefix docs audit --omit=dev --audit-level=high

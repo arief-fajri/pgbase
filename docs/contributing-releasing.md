@@ -15,7 +15,7 @@ Go 1.25+ (CI `>=1.26.5`), Node 22+ (CI `>=25.2.1`; 18 is EOL), PostgreSQL 16+, D
 3. Add/update tests (`testing` + `tests.TestApp` harness for DB code). Test DB: `docker compose -f tests/docker-compose.test.yml up -d --wait` (host `:5433`, `PGTEST_*` defaults match; raw core tests need `PB_POSTGRES_*` pointed at the test DB — see `developing.md` #10).
 4. Run relevant tests + `make lint` (`golangci-lint run -c ./golangci.yml ./...`).
 5. UI change? `cd ui && npm run build` **before** `go build` (binary embeds `ui/dist` via `ui/embed.go`; stale `dist` = stale site).
-6. Open PR against `main`. Only PRs and `v*` tags trigger CI (`basebuild`): UI build + test Postgres + `go test ./... -p 4 -timeout=1200s` + 32-bit `GOARCH=arm` check. Plain `main` pushes run nothing.
+6. Open PR against `main`. Only PRs and `v*` tags trigger CI (`basebuild`): UI build + test Postgres + `go test ./...` + a parallel `go test -race ./...` job + a `golangci-lint` job (`make lint` equivalent) + 32-bit `GOARCH=arm` check. Docs changes also run the `docs` workflow (markdownlint + VitePress build + lychee link check). A weekly `security-scan` workflow (Monday 06:00 UTC, manual dispatch too) runs `govulncheck` + `npm audit`. Plain `main` pushes run nothing.
 
 ## 3. Migrations
 
@@ -34,4 +34,4 @@ Mistaken local tag: `git tag -d vX.Y.Z`. Deleting a pushed tag also removes the 
 
 ## 5. Upstream tracking (fork duty)
 
-The fork strategy and its maintenance-cost estimate live in [`FORK_STRATEGY.md`](https://github.com/arief-fajri/pgbase/blob/main/FORK_STRATEGY.md) (hard fork, watch → triage → act, security backport SLA, adopt/skip/diverge rules, revisit triggers). In short: watch upstream releases + Go/npm advisories, triage applicability, backport security fixes within the SLA; per-feature adopt/skip/diverge decisions; scheduled `govulncheck` + `npm audit` gates; compatibility matrix (JS/Dart SDK × PG 16/17) before publishing claims.
+The fork strategy and its maintenance-cost estimate live in `FORK_STRATEGY.md` at the repository root (hard fork, watch → triage → act, security backport SLA, adopt/skip/diverge rules, revisit triggers). In short: watch upstream releases + Go/npm advisories, triage applicability, backport security fixes within the SLA; per-feature adopt/skip/diverge decisions; scheduled `govulncheck` + `npm audit` gates; compatibility matrix (JS/Dart SDK × PG 16/17) before publishing claims.

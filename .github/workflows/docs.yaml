@@ -65,11 +65,12 @@ jobs:
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8
         with:
           args: --no-progress --timeout 15 --max-retries 1 'docs/*.md' 'docs/architecture/*.md' 'docs/flows/*.md' 'docs/reference/*.md'
-          # All currently documented URLs are excluded in .lycheeignore
-          # (uncheckable-local or unverifiable-external), so zero links is
-          # the expected steady state — not a failure. Any future http(s)
-          # link added to docs is still checked.
-          failIfEmpty: false
+          # failIfEmpty: true keeps the check honest — the scanned docs carry
+          # real checkable URLs (github.com, the project Pages site, tooling
+          # sites), so an empty result set means the doc set lost its
+          # checkable links (e.g. an over-eager .lycheeignore pattern) and
+          # must be treated as a regression, not a pass.
+          failIfEmpty: true
 
   # Publishes the VitePress site to GitHub Pages (project pages:
   # https://arief-fajri.github.io/pgbase/ — hence base '/pgbase/' in config).
