@@ -61,7 +61,8 @@ jobs:
         # directly under docs/node_modules/, so these globs can never match
         # vendored files. When adding a new docs/ subdirectory, add its
         # '*.md' glob here.
-        uses: lycheeverse/lychee-action@v2
+        # pinned by full SHA (CFG-07); tracks lycheeverse/lychee-action@v2 (v2.9.0)
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8
         with:
           args: --no-progress --timeout 15 --max-retries 1 'docs/*.md' 'docs/architecture/*.md' 'docs/flows/*.md' 'docs/reference/*.md'
           # All currently documented URLs are excluded in .lycheeignore
