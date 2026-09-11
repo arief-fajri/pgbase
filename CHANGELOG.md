@@ -1,3 +1,34 @@
+## v0.5.3
+
+CI hygiene with blocking race/lint gates, one-command provision, agent quick start, positioning docs, a documented fork-strategy decision, and two data races fixed that the new race gate caught.
+
+### Security & trust
+
+- **Forked `.github/SECURITY.md`**: GitHub Private Vulnerability Reporting as the only channel, with fork-vs-upstream routing guidance and a supported-versions table (`v0.5.x`).
+- **New `FORK_STRATEGY.md` decision record**: deliberate choice to stay a hard fork (build-tag overlay and periodic rebase evaluated and rejected, with revisit triggers), a watch → triage → act tracking process, a security backport SLA, adopt/skip/diverge rules, and a maintenance-cost estimate (~1–2 days/month sustained).
+
+### CI & quality gates
+
+- **New parallel `race` job** in `basebuild`: the full suite now runs under `go test -race ./...` on every PR and tag.
+- **New blocking `lint` job** (golangci-lint v2.6.2, same as `make lint`): 162 pre-existing findings fixed first — the v0.5.1 rebrand had broken alphabetical import order in ~154 files.
+- **New weekly `security-scan` workflow** (Mondays 06:00 UTC, manually dispatchable): symbol-level `govulncheck` over the Go module plus `npm audit` over `ui/` (full tree) and `docs/` (production deps only — the VitePress dev chain carries no-fix-available advisories).
+- **Docs link check hardened**: `lychee-action` pinned by full SHA and `failIfEmpty: true` — the scanned docs now carry real checkable URLs, so an empty result is a regression.
+- **New `docker` job**: version tags publish `ghcr.io/arief-fajri/pgbase:<tag>` + `:latest` (linux/amd64-first; multi-arch is a cheap follow-up).
+
+### Trial path & docs
+
+- **One-command provision**: `deploy/quickstart.sh` (`curl | sh`) boots PG-BASE + a pgvector-ready PostgreSQL 16 via compose with generated credentials and a first superuser; `install.sh` installs the checksum-verified release binary for agents and bare-metal users.
+- **Agent quick start**: `docs/agents.md` (provisioning guide, copy-paste agent prompt template, deterministic CLI contract) plus root `AGENTS.md` (build/test/lint instructions for agents working on the repo itself).
+- **Honest positioning**: `docs/comparison.md` compares against PocketBase, Supabase, postgrebase and pg-pocketbase — including a "when NOT to choose PG-BASE" section.
+- **Revised roadmap published** to `docs/roadmap.md` (product thesis, market context, SWOT, Phase 0–4 sequencing with exit criteria); README quick start now leads with the one-liner and uses the idempotent `superuser upsert`.
+
+### Fixes
+
+- **Data race (bootstrap state)**: background goroutines (notify watcher, batch writers, outbox listener) read `IsBootstrapped()`/DB handles unsynchronized against `ResetBootstrapState()` teardown writes — the new race gate caught it (8 cascading test failures from one root cause). Fixed with a shared `bootstrapMu` (`*sync.RWMutex`, deliberately a pointer so tx-app shallow copies share the lock), plus a `bootstrap_state_race_test.go` regression test proven to trip the detector on the unfixed code.
+- **Data race (settings)**: background readers (async storage deletes, backup/logs crons, log batch writer, system alerts) read settings fields unlocked while `loadParam` unmarshals over the same struct. Fixed with a `snapshot()` helper under the existing settings mutex; the async storage-delete hook now resolves the filesystem handle synchronously so its worker never touches settings.
+- **Test isolation**: `TestReloadSettingsWithEncryption` leaked the `pb_test_env` key for the rest of the binary (broke `-count=2` reruns of the no-encryption export scenario); now uses `t.Setenv`.
+- **Docs link hygiene**: internal doc links keep the `.md` suffix (lychee resolves links against the filesystem, VitePress strips it for routing).
+
 ## v0.5.2
 
 Comprehensive security hardening — SSRF protection, download size caps, supply chain integrity, and safer defaults across the board.
