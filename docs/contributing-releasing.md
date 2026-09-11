@@ -23,7 +23,7 @@ System DDL lives in `migrations/` (`16409..._init.go` … `17872..._realtime_out
 
 ## 4. Releasing (tag-driven, draft)
 
-Workflow `.github/workflows/release.yaml` + `.goreleaser.yaml` (`changelog.disable: true`, `release.draft: true`):
+Workflow `.github/workflows/release.yaml` + `.goreleaser.yaml` (changelog pipe **enabled**; release body supplied via `--release-notes` from the top `CHANGELOG.md` section; `release.draft: true`):
 
 1. Merge PR (CI green). Update `CHANGELOG.md` with new top `## vX.Y.Z` section (GoReleaser copies the top section as the draft body — must precede the tag).
 2. `git checkout main && git pull && git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z` (version string injected at build time from the git tag via `-ldflags -X`; only `v*` triggers).
@@ -34,4 +34,4 @@ Mistaken local tag: `git tag -d vX.Y.Z`. Deleting a pushed tag also removes the 
 
 ## 5. Upstream tracking (fork duty)
 
-watch upstream releases + Go/npm advisories, triage applicability, backport security fixes; per-feature adopt/skip/diverge decisions for v0.24+; scheduled `govulncheck` + `npm audit` gates; compatibility matrix (JS/Dart SDK × PG 16/17) before publishing claims.
+The fork strategy and its maintenance-cost estimate live in [`FORK_STRATEGY.md`](https://github.com/arief-fajri/pgbase/blob/main/FORK_STRATEGY.md) (hard fork, watch → triage → act, security backport SLA, adopt/skip/diverge rules, revisit triggers). In short: watch upstream releases + Go/npm advisories, triage applicability, backport security fixes within the SLA; per-feature adopt/skip/diverge decisions; scheduled `govulncheck` + `npm audit` gates; compatibility matrix (JS/Dart SDK × PG 16/17) before publishing claims.
