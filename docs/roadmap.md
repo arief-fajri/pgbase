@@ -329,6 +329,7 @@ Deferred items from the performance audit. All validated as real; ship only when
 Split into three sprints so trust wins land early and maintainer load stays bounded:
 
 **Sprint 0a — Trust & trial path (small, days-scale):**
+
 1. Security policy fix (`.github/SECURITY.md`) + CI hygiene quick wins (`-race`, lint, scheduled scans, SHA-pin lychee).
 2. One-command provision (Docker / curl script) + agent-facing quick start + positioning doc.
 3. Reproducible releases (GoReleaser, published GitHub releases) + upstream drift decision (documented, deliberate).
@@ -389,12 +390,14 @@ Split into three sprints so trust wins land early and maintainer load stays boun
 ## 8. Quality gates
 
 Every roadmap item should have:
+
 - A test or verification strategy.
 - A definition of done.
 - Documentation impact.
 - A rollback or failure-handling plan where applicable.
 
 **Promotion rule:** promote a P2 item to P1 only when at least one of these is available:
+
 1. Evidence from a real production deployment.
 2. Reproducible benchmark data.
 3. Repeated community requests with a clear use case.
@@ -441,6 +444,7 @@ Every roadmap item should have:
 ## 11. How to contribute
 
 Open a discussion or issue referencing the relevant theme and item:
+
 - `Theme A / pgvector field type`
 - `Theme B / MCP server`
 - `Theme C / Migration CLI`
@@ -448,6 +452,7 @@ Open a discussion or issue referencing the relevant theme and item:
 - `Theme E / Distributed rate limiter`
 
 Requirements:
+
 - Compatibility changes include the corresponding PocketBase behavior and a regression test.
 - Performance changes include a reproducible benchmark or load-test scenario.
 - Scale-out changes include a multi-instance test plan.

@@ -219,8 +219,50 @@ jobs:
 
       - name: Install golangci-lint
         run: |
-          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}
+          go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Run lint
         run: golangci-lint run -c ./golangci.yml ./...
+
+  # Docker image for ghcr.io (Sprint 0a one-command provision). PR runs
+  # validate the Dockerfile builds; `v*` tag pushes publish
+  # ghcr.io/<owner>/pgbase:<tag> and :latest.
+  # linux/amd64 only for now — the Go binary cross-compiles trivially, so a
+  # multi-arch (arm64) follow-up is cheap once there is demand for it.
+  # Plain `docker build`/`push` steps on purpose: no third-party actions to
+  # SHA-pin and maintain (CFG-07 posture), at the cost of no layer caching
+  # across runs (~2-4 min per build, acceptable at this repo's CI volume).
+  #
+  # ONE-TIME SETUP after the first release with this job: make the package
+  # public — github.com/<owner>?tab=packages → pgbase → Package settings →
+  # Danger Zone → Change visibility → Public (packages created via
+  # GITHUB_TOKEN start private, which would break the curl | sh quickstart).
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        # pinned by full SHA (CFG-07); was actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Build image (Dockerfile validation)
+        if: github.event_name == 'pull_request'
+        run: docker build .
+
+      - name: Publish image to ghcr.io
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          # ghcr requires lowercase repository paths
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/pgbase"
+          TAG="${GITHUB_REF_NAME}"
+          docker build -t "$IMAGE:$TAG" -t "$IMAGE:latest" .
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"
