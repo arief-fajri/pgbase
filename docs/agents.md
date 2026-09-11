@@ -82,19 +82,19 @@ Connection settings come from env or CLI flags — never from the database:
 | `PB_POSTGRES_SSLMODE` | `--pg-sslmode` | `prefer` |
 
 Full list (pool tuning, timeouts, backup caps, rate limits):
-[env reference](./reference/env).
+[env reference](./reference/env.md).
 
 ## API surface
 
 - REST + realtime: PocketBase-compatible — use the
   [PocketBase JS/Dart SDKs](https://pocketbase.io/docs) and docs.
-- Differences: [fork deltas](./fork-deltas) (PostgreSQL-only engine,
+- Differences: [fork deltas](./fork-deltas.md) (PostgreSQL-only engine,
   case-insensitive identity indexes, editor sanitization, batch transaction
   semantics — read before relying on edge behavior).
 
 ## What is deliberately NOT there yet
 
-Honest boundaries (see the [roadmap](./roadmap)):
+Honest boundaries (see the [roadmap](./roadmap.md)):
 
 - No MCP server yet (Sprint 0b) — this page + the CLI contract are the
   agent interface today.
@@ -102,4 +102,4 @@ Honest boundaries (see the [roadmap](./roadmap)):
   ships the pgvector extension pre-created, so the stack stays valid when
   they land.
 - Multi-instance topologies need S3 file storage + the realtime outbox
-  (opt-in) — see [single-host production](./single-host-production) first.
+  (opt-in) — see [single-host production](./single-host-production.md) first.

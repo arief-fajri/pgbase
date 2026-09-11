@@ -50,6 +50,15 @@ golangci-lint run -c ./golangci.yml ./...   # must be zero issues; CI blocks on 
 Formatting: `gofmt`/`goimports` defaults (alphabetical import order within
 groups — the v0.5.1 rebrand once broke this; keep the tree clean).
 
+## Docs
+
+- Build the docs site before opening docs PRs: `npm --prefix docs ci && npm --prefix docs run docs:build`.
+- Internal doc links must keep the `.md` suffix (e.g. `[roadmap](./roadmap.md)`).
+  VitePress strips it for routing, but the lychee CI check resolves links
+  against the filesystem — extensionless links fail the `docs` workflow.
+- `make docs-check` (markdownlint) must stay clean; new pages need a
+  `<DocMeta>` frontmatter line and a sidebar entry in `docs/.vitepress/config.mts`.
+
 ## Code layout
 
 - `core/` — domain: app bootstrap, collections, records, fields, auth, audit, backup

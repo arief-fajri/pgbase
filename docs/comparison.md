@@ -18,7 +18,7 @@ see "When not to choose PG-BASE".
 | | **PG-BASE** | [PocketBase](https://github.com/pocketbase/pocketbase) | [Supabase](https://github.com/supabase/supabase) | [postgrebase](https://github.com/zhenruyan/postgrebase) | [pg-pocketbase](https://github.com/statewright/pg-pocketbase) |
 |---|---|---|---|---|---|
 | Storage engine | PostgreSQL only (pgx v5, JSONB, timestamptz) | SQLite only (officially no plans for other DBs) | PostgreSQL (+ extensions: pgvector, PostGIS, …) | PostgreSQL / MySQL + Redis cache | PostgreSQL |
-| API model | PocketBase REST + realtime (compatible, [documented deltas](./fork-deltas)) | PocketBase | PostgREST/REST + client libraries | PocketBase-style | PocketBase REST |
+| API model | PocketBase REST + realtime (compatible, [documented deltas](./fork-deltas.md)) | PocketBase | PostgREST/REST + client libraries | PocketBase-style | PocketBase REST |
 | Deployment shape | 1 binary + 1 Postgres | 1 binary (embedded DB) | ~a dozen services self-hosted, or managed cloud | Docker multi-service | Overlay on upstream binary |
 | Auth, rules, files, dashboard | PocketBase feature set (inherited) | yes | own model (RLS-centric) | fork-dependent | upstream feature set |
 | Audit trails (reads + writes) | yes (`_audits`/`_audit_reads`, partitioned) | no | via extensions | no | no |
@@ -56,7 +56,7 @@ both predate PG-BASE and have their own priorities.
 
 ## When NOT to choose PG-BASE
 
-Honest boundaries (all tracked in the [roadmap](./roadmap)):
+Honest boundaries (all tracked in the [roadmap](./roadmap.md)):
 
 - You need **vector/AI features today** — pgvector support is roadmap
   (Sprint 0b), not shipped.
@@ -72,11 +72,11 @@ Honest boundaries (all tracked in the [roadmap](./roadmap)):
 ## How we stay honest
 
 - Every fork behavior difference is documented and tested:
-  [fork deltas](./fork-deltas).
+  [fork deltas](./fork-deltas.md).
 - Performance/positioning claims must be reproducible — the roadmap's
   quality gates require benchmarks or production evidence before P2 items
   ship.
 - Upstream security advisories are tracked under a documented SLA
   (`FORK_STRATEGY.md`, repo root).
 
-See also: [for agents](./agents) · [single-host production](./single-host-production) · [roadmap](./roadmap)
+See also: [for agents](./agents.md) · [single-host production](./single-host-production.md) · [roadmap](./roadmap.md)
