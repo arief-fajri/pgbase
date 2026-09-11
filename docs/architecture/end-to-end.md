@@ -75,7 +75,7 @@ A Vite/vanilla-JS SPA in `ui/` is built to `ui/dist` and **embedded into the Go 
 ### 11. Deployment & operations
 
 - `docker-compose.yml`: pgbase + postgres:16 (pgcrypto preinstalled). `docker-compose.prod.yml`: Caddy (auto TLS) → pgbase (non-root uid 10001, healthcheck) → postgres internal-only (no public port). Optional monitoring: Prometheus/Grafana/Alertmanager in `deploy/`.
-- CI (`.github/workflows`): build UI → boot test Postgres → `go test ./...` → GoReleaser.
+- CI (`.github/workflows`): build UI → boot test Postgres → `go test ./...` + a parallel `-race` job + a `golangci-lint` job → GoReleaser (draft). A weekly `security-scan` workflow runs `govulncheck` + `npm audit`.
 - Testing: `tests/` uses a **real Postgres** with per-test database isolation via `CREATE DATABASE ... TEMPLATE`.
 
 ## Architecture Flowchart

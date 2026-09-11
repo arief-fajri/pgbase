@@ -11,6 +11,8 @@ PostgreSQL-powered backend as a service — a fork of [PocketBase v0.39.11](http
 - Dashboard UI
 - **PostgreSQL database** (replaces SQLite)
 
+**Why PG-BASE?** See the [comparison & positioning](https://arief-fajri.github.io/pgbase/comparison) guide — vs PocketBase, Supabase, and other PostgreSQL forks.
+
 ## Quick Start
 
 ### One command (Docker)
@@ -27,7 +29,10 @@ printed credentials. Deploying via an AI agent? See the
 
 ### Docker (from a checkout)
 
+First provide a `.env` (compose fails fast without a DB password):
+
 ```bash
+cp .env.example .env      # then set PB_POSTGRES_PASSWORD, e.g. openssl rand -base64 32
 docker compose up
 ```
 
