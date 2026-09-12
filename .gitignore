@@ -28,7 +28,6 @@ coverage.out
 README.html
 CHANGELOG.html
 LICENSE.html
-.feature-plan
 
 # docs site (isolated VitePress package; must stay untracked so
 # `goreleaser release --clean` never aborts on a dirty tree)
