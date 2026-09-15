@@ -47,3 +47,4 @@ docs/.vitepress/*.timestamp-*.mjs
 # versioned. Raw harness stdout logs stay local (regenerable by the harnesses;
 # records link the canonical artifacts).
 evidence/experiments/logs/
+evidence/test/

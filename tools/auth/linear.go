@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	Providers[NameLinear] = wrapFactory(NewLinearProvider)
+	RegisterProvider(NameLinear, wrapFactory(NewLinearProvider))
 }
 
 var _ Provider = (*Linear)(nil)

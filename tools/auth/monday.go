@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	Providers[NameMonday] = wrapFactory(NewMondayProvider)
+	RegisterProvider(NameMonday, wrapFactory(NewMondayProvider))
 }
 
 var _ Provider = (*Monday)(nil)

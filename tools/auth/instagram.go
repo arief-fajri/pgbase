@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	Providers[NameInstagram] = wrapFactory(NewInstagramProvider)
+	RegisterProvider(NameInstagram, wrapFactory(NewInstagramProvider))
 }
 
 var _ Provider = (*Instagram)(nil)

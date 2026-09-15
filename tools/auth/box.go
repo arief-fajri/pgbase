@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	Providers[NameBox] = wrapFactory(NewBoxProvider)
+	RegisterProvider(NameBox, wrapFactory(NewBoxProvider))
 }
 
 var _ Provider = (*Box)(nil)
