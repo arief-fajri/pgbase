@@ -75,5 +75,3 @@ PG-BASE is built for production use from day one:
 - **`stable`** — verified on the current tag. **`experimental`** — opt-in, still hardening (realtime outbox). **`roadmap-open`** — planned, not yet built (see the [roadmap](./contributor/roadmap.md)).
 - Environment defaults live **only** in the [env reference](./reference/env.md); every other page links there.
 - If a page's **Verified** badge is older than the current release, treat the code as truth and open a docs issue.
-
-> **Live site:** <https://arief-fajri.github.io/pgbase/> — auto-deployed from `main` on docs changes. Local preview: `npm --prefix docs run docs:dev` (serves at `http://localhost:5174/pgbase/`).

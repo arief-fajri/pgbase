@@ -125,5 +125,3 @@ Use the official PocketBase SDKs:
 
 - [JavaScript/TypeScript](https://github.com/pocketbase/js-sdk)
 - [Dart/Flutter](https://github.com/pocketbase/dart-sdk)
-- [Python](https://github.com/pocketbase/pypebble)
-- [Go](https://github.com/pocketbase/pocketbase-sdk-go)
