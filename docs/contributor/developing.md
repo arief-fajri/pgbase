@@ -741,11 +741,12 @@ Releases are **git-tag driven** and produced by [GoReleaser](https://goreleaser.
 | Trigger | What the `basebuild` workflow does |
 |---------|-------------------------------------|
 | Open / update a PR | Build the UI, start the test Postgres, run the full test suite + 32-bit cross-compile check. **No release.** |
-| Push a `vX.Y.Z` tag | The tests above **+** GoReleaser publishes a **draft** GitHub release whose body is the latest `CHANGELOG.md` section. |
+| Push a `vX.Y.Z` tag | Quality gates (tests, race, lint) → immutable `:vX.Y.Z` GHCR image + GoReleaser **draft** GitHub release. |
+| Publish a release | The `docker-latest` workflow re-tags the validated immutable image as `:latest`. |
 
 > Plain pushes to branches (including `main`) do **not** trigger CI — only PRs and `v*` tags do. The PR that introduced a change already ran the full suite before it was merged, so re-running on the merge push would be redundant.
 
-### Release flow (PR → merge → draft release)
+### Release flow (PR → merge → draft release → publish)
 
 1. **Open a PR** from your feature branch into `main` and get it merged (sections 1–13). CI must be green.
 
@@ -759,9 +760,9 @@ Releases are **git-tag driven** and produced by [GoReleaser](https://goreleaser.
    git push origin v0.2.0
    ```
 
-4. **Wait for the workflow.** `basebuild` runs the tests, then GoReleaser builds every target and creates a **draft** release with the `## v0.2.0` changelog section as its body.
+4. **Wait for the workflow.** `basebuild` runs the quality gates (tests, race, lint), then builds the immutable GHCR image `:vX.Y.Z` and GoReleaser publishes a **draft** release with the `## v0.2.0` changelog section as its body.
 
-5. **Review & publish.** Open the draft under *GitHub → Releases*, verify the notes and assets, then click **Publish**.
+5. **Review & publish.** Open the draft under *GitHub → Releases*, verify the notes and assets, then click **Publish**. Publishing triggers the `docker-latest` workflow, which re-tags the validated image as `:latest` — the Docker quickstart now gets this version.
 
 > [!WARNING]
 > Tags are shared references others may pull, so double-check the tag name and that `CHANGELOG.md` is updated **before** pushing. To remove a mistaken *local* tag: `git tag -d v0.2.0`. Deleting an already-pushed tag (`git push origin :refs/tags/v0.2.0`) also removes the draft release — avoid unless truly necessary.

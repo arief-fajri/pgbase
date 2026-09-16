@@ -23,12 +23,19 @@ System DDL lives in `migrations/` (`16409..._init.go` … `17872..._realtime_out
 
 ## 4. Releasing (tag-driven, draft)
 
-Workflow `.github/workflows/release.yaml` + `.goreleaser.yaml` (changelog pipe **enabled**; release body supplied via `--release-notes` from the top `CHANGELOG.md` section; `release.draft: true`):
+Two workflows cooperate:
+
+- **`release.yaml`** (tag push) — runs the full quality gate (tests, race, lint) then builds an immutable GHCR image `ghcr.io/<owner>/pgbase:<tag>` and creates a **draft** GitHub release. The `:latest` tag is **not** moved here.
+- **`docker-latest.yaml`** (release published) — re-tags the already-built immutable image as `:latest` so it always points to the latest **published** release.
+
+### Steps
 
 1. Merge PR (CI green). Update `CHANGELOG.md` with new top `## vX.Y.Z` section (GoReleaser copies the top section as the draft body — must precede the tag).
 2. `git checkout main && git pull && git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z` (version string injected at build time from the git tag via `-ldflags -X`; only `v*` triggers).
-3. Wait for `basebuild`: tests + GoReleaser cross-platform builds → **draft** release.
-4. Review draft under GitHub Releases → Publish.
+3. Wait for `basebuild`: quality gates + GoReleaser cross-platform builds → **draft** release; GHCR gets the immutable `:vX.Y.Z` image (only after all gates pass).
+4. Review draft under GitHub Releases → Publish. This also triggers `docker-latest.yaml` which promotes `:latest` to match the published version.
+
+> `:latest` is therefore always equivalent to the last **published** release — consistent with `install.sh` which resolves the latest release via the GitHub Releases API.
 
 Mistaken local tag: `git tag -d vX.Y.Z`. Deleting a pushed tag also removes the draft — avoid unless necessary. (`developing.md` #15.)
 

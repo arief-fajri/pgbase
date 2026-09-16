@@ -139,7 +139,20 @@ G-REL-06  Data corruption must be treated as a release-blocking failure.
           Enforcement: process — failure classification C/D; FAILURE-MODES release gate ✅
 ```
 
-## 6. Upgrade / upstream (G-UPG)
+## 6. CI / release gates (G-CI)
+
+```text
+G-CI-01  Distribution artifacts (:latest Docker tag, release binaries) must not
+         be published until all quality gates (tests, race, lint) have passed.
+         Enforcement: CI — release.yaml job `docker` depends on [goreleaser,
+         race, lint] via `needs:`; :latest is only promoted by docker-latest.yaml
+         on the `release: [published]` event ✅
+G-CI-02  The :latest tag must always equal the last published GitHub release.
+         Enforcement: CI — docker-latest.yaml re-tags the validated immutable
+         image from the release event, not from the tag push ✅
+```
+
+## 7. Upgrade / upstream (G-UPG)
 
 ```text
 G-UPG-01  Every intentional divergence from upstream PocketBase must have a reason.
@@ -156,7 +169,7 @@ G-UPG-06  Breaking changes must be explicit.
           Enforcement: process — versioning policy (roadmap Task 23, gap) + B2 authority ✅⚠️
 ```
 
-## 7. AI decision authority (G-AI)
+## 8. AI decision authority (G-AI)
 
 AI agents perform most routine development for this project. Their autonomy is bounded by the same guard rails, plus explicit decision authority:
 
@@ -192,7 +205,7 @@ G-AI-08  The roadmap and this file are the AI's contract: when executing an item
 | **B1** | Recommend + 24 h window | upstream BUG backport, reversible internal refactor, metric addition | DRR → apply after 24 h without objection |
 | **B2** | Explicit human confirm | fork-deltas change, destructive migration, new dependency, upstream DIVERGE, security exposure | DRR → blocked until confirmed |
 
-## 8. Guard-rail gaps (currently open)
+## 9. Guard-rail gaps (currently open)
 
 These guardrails are defined but their enforcement is `(gap)`; they are tracked in [Evaluation Checklists](./checklists.md) and the roadmap:
 
