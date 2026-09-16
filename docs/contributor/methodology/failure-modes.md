@@ -1,12 +1,12 @@
-# Failure Modes
+# Failure Analysis
 
-<DocMeta audience="Operator" status="living document" verified="v0.5.2 (923e860)" />
+<DocMeta audience="Contributor" status="stable" verified="v0.5.2" />
 
 > Codified failure scenarios and the system's expected behavior, plus the **A–E failure classification** that gates every debugging session.
 >
-> **The critical rule — classify before you fix:** do not jump from a failing test to a code change. Classify the failure below first. Fixing the wrong layer is how guard-rails stay porous.
+> **The critical rule — classify before you fix:** do not jump from a failing test to a code change. Classify the failure below first. Fixing the wrong layer is how guardrails stay porous.
 >
-> Guaranteed behavior claims below are supported by code + the evidence in `evidence/experiments/` (linked per row where a failure experiment has been executed).
+> Guaranteed behavior claims below are supported by code and the evidence in `evidence/experiments/` (linked per row where a failure experiment has been executed).
 
 ## 1. Failure-mode table
 
@@ -48,13 +48,13 @@ When a test fails or a runbook step misbehaves, classify the failure **before** 
 
 | Type | Pattern | Response |
 |---|---|---|
-| **A — Implementation failure** | Design ✓, guard rail ✓, implementation ✗ | Fix implementation |
-| **B — Design failure** | Implementation ✓, but design was insufficient | Change the platform design (PLATFORM.md / invariant) |
-| **C — Missing guard rail** | System entered a dangerous state that was not prevented | Create a new guard rail (GUARDRAILS.md) |
-| **D — Missing observability** | System failed but operators could not determine why | Add measurement (OBSERVABILITY.md) |
-| **E — Incorrect acceptance criteria** | Checklist passed but real-world behavior was unsafe | Redesign evaluation criteria (CHECKLISTS.md) |
+| **A — Implementation failure** | Design ✓, guardrail ✓, implementation ✗ | Fix implementation |
+| **B — Design failure** | Implementation ✓, but design was insufficient | Change the platform design (Platform Design / invariant) |
+| **C — Missing guardrail** | System entered a dangerous state that was not prevented | Create a new guardrail (Quality Guardrails) |
+| **D — Missing observability** | System failed but operators could not determine why | Add measurement (Observability) |
+| **E — Incorrect acceptance criteria** | Checklist passed but real-world behavior was unsafe | Redesign evaluation criteria (Evaluation Checklists) |
 
-**Release-blocking rule:** any failure classified B/C/D/E implies a non-code layer of the system must change (design doc, guard rail, measurement, or checklist) in the same PR that fixes the symptom. A "fix" that only changes code while the classification is B+C+D is not a fix.
+**Release-blocking rule:** any failure classified B/C/D/E implies a non-code layer of the system must change (design doc, guardrail, measurement, or checklist) in the same PR that fixes the symptom. A "fix" that only changes code while the classification is B+C+D is not a fix.
 
 ## 4. Controlled failure experiments
 

@@ -1,10 +1,10 @@
-# Checklists
+# Evaluation Checklists
 
-<DocMeta audience="Contributor" status="living document" verified="v0.5.2 (923e860)" />
+<DocMeta audience="Contributor" status="stable" verified="v0.5.2" />
 
-> **Fourth phase of the system-thinking loop.** Checklists are evaluation gates, split by system boundary so they stay maintainable. A checklist item must be either verifiable in code, in a test run, or against evidence — a checkbox without a mechanism is decoration.
+> Checklists are evaluation gates, split by system boundary so they stay maintainable. A checklist item must be either verifiable in code, in a test run, or against evidence — a checkbox without a mechanism is decoration.
 >
-> Guard rails and invariants referenced here are defined in [GUARDRAILS.md](./GUARDRAILS.md) and [PLATFORM.md](./PLATFORM.md). Task work (not evaluation) lives in the [roadmap](./roadmap.md).
+> Guardrails and invariants referenced here are defined in [Quality Guardrails](./guardrails.md) and [Platform Design](./platform-design.md). Task work (not evaluation) lives in the [Roadmap](../roadmap.md).
 
 ## 1. Core correctness
 
@@ -41,7 +41,7 @@
                                                                 end-to-end doc Task 36)
 ```
 
-## 3. API compatibility (reference: [fork-deltas.md](./fork-deltas.md))
+## 3. API compatibility (reference: [fork-deltas.md](../../fork-deltas.md))
 
 ```text
 [ ] Authentication behavior is compatible                         (compat suite Task 18/24 — gap)
@@ -77,7 +77,7 @@ Where possible, every row above is an automated comparison: run the same observa
 [ ] Backup/restore operations protected                           (superuser-only; DR trust boundary) ✅
 ```
 
-## 5. Disaster recovery (reference: [DISASTER-RECOVERY.md](./DISASTER-RECOVERY.md))
+## 5. Disaster recovery (reference: [Disaster Recovery](../../deployment/disaster-recovery.md))
 
 ```text
 [x] Backup can be created                                         (pg_dump path)
@@ -95,7 +95,7 @@ Where possible, every row above is an automated comparison: run the same observa
 
 ## 6. Release checklist
 
-A release is not ready merely because unit tests pass. The release gate combines this matrix with the [production go-live checklist](./production.md#10-go-live-checklist):
+A release is not ready merely because unit tests pass. The release gate combines this matrix with the [production go-live checklist](../../deployment/production.md#10-go-live-checklist):
 
 ```text
 [ ] Unit tests pass                                              (go test ./...)

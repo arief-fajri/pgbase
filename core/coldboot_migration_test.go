@@ -23,7 +23,7 @@ import (
 // single goroutine and deadlocked each other until the role-level lock_timeout
 // aborted the whole boot (SQLSTATE 55P03). All migrations must therefore be
 // applied on a single connection (see core/migrations_runner.go runMigrationTx
-// and docs/FAILURE-MODES.md W-10).
+// and docs/contributor/methodology/failure-modes.md W-10).
 func TestColdBootMigrationsSingleConnection(t *testing.T) {
 	// Dedicated database, so this test can safely run in parallel with the
 	// rest of the suite (dropOrphanDatabases only ever cleans the harness's
