@@ -135,7 +135,16 @@ func (l *realtimeOutboxListener) run(app core.App) {
 		// published while the connection was down.
 		l.seedCursorIfNeeded(app)
 
-		// catchup: reprocess pending rows that may have been missed while down
+		// catchup: reprocess pending rows that may have been missed while down.
+		// Check stopCh before entering processPending so that a concurrent
+		// Cleanup() → OnTerminate → stop() → ResetBootstrapState() doesn't
+		// nil dataDB while processPending is mid-flight.
+		select {
+		case <-l.stopCh:
+			conn.Close(context.Background())
+			return
+		default:
+		}
 		l.processPending(app)
 
 		// wake-up / poll loop on this connection
@@ -208,6 +217,15 @@ func (l *realtimeOutboxListener) seedCursorIfNeeded(app core.App) {
 // backlog in batches so it never stalls once more than one batch is pending.
 func (l *realtimeOutboxListener) processPending(app core.App) {
 	for {
+		// Check for shutdown before each batch so that a concurrent
+		// Cleanup() → ResetBootstrapState() doesn't nil dataDB while we
+		// are mid-flight.
+		select {
+		case <-l.stopCh:
+			return
+		default:
+		}
+
 		l.mu.Lock()
 		afterCreated, afterId := l.cursorCreated, l.cursorId
 		l.mu.Unlock()

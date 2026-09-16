@@ -17,6 +17,40 @@
 
 <!-- New entries go above this line. -->
 
+## 2026-09-16 — Realtime outbox listener shutdown race + custom model resolution
+
+- **Event:** Both CI jobs (`goreleaser` and `race`) failed in `apis` package tests.
+  - Race job: nil pointer dereference panic in `RealtimeOutboxEventsAfter` (realtime_outbox.go:180)
+    — `app.NonconcurrentDB()` returned nil because `ResetBootstrapState()` nil-ed `dataDB`
+    while the outbox listener goroutine was still executing `processPending()`.
+  - Goreleaser job: `TestRealtimeRecordResolve/custom_model_struct` expected 3 events
+    (create/update/delete) but only received 1 (create) — custom model broadcast skipped
+    for update/delete because `FindCachedCollectionByNameOrId` couldn't find
+    collections created after bootstrap.
+- **Classified:** A (implementation failure) for both — design was correct (listener should
+  stop gracefully; custom models should resolve), but implementation had bugs.
+- **Root cause 1 (shutdown race):** `processPending()` had zero `stopCh` checks. The
+  `Cleanup()` sequence (OnTerminate → stop() → close stopCh → ResetBootstrapState → nil
+  dataDB) had a window where the goroutine was in `processPending()` calling
+  `NonconcurrentDB()`. Under `-race` overhead, this window was wide enough to trigger.
+- **Root cause 2 (custom model resolution):** `realtimeResolveRecord()` and
+  `realtimeResolveRecordCollection()` used only `FindCachedCollectionByNameOrId()` which
+  relies on the bootstrap-time cache. Collections created dynamically (via API or test
+  `Save()`) weren't in the cache, causing silent nil-return and broadcast skip.
+- **Change in system model/docs:** Added `stopCh` checks before and inside `processPending()`
+  loop. Added `FindCollectionByNameOrId` (direct DB lookup) as fallback when cache misses.
+  Increased test timeout from 250ms to 2s for CI stability.
+- **Evidence lessons:** (1) Goroutine shutdown patterns must check the stop channel at every
+  meaningful entry point, not just in select loops — a synchronous function called from the
+  goroutine is also a critical check point. (2) `FindCachedCollectionByNameOrId` is NOT a
+  superset of `FindCollectionByNameOrId` — it returns `sql.ErrNoRows` for post-bootstrap
+  collections. Any code path that resolves collections for user-created models must fall back
+  to a direct DB lookup. (3) `t.Setenv` is process-wide and can leak env vars to parallel
+  tests — avoid relying on it for feature flags that affect background goroutines.
+- **Classification note:** Both fixes are internal, reversible, guard-rail-safe, and
+  contract-safe → Level A (decide and execute). No PLATFORM/GUARDRAILS/OBSERVABILITY
+  doc changes needed.
+
 ## 2026-09-12 — Cold-boot migration race (W-10): classification + single-connection fix
 
 - **Event:** experiment B (and CLI `migrate up`) failed on a truly empty DB with
