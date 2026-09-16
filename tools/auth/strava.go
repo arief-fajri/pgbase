@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	Providers[NameStrava] = wrapFactory(NewStravaProvider)
+	RegisterProvider(NameStrava, wrapFactory(NewStravaProvider))
 }
 
 var _ Provider = (*Strava)(nil)

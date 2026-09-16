@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sync"
 
 	"github.com/arief-fajri/pgbase/tools/types"
 	"golang.org/x/oauth2"
@@ -13,14 +14,38 @@ import (
 // ProviderFactoryFunc defines a function for initializing a new OAuth2 provider.
 type ProviderFactoryFunc func() Provider
 
-// Providers defines a map with all of the available OAuth2 providers.
-//
-// To register a new provider append a new entry in the map.
-var Providers = map[string]ProviderFactoryFunc{}
+var (
+	providersMu sync.RWMutex
+	// Providers defines a map with all of the available OAuth2 providers.
+	//
+	// To register a new provider use RegisterProvider. Direct map access
+	// from non-init code is not thread-safe; use the accessor functions
+	// provided here.
+	Providers = map[string]ProviderFactoryFunc{}
+)
+
+// RegisterProvider registers a new provider factory by name.
+// It is safe for concurrent use.
+func RegisterProvider(name string, factory ProviderFactoryFunc) {
+	providersMu.Lock()
+	defer providersMu.Unlock()
+	Providers[name] = factory
+}
+
+// UnregisterProvider removes a provider by name.
+// It is safe for concurrent use. Primarily intended for test cleanup.
+func UnregisterProvider(name string) {
+	providersMu.Lock()
+	defer providersMu.Unlock()
+	delete(Providers, name)
+}
 
 // NewProviderByName returns a new preconfigured provider instance by its name identifier.
 func NewProviderByName(name string) (Provider, error) {
+	providersMu.RLock()
 	factory, ok := Providers[name]
+	providersMu.RUnlock()
+
 	if !ok {
 		return nil, errors.New("missing provider " + name)
 	}

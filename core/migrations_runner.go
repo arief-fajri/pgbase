@@ -273,11 +273,10 @@ func (r *MigrationsRunner) ensureMigrationsTable(db dbx.Builder) error {
 }
 
 // lockMigrations acquires a session-scoped advisory lock bound to the current
-// (aux) transaction. It is automatically released when the transaction
-// commits/rollbacks, and because the outer transaction spans the entire
-// migration run (including the nested data transaction and any auxiliary DB
-// DDL), it guarantees that only one process applies migrations to this
-// database at a time.
+// migration transaction. It is automatically released when the transaction
+// commits/rollbacks, and because the transaction spans the entire migration
+// run (both regular and auxiliary DDL), it guarantees that only one process
+// applies migrations to this database at a time.
 func (r *MigrationsRunner) lockMigrations(txApp App) error {
 	_, err := txApp.AuxDB().NewQuery(fmt.Sprintf(
 		"SELECT pg_advisory_xact_lock(%d)",
@@ -287,22 +286,26 @@ func (r *MigrationsRunner) lockMigrations(txApp App) error {
 	return err
 }
 
-// runMigrationTx wraps a migration operation (apply/revert) in the standard
-// nested aux+data transaction and serializes it against concurrent migrators
-// via a PostgreSQL advisory lock.
+// runMigrationTx wraps a migration operation (apply/revert) in a single
+// transaction covering BOTH the regular and the auxiliary database and
+// serializes it against concurrent migrators via a PostgreSQL advisory lock.
+//
+// NB! The whole run must execute on a SINGLE connection. Running catalog DDL
+// interleaved across two separate pool connections (eg. CREATE EXTENSION
+// pgcrypto on the data connection versus the aux CREATE TABLE IF NOT EXISTS
+// _logs on the auxiliary connection) deadlocks until the role-level
+// lock_timeout cancels the run on a cold database (see FAILURE-MODES W-10).
 func (r *MigrationsRunner) runMigrationTx(fn func(txApp App) error) error {
-	return r.app.AuxRunInTransaction(func(txApp App) error {
+	return r.app.RunInSingleTx(func(txApp App) error {
 		if err := r.lockMigrations(txApp); err != nil {
 			return err
 		}
 
-		return txApp.RunInTransaction(func(txApp App) error {
-			if err := r.ensureMigrationsTable(txApp.DB()); err != nil {
-				return err
-			}
+		if err := r.ensureMigrationsTable(txApp.DB()); err != nil {
+			return err
+		}
 
-			return fn(txApp)
-		})
+		return fn(txApp)
 	})
 }
 

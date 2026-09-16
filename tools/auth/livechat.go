@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	Providers[NameLivechat] = wrapFactory(NewLivechatProvider)
+	RegisterProvider(NameLivechat, wrapFactory(NewLivechatProvider))
 }
 
 var _ Provider = (*Livechat)(nil)

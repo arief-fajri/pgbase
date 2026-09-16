@@ -562,8 +562,14 @@ func realtimeResolveRecord(app core.App, model core.Model, optCollectionType str
 		return nil
 	}
 
-	// check if it is custom Record model struct
+	// check if it is custom Record model struct.
+	// FindCachedCollectionByNameOrId uses the bootstrap-time cache which may
+	// not yet contain collections created later in the test (or via API).
+	// Fall back to a direct DB lookup when the cache misses.
 	collection, _ := app.FindCachedCollectionByNameOrId(tblName)
+	if collection == nil {
+		collection, _ = app.FindCollectionByNameOrId(tblName)
+	}
 	if collection != nil && (optCollectionType == "" || collection.Type == optCollectionType) {
 		if id, ok := model.PK().(string); ok {
 			record, _ = app.FindRecordById(collection, id)
@@ -582,8 +588,12 @@ func realtimeResolveRecordCollection(app core.App, model core.Model) (collection
 	case core.RecordProxy:
 		return m.ProxyRecord().Collection()
 	default:
-		// check if it is custom Record model struct
+		// check if it is custom Record model struct.
+		// Fall back to a direct DB lookup when the cache misses.
 		collection, err := app.FindCachedCollectionByNameOrId(model.TableName())
+		if err != nil {
+			collection, err = app.FindCollectionByNameOrId(model.TableName())
+		}
 		if err == nil {
 			return collection
 		}

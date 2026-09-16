@@ -211,6 +211,19 @@ func initTemplateDB() error {
 			return
 		}
 
+		// Trigger OnTerminate to properly stop background goroutines
+		// (e.g. the instance heartbeat guard ticker) before closing DB pools.
+		// Without this, ResetBootstrapState nil-s the pools while the goroutine
+		// still holds a reference, causing nil-pointer panics.
+		termEvent := new(core.TerminateEvent)
+		termEvent.App = templateApp
+		if err := templateApp.OnTerminate().Trigger(termEvent, func(e *core.TerminateEvent) error {
+			return e.Next()
+		}); err != nil {
+			templateInitErr = fmt.Errorf("template OnTerminate: %w", err)
+			return
+		}
+
 		// Close all template connections so `CREATE DATABASE ... TEMPLATE`
 		// (which refuses if any session is connected to the source) can run.
 		templateApp.ResetBootstrapState()

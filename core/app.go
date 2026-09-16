@@ -153,6 +153,14 @@ type App interface {
 	// (aka. from both [core.SystemMigrations] and [core.AppMigrations]).
 	RunAllMigrations() error
 
+	// RunInSingleTx wraps fn into a single transaction where BOTH the regular
+	// and the auxiliary app database handle point to the same connection.
+	//
+	// NB! It is intended for internal use by the migrations runner so that
+	// migration DDL always executes on a single connection. Regular users
+	// should keep using RunInTransaction/AuxRunInTransaction.
+	RunInSingleTx(fn func(txApp App) error) error
+
 	// ---------------------------------------------------------------
 	// DB methods
 	// ---------------------------------------------------------------
