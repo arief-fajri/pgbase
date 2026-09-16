@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	Providers[NameGoogle] = wrapFactory(NewGoogleProvider)
+	RegisterProvider(NameGoogle, wrapFactory(NewGoogleProvider))
 }
 
 var _ Provider = (*Google)(nil)

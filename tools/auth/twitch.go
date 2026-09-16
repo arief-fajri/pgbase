@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	Providers[NameTwitch] = wrapFactory(NewTwitchProvider)
+	RegisterProvider(NameTwitch, wrapFactory(NewTwitchProvider))
 }
 
 var _ Provider = (*Twitch)(nil)

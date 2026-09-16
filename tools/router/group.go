@@ -3,6 +3,7 @@ package router
 import (
 	"net/http"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/arief-fajri/pgbase/tools/hook"
@@ -187,6 +188,53 @@ func (group *RouterGroup[T]) HasRoute(method string, path string) bool {
 	}
 
 	return group.hasRoute(pattern, nil)
+}
+
+// Routes returns the full registered patterns (method + concatenated group
+// prefixes + route path) of the current group and all of its children.
+//
+// The result is sorted and de-duplicated for stable comparison. This is a
+// PG-BASE fork addition used by the API surface baseline test (methodology
+// gate E4) — upstream PocketBase has no public route enumerator.
+func (group *RouterGroup[T]) Routes() []string {
+	seen := map[string]struct{}{}
+	var walk func(g *RouterGroup[T], parents []*RouterGroup[T])
+
+	walk = func(g *RouterGroup[T], parents []*RouterGroup[T]) {
+		for _, child := range g.children {
+			switch v := child.(type) {
+			case *RouterGroup[T]:
+				walk(v, append(parents, g))
+			case *Route[T]:
+				var result strings.Builder
+
+				if v.Method != "" {
+					result.WriteString(v.Method)
+					result.WriteByte(' ')
+				}
+
+				for _, p := range parents {
+					result.WriteString(p.Prefix)
+				}
+
+				result.WriteString(g.Prefix)
+				result.WriteString(v.Path)
+
+				seen[result.String()] = struct{}{}
+			}
+		}
+	}
+
+	walk(group, nil)
+
+	all := make([]string, 0, len(seen))
+	for p := range seen {
+		all = append(all, p)
+	}
+
+	sort.Strings(all)
+
+	return all
 }
 
 func (group *RouterGroup[T]) hasRoute(pattern string, parents []*RouterGroup[T]) bool {

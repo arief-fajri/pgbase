@@ -48,7 +48,38 @@ func (app *BaseApp) runInTransaction(db dbx.Builder, fn func(txApp App) error, i
 	}
 }
 
-// createTxApp shallow clones the current app and assigns a new tx state.
+// RunInSingleTx wraps fn into a single transaction where BOTH the regular and
+// the auxiliary app database handle point to the same connection.
+//
+// NB! It is intended for internal use by the migrations runner so that
+// migration DDL always executes on a single connection. Regular users should
+// keep using RunInTransaction/AuxRunInTransaction.
+func (app *BaseApp) RunInSingleTx(fn func(txApp App) error) error {
+	db, ok := app.NonconcurrentDB().(*dbx.DB)
+	if !ok {
+		// already inside a transaction - reuse the current transaction
+		return fn(app)
+	}
+
+	var txApp *BaseApp
+	txErr := db.Transactional(func(tx *dbx.Tx) error {
+		txApp = app.createTxAppSingleDB(tx)
+		return fn(txApp)
+	})
+
+	// execute all after event calls on transaction complete
+	if txApp != nil && txApp.txInfo != nil {
+		afterFuncErr := txApp.txInfo.runAfterFuncs(txErr)
+		if afterFuncErr != nil {
+			return errors.Join(txErr, afterFuncErr)
+		}
+	}
+
+	return txErr
+}
+
+// createTxApp swaps the db handle(s) of a shallow app clone with the
+// provided transaction.
 func (app *BaseApp) createTxApp(tx *dbx.Tx, isForAuxDB bool) *BaseApp {
 	clone := *app // shares bootstrapMu with the parent (see BaseApp docs)
 
@@ -65,6 +96,32 @@ func (app *BaseApp) createTxApp(tx *dbx.Tx, isForAuxDB bool) *BaseApp {
 	clone.txInfo = &TxAppInfo{
 		parent:     app,
 		isForAuxDB: isForAuxDB,
+	}
+
+	return &clone
+}
+
+// createTxAppSingleDB shallow clones the current app and swaps BOTH the
+// regular and the auxiliary db handle with the same transaction so that all
+// statements run on a single connection.
+//
+// It is used by the migrations runner: running catalog DDL (eg. CREATE
+// EXTENSION, CREATE TABLE) interleaved across two separate pool connections
+// deadlocks until the role-level lock_timeout cancels the run on a cold
+// database (see FAILURE-MODES W-10).
+func (app *BaseApp) createTxAppSingleDB(tx *dbx.Tx) *BaseApp {
+	clone := *app // shares bootstrapMu with the parent (see BaseApp docs)
+
+	// swap both db handles under the shared bootstrap lock to keep the
+	// "all dataDB/auxDB access goes through bootstrapMu" invariant uniform
+	clone.bootstrapMu.Lock()
+	clone.dataDB = tx
+	clone.auxDB = tx
+	clone.bootstrapMu.Unlock()
+
+	clone.txInfo = &TxAppInfo{
+		parent:     app,
+		isForAuxDB: true,
 	}
 
 	return &clone

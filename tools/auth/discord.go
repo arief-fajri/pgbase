@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	Providers[NameDiscord] = wrapFactory(NewDiscordProvider)
+	RegisterProvider(NameDiscord, wrapFactory(NewDiscordProvider))
 }
 
 var _ Provider = (*Discord)(nil)

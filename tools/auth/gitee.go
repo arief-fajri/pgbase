@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	Providers[NameGitee] = wrapFactory(NewGiteeProvider)
+	RegisterProvider(NameGitee, wrapFactory(NewGiteeProvider))
 }
 
 var _ Provider = (*Gitee)(nil)

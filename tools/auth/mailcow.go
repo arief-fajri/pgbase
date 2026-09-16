@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	Providers[NameMailcow] = wrapFactory(NewMailcowProvider)
+	RegisterProvider(NameMailcow, wrapFactory(NewMailcowProvider))
 }
 
 var _ Provider = (*Mailcow)(nil)

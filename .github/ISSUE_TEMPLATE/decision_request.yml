@@ -1,0 +1,53 @@
+name: Decision request (B1 / B2)
+description: Request a decision under the AI decision-authority model (GUARDRAILS.md §7). B1 auto-applies after 24 h without objection; B2 blocks until explicit confirmation.
+title: "DRR: <short decision summary>"
+labels: [decision-waiting]
+body:
+  - type: dropdown
+    id: level
+    attributes:
+      label: Authority level
+      options:
+        - "B1 — Recommend + 24 h window"
+        - "B2 — Explicit human confirmation required"
+    validations:
+      required: true
+  - type: input
+    id: guardrails
+    attributes:
+      label: Guard rails / invariants implicated
+      description: G-# / I# references (BLANK or "none crossed" is not valid for B-level decisions — state "none, because <reason>").
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Decision context
+      description: What is being decided, why now, what upstream/product context applies.
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options considered
+      description: Alternatives with trade-offs.
+    validations:
+      required: true
+  - type: textarea
+    id: recommendation
+    attributes:
+      label: Recommendation
+      description: The option the requester recommends and why.
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks / reversibility
+      description: Blast radius, reversibility, rollback path, and agreed acceptance evidence.
+    validations:
+      required: true
+
+# B1: if no objection is recorded within 24 h, the requester may apply the change
+# and update this issue's state. B2: remains open until an explicit maintainer decision.
+# Record the outcome in evidence/records/ (decision number = this issue number).

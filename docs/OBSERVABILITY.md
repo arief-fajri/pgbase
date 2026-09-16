@@ -1,0 +1,97 @@
+# Observability
+
+<DocMeta audience="Operator" status="living document" verified="v0.5.2 (923e860)" />
+
+> **Third phase of the system-thinking loop.** Observability answers *what is actually happening inside the system*. The objective is not to collect every metric — it is to make important system behavior *explainable*, and to prove that guard rails hold.
+>
+> Enabling and scraping guidance: [production.md §8](./production.md#8-monitoring-prometheus). Backup/restore signals: [DISASTER-RECOVERY.md](./DISASTER-RECOVERY.md).
+
+## 1. HTTP — RED model
+
+For major API surfaces, observe:
+
+- **Rate** — requests/sec
+- **Errors** — 4xx/sec, 5xx/sec, error ratio
+- **Duration** — p50, p95, p99
+
+Dimensions: endpoint (matched route template), method, status code, application version. **Avoid uncontrolled high-cardinality labels** (raw user IDs, arbitrary URLs).
+
+Current state: a request **duration histogram** exists (`pgbase_http_request_duration_seconds`). Per-status **error counters and an error ratio** are a gap (add `pgbase_http_requests_total{code=4xx|5xx}` or derive from the histogram). Deployed alert: `p99` rise (see `deploy/prometheus.rules.yml`).
+
+## 2. PostgreSQL / pool metrics
+
+```text
+DB connections: open · in use · idle · maximum · wait count · wait duration
+DB behavior:    query timeout · lock timeout · connection failure · transaction rollback   ← gap
+```
+
+Existing (`db` label = `data` | `aux`):
+
+| Metric | Type | Meaning |
+|---|---|---|
+| `pgbase_db_open_connections` | gauge | live open connections |
+| `pgbase_db_in_use_connections` | gauge | connections in use |
+| `pgbase_db_idle_connections` | gauge | idle connections |
+| `pgbase_db_max_open_connections` | gauge | pool ceiling (0 = unlimited) |
+| `pgbase_db_wait_count_total` | counter | acquisitions that had to wait — **pool saturation signal** |
+| `pgbase_db_wait_duration_seconds_total` | counter | time blocked waiting on the pool |
+
+Gaps: query-timeout events, lock-timeout events, connection-failure/reconnect events, transaction-rollback events (all bounded-operation counters for G-DB-03/04 and G-REL-01).
+
+**Diagnostic chain** (use when latency or errors appear):
+
+```text
+Latency increase → DB wait increase? → Pool saturation? → Slow query? → Lock contention? → External PostgreSQL issue?
+```
+
+Deployed alert to start with: `rate(pgbase_db_wait_count_total[5m]) > 0` (pool saturation), `production.md` §8.
+
+## 3. Realtime metrics
+
+Existing:
+
+| Metric | Type | Meaning |
+|---|---|---|
+| `pgbase_realtime_connected_clients` | gauge | connected SSE clients |
+| `pgbase_realtime_dropped_messages` | gauge | messages dropped on full client buffers (queue 32) |
+
+Gaps: active subscriptions, connection/disconnection rate, broadcast latency, outbox lag (when the DB outbox is enabled), abnormal reconnect behavior. Realtime resource usage must stay bounded **or observable** (invariant I15) — today the drop counter is that bound.
+
+## 4. Backup and recovery metrics
+
+Required signal set (framework §6.4):
+
+```text
+backup attempt count · success/failure · duration · size
+last successful backup · last successful restore verification
+```
+
+The most useful operational signal is **`last_verified_backup_timestamp`** — a created backup is not necessarily a usable backup. **Gap: no backup metrics are exported today**; add collectors in `apis/metrics.go` for the set above (see roadmap Task 44/45 + DR checklist).
+
+## 5. Guard-rail → metric correlation
+
+The metrics above exist to prove guard rails. Map (existence = observable):
+
+| Guard rail | Proving metric | Status |
+|---|---|---|
+| G-DB-08 pool exhaustion observable | `pgbase_db_wait_count_total`, `wait_duration` | ✅ |
+| G-REL-01 no call blocks forever | query timeout + statement timeout counters (see §2 gaps) | ⚠️ gap |
+| I15 realtime bounded/observable | `pgbase_realtime_dropped_messages` | ✅ |
+| G-REL-04 backup valid only if restored | `last_verified_backup_timestamp` | ❌ gap |
+| G-API-02/03 status/schema stable | HTTP error-ratio + version label | ⚠️ partial |
+
+A subsystem that gains a new guard rail must also gain the metric that makes the rail observable — that pairing is part of the implementation loop.
+
+## 6. Metrics vs dashboards
+
+Metrics support **diagnosis**, not merely dashboards. When a metric exists but cannot answer "why is it degrading", that is a missing-observability failure (class D in [FAILURE-MODES.md](./FAILURE-MODES.md)) — add the diagnostic view, not another chart. Alert first on pool waits and p99; default Grafana dashboards and Alertmanager rules are roadmap-open (Task 48/49).
+
+## 7. Log & audit streams (what to watch)
+
+| Stream | Table / API | Notes |
+|---|---|---|
+| Request logs | `_logs` on **aux** DB (`core/log_model.go:9`), `GET /api/logs` + `/logs/stats` (`apis/logs.go:13,39`) | Plain table; retention `__pbLogsCleanup__ 0 */6 * * *` (`core/base.go:1544`); bulk DELETE bloat; RANGE-partition is roadmap-open (PERF-I04) |
+| Data audits | `_audits` (+ `_audit_reads` metadata-only), `GET /api/audits` (+ `/{id}`, `/reads`) superuser-only (`apis/audits.go:12-34`) | Month-RANGE partitioned + DEFAULT (`migrations/1787237001_audits_init.go:25-67`); next-2-months pre-created (`core/audit_hooks.go:455-475`); retention jobs `__pbAuditsPartition/Cleanup__ 0 0 * * *`; changes/snapshot redacted |
+| Dashboard | `#/logs` (chart/list/preview) + `#/audits` (Data-changes / Read-access tabs) + `#/settings/audit` | v0.2.0 audit UI |
+
+**W-09** (FAILURE-MODES §2): the `_audits` DEFAULT partition is never auto-pruned — partition retention assumes pre-created partitions are actively used. Watch for unbounded growth on the DEFAULT partition.

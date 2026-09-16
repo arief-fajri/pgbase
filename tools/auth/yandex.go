@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	Providers[NameYandex] = wrapFactory(NewYandexProvider)
+	RegisterProvider(NameYandex, wrapFactory(NewYandexProvider))
 }
 
 var _ Provider = (*Yandex)(nil)

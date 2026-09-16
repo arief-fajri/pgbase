@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	Providers[NameApple] = wrapFactory(NewAppleProvider)
+	RegisterProvider(NameApple, wrapFactory(NewAppleProvider))
 }
 
 var _ Provider = (*Apple)(nil)
