@@ -83,11 +83,11 @@ Connection settings are configured via CLI flags or environment variables (not s
 
 ## Production
 
-See the **[production runbook](https://arief-fajri.github.io/pgbase/production)** for a deployment guide — builds, env vars, TLS, hardening and a go-live checklist.
+See the **[production runbook](https://arief-fajri.github.io/pgbase/deployment/production)** for a deployment guide — builds, env vars, TLS, hardening and a go-live checklist.
 
 ## Development
 
-See the **[developer guide](https://arief-fajri.github.io/pgbase/developing)** — the single source of truth for running, testing, and contributing locally (PostgreSQL setup, dev servers, migrations, tests, lint). For the PR flow, see the [contributing guide](https://arief-fajri.github.io/pgbase/contributing).
+See the **[developer guide](https://arief-fajri.github.io/pgbase/contributor/developing)** — the single source of truth for running, testing, and contributing locally (PostgreSQL setup, dev servers, migrations, tests, lint). For the PR flow, see the [contributing guide](https://arief-fajri.github.io/pgbase/contributor/contributing).
 
 ## API
 
