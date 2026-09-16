@@ -1,3 +1,24 @@
+## v0.5.4
+
+Bug fix release — resolves migration race conditions and realtime/auth shutdown races caught by the new methodology gate.
+
+### Fixes
+
+- **Migration race (W-10)**: cold-boot migrations deadlocked on fresh databases because `runMigrationTx` nested an advisory-locked aux transaction and a data transaction on different pool connections. Migrations now execute in a single transaction/connection via `RunInSingleTx` (`core/db_tx.go`). Regression test `core/coldboot_migration_test.go` runs in 0.5s on an empty database.
+
+- **Auth provider registry race**: unprotected `auth.Providers` map could race under concurrent register/unregister calls. Protected with `RWMutex` via `RegisterProvider`/`UnregisterProvider`; tests migrated to `RegisterTestProvider` with auto-cleanup.
+
+- **Realtime outbox listener shutdown race**: `processPending()` could dereference a nil channel when `Cleanup()` called `ResetBootstrapState()` while the listener goroutine was still running. Added `stopCh` checks before and inside the loop.
+
+- **Heartbeat guard nil-safety**: added nil-guards for the heartbeat goroutine during app teardown to prevent panics on fast shutdown.
+
+- **initTemplateDB lifecycle**: trigger `OnTerminate` before `ResetBootstrapState` to match expected shutdown order.
+
+### Internal
+
+- **Methodology gate E1–E8 closed**: 7 system docs live (`docs/contributor/methodology/`), PR/issue/DRR templates, security-scan CI, API-surface baseline test, failure experiments A–E executed (all PASS/L3), roadmap gate checkbox on.
+- **Documentation restructured**: public-facing docs (`docs/`) vs contributor/internal docs (`docs/contributor/`) split — `architecture/overview.md`, `reference/api-overview.md`, `deployment/single-host.md`, `getting-started.md` added; legacy `single-host-production.md` and `backup-restore-observability.md` removed.
+
 ## v0.5.3
 
 CI hygiene with blocking race/lint gates, one-command provision, agent quick start, positioning docs, a documented fork-strategy decision, and two data races fixed that the new race gate caught.
