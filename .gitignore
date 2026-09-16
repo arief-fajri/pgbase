@@ -48,3 +48,4 @@ docs/.vitepress/*.timestamp-*.mjs
 # records link the canonical artifacts).
 evidence/experiments/logs/
 evidence/test/
+.feature-plan
