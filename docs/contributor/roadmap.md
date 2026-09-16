@@ -53,7 +53,7 @@ Verified against the actual codebase on 2026-09-08 (v0.5.2 lineage). Status upda
 | **Dashboard UI** (audit trails UI, backup format selector, PG-BASE branding) | `ui/src/audits/`; `ui/package.json` |
 | **PostgreSQL-native migrations** (16+ migrations + migration-level tests) | `migrations/` |
 | **Test suite** (217+ test files, DB-per-test via `CREATE DATABASE ... TEMPLATE`, ~1:1 test-to-prod LOC) | `tests/app.go` |
-| **Production deployment** (docker-compose.prod.yml + Caddy auto-HTTPS, monitoring stack, runbook) | `docker-compose.prod.yml`; `deploy/`; `docs/production.md` |
+| **Production deployment** (docker-compose.prod.yml + Caddy auto-HTTPS, monitoring stack, runbook) | `docker-compose.prod.yml`; `deploy/`; `docs/deployment/production.md` |
 | **Trust & trial path (Sprint 0a)** — forked SECURITY.md, one-command provision (`deploy/quickstart.sh`, `install.sh`), agent quickstart (`docs/agents.md`), positioning (`docs/comparison.md`), upstream drift decision (`FORK_STRATEGY.md`), published releases | `docs/agents.md`; `docs/comparison.md`; `FORK_STRATEGY.md` |
 
 ### Partially implemented
@@ -78,7 +78,7 @@ Verified against the actual codebase on 2026-09-08 (v0.5.2 lineage). Status upda
 
 ### System-state snapshot (invariant / guard-rail / observability coverage)
 
-The system model that owns the rows below is [PLATFORM.md](./PLATFORM.md) (invariants), [GUARDRAILS.md](./GUARDRAILS.md) (never-allowed), [OBSERVABILITY.md](./OBSERVABILITY.md) (proof), [CHECKLISTS.md](./CHECKLISTS.md) (evaluation gates). Roadmap items exist to move rows from `gap` to `✓`.
+The system model that owns the rows below is [Platform Design](./methodology/platform-design.md) (invariants), [Quality Guardrails](./methodology/guardrails.md) (never-allowed), [Observability](./methodology/observability.md) (proof), [Evaluation Checklists](./methodology/checklists.md) (evaluation gates). Roadmap items exist to move rows from `gap` to `✓`.
 
 | Domain | State | Primary proof | Open gaps |
 |---|---|---|---|
@@ -92,7 +92,7 @@ The system model that owns the rows below is [PLATFORM.md](./PLATFORM.md) (invar
 
 ### Known weaknesses
 
-Managed canonically in [FAILURE-MODES.md §2](./FAILURE-MODES.md#2-known-weaknesses-verified-in-code-2026-09-08-audit) (W-01…W-09 with A–E classification and location). Roadmap tracks the *remedy* tasks (see Theme E and Theme F); the failure doc tracks the *behavior*.
+Managed canonically in [Failure Analysis §2](./methodology/failure-modes.md#2-known-weaknesses-verified-in-code-2026-09-08-audit) (W-01…W-09 with A–E classification and location). Roadmap tracks the *remedy* tasks (see Theme E and Theme F); the failure doc tracks the *behavior*.
 
 ---
 
@@ -198,7 +198,7 @@ Both axes must score ≥ 1 for a P0/P1. Items that only add product value withou
 
 ## 6. Roadmap themes
 
-Each theme notes its **system-thinking hook** (property changed, related invariants/guard rails, how the result is observed and evidenced). The full 10-step DoD per change lives in the PR ([CHECKLISTS.md §7](./CHECKLISTS.md#7-definition-of-done-per-non-trivial-change)).
+Each theme notes its **system-thinking hook** (property changed, related invariants/guardrails, how the result is observed and evidenced). The full 10-step DoD per change lives in the PR ([Evaluation Checklists §7](./methodology/checklists.md#7-definition-of-done-per-non-trivial-change)).
 
 ### Theme A — AI-native capability (Sprint 0b, **HELD on methodology gate**)
 
@@ -291,7 +291,7 @@ Several subsystems assume one process; this blocks honest multi-instance claims.
 
 Native `pg_dump` is solid for small/medium; production PostgreSQL needs a broader recovery story.
 
-> **ST hook:** *invariant I5 + G-REL-04*. Directly related to **experiment E** (methodology gate). Security critical: restore gate is currently weak (W-08). Docs: [DISASTER-RECOVERY.md](./DISASTER-RECOVERY.md).
+> **ST hook:** *invariant I5 + G-REL-04*. Directly related to **experiment E** (methodology gate). Security critical: restore gate is currently weak (W-08). Docs: [Disaster Recovery](../deployment/disaster-recovery.md).
 
 | Item | Status | Target | Priority / Effort |
 |---|---|---|---|
@@ -306,7 +306,7 @@ Native `pg_dump` is solid for small/medium; production PostgreSQL needs a broade
 
 Metrics exist; production users need enough visibility to diagnose across instances and PostgreSQL.
 
-> **ST hook:** *guard-rail observability pairing* (OBSERVABILITY §5). Items below convert `⚠️ gap` → `✓` in the snapshot. Guard rails: G-REL-01, G-DB-08, I15. Docs: [OBSERVABILITY.md](./OBSERVABILITY.md).
+> **ST hook:** *guardrail observability pairing* (Observability §5). Items below convert `⚠️ gap` → `✓` in the snapshot. Guardrails: G-REL-01, G-DB-08, I15. Docs: [Observability](./methodology/observability.md).
 
 | Item | Status | Target | Priority / Effort |
 |---|---|---|---|
@@ -366,11 +366,11 @@ Deferred items from the performance audit. Ship only when benchmarks prove value
 
 > **Methodology gate (definition of "system thinking is fully applied") — Sprint 0b is HELD until all pass:**
 >
-> - [x] **E1** Framework doc split into the 7 system docs ([PLATFORM](./PLATFORM.md), [GUARDRAILS](./GUARDRAILS.md), [FAILURE-MODES](./FAILURE-MODES.md), [OBSERVABILITY](./OBSERVABILITY.md), [CHECKLISTS](./CHECKLISTS.md), [DISASTER-RECOVERY](./DISASTER-RECOVERY.md), [UPSTREAM](./UPSTREAM.md)); framework file removed; no duplicate docs remain (`.feature-plan/` retired 2026-09-12)
+> - [x] **E1** Framework doc split into the 7 system docs ([Platform Design](./methodology/platform-design.md), [Quality Guardrails](./methodology/guardrails.md), [Failure Analysis](./methodology/failure-modes.md), [Observability](./methodology/observability.md), [Evaluation Checklists](./methodology/checklists.md), [Disaster Recovery](../deployment/disaster-recovery.md), [Upstream Tracking](./upstream.md)); framework file removed; no duplicate docs remain (`.feature-plan/` retired 2026-09-12)
 > - [x] **E2** `AGENTS.md` is the operational contract (loop, DoD, failure classification, authority) — all agents read it (single entry point; W-10 classified B/C before fix)
 > - [x] **E3** PR template (10-step DoD) + issue templates (A–E classification, DRR) live (`.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/`, `evidence/records/DRR-template.md`)
 > - [x] **E4** Mechanical guard rails in CI: secret scan (G-SEC-01), timeout/invariant tests, API-compat baseline (`.github/workflows/security-scan.yaml`, `core/coldboot_migration_test.go`, `apis/api_surface_baseline_test.go`)
-> - [x] **E5** Failure experiments A–E executed once each, artifacts + verdict in `evidence/experiments/` (L2 first runs, L3 on claims) and reflected in [FAILURE-MODES §4](./FAILURE-MODES.md#4-controlled-failure-experiments) — all five PASS (L3), 2026-09-12; full suite + `-race` green on the same tree
+> - [x] **E5** Failure experiments A–E executed once each, artifacts + verdict in `evidence/experiments/` (L2 first runs, L3 on claims) and reflected in [Failure Analysis §4](./methodology/failure-modes.md#4-controlled-failure-experiments) — all five PASS (L3), 2026-09-12; full suite + `-race` green on the same tree
 > - [x] **E6** Roadmap/checklists restructured on the two-axis prioritization; `feature-plan/` retired
 > - [x] **E7** Decision records & learning log live (B1 = 24 h window, G-AI-03; DRRs in `evidence/records/`) — template live; no B1/B2 decisions taken yet; `evidence/learnings.md` populated
 > - [x] **E8** Docs nav/sidebar include "Engineering methodology"; docs build + lychee + markdownlint clean
@@ -418,7 +418,7 @@ Deferred items from the performance audit. Ship only when benchmarks prove value
 
 ## 8. Quality gates
 
-Every roadmap item must carry the system-thinking header (property → invariant → guard rails → observe → test → evidence → checklist) in its PR — the [10-step DoD](./CHECKLISTS.md#7-definition-of-done-per-non-trivial-change). Release evaluation gates live in [CHECKLISTS.md](./CHECKLISTS.md).
+Every roadmap item must carry the system-thinking header (property → invariant → guardrails → observe → test → evidence → checklist) in its PR — the [10-step DoD](./methodology/checklists.md#7-definition-of-done-per-non-trivial-change). Release evaluation gates live in [Evaluation Checklists](./methodology/checklists.md).
 
 **Promotion rule:** promote a P2 item to P1 only when at least one of: production-deployment evidence, reproducible benchmark data, repeated community demand, or a concrete security/reliability/compatibility requirement.
 
@@ -426,7 +426,7 @@ Every roadmap item must carry the system-thinking header (property → invariant
 
 **Compatibility rule:** every compatibility change includes the corresponding PocketBase behavior and a regression test.
 
-**Failure rule:** on any failure, classify A–E ([FAILURE-MODES.md §3](./FAILURE-MODES.md#3-failure-classification-a-e)) before changing code; class B–E implies the corresponding system layer updates in the same PR.
+**Failure rule:** on any failure, classify A–E ([Failure Analysis §3](./methodology/failure-modes.md#3-failure-classification-a-e)) before changing code; class B–E implies the corresponding system layer updates in the same PR.
 
 ---
 
@@ -472,7 +472,7 @@ Open a discussion or issue referencing the relevant theme and item (e.g. `Theme 
 - Migration changes include verification and failure-handling behavior.
 - Priority changes explain the evidence (two-axis scoring, §5.1).
 
-See [`contributing.md`](./contributing.md), [`developing.md`](./developing.md), and [`production.md`](./production.md); system model in [PLATFORM.md](./PLATFORM.md); safety constraints in [GUARDRAILS.md](./GUARDRAILS.md).
+See [`contributing.md`](./contributing.md), [`developing.md`](./developing.md), and [Production Runbook](../deployment/production.md); system model in [Platform Design](./methodology/platform-design.md); safety constraints in [Quality Guardrails](./methodology/guardrails.md).
 
 ---
 

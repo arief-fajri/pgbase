@@ -1,10 +1,10 @@
 # Observability
 
-<DocMeta audience="Operator" status="living document" verified="v0.5.2 (923e860)" />
+<DocMeta audience="Contributor" status="stable" verified="v0.5.2" />
 
-> **Third phase of the system-thinking loop.** Observability answers *what is actually happening inside the system*. The objective is not to collect every metric — it is to make important system behavior *explainable*, and to prove that guard rails hold.
+> Observability answers *what is actually happening inside the system*. The objective is not to collect every metric — it is to make important system behavior *explainable*, and to prove that guardrails hold.
 >
-> Enabling and scraping guidance: [production.md §8](./production.md#8-monitoring-prometheus). Backup/restore signals: [DISASTER-RECOVERY.md](./DISASTER-RECOVERY.md).
+> Enabling and scraping guidance: [Production Runbook §8](../../deployment/production.md#8-monitoring-prometheus).
 
 ## 1. HTTP — RED model
 
@@ -84,7 +84,7 @@ A subsystem that gains a new guard rail must also gain the metric that makes the
 
 ## 6. Metrics vs dashboards
 
-Metrics support **diagnosis**, not merely dashboards. When a metric exists but cannot answer "why is it degrading", that is a missing-observability failure (class D in [FAILURE-MODES.md](./FAILURE-MODES.md)) — add the diagnostic view, not another chart. Alert first on pool waits and p99; default Grafana dashboards and Alertmanager rules are roadmap-open (Task 48/49).
+Metrics support **diagnosis**, not merely dashboards. When a metric exists but cannot answer "why is it degrading", that is a missing-observability failure (class D in [Failure Analysis](./failure-modes.md)) — add the diagnostic view, not another chart. Alert first on pool waits and p99; default Grafana dashboards and Alertmanager rules are roadmap-open (Task 48/49).
 
 ## 7. Log & audit streams (what to watch)
 

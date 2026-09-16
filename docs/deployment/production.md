@@ -1,10 +1,8 @@
 # Production Runbook
 
-<DocMeta audience="Operator" status="stable" verified="v0.5.2 (923e860)" />
+<DocMeta audience="Operator" status="stable" verified="v0.5.2" />
 
-A short, self-contained runbook for deploying and operating **pgbase** (the PostgreSQL fork of PocketBase) in production. It assumes you already built the binary or image (see [Build](#1-build)) and have a PostgreSQL database to point at.
-
-> Security posture: this document reflects the hardening applied up to the current codebase — non-root container, opt-in settings encryption, opt-in HSTS, guarded `/metrics`, bounded backup/restore, and a checksum-verified
+A self-contained runbook for deploying and operating **PG-BASE** in production. It assumes you already built the binary or image (see [Build](#1-build)) and have a PostgreSQL database to point at.
 
 ---
 
@@ -73,12 +71,12 @@ Flags take precedence over environment variables. Set these in production:
 | `PB_POSTGRES_USER` | yes | DB user (least-privileged role; NOT `superuser`). |
 | `PB_POSTGRES_PASSWORD` | yes | DB password (inject from a secret store, never a committed file). |
 | `PB_POSTGRES_DBNAME` | yes | DB name (run app migrations on a dedicated database). |
-| `PB_POSTGRES_SSLMODE` | **strongly recommended** | `require` for production, `verify-full` if your CA is available. **Do not run `disable` in production** (plaintext DB traffic). |
-| `PB_ENCRYPTION_KEY` | **mandatory** | **32-character** key used to encrypt settings secrets at rest (SMTP/S3/OAuth2 + JWT token-signing secret, whose leak would allow forging auth tokens). Without it those values are stored base64-encoded **but unencrypted** (PGB-M02/CFG-01). The app reads it from the env var named by `--encryptionEnv`. |
-| `PB_HSTS` | optional | `true` to emit `Strict-Transport-Security` (2y, includeSubDomains). Only meaningful when the app is served over HTTPS. |
-| `PB_METRICS_ADDR` | optional | Bind address for the Prometheus `/metrics` listener (e.g. `127.0.0.1:9090`). Off when unset. |
-| `PB_METRICS_EXPOSE` | optional | `true` only if you deliberately bind `/metrics` on a non-loopback address (e.g. inside a container behind a NetworkPolicy). Non-loopback binds **fail to start** without it. |
-| `PB_BACKUP_MAX_EXTRACT_BYTES` | optional | Decompressed-size cap for restore, default `8 GiB` (zip-bomb guard, PGB-L03/N03). |
+| `PB_POSTGRES_SSLMODE` | Recommended | `require` for production, `verify-full` if your CA is available. Do not use `disable` in production. |
+| `PB_ENCRYPTION_KEY` | Mandatory | 32-character key for encrypting settings secrets (SMTP, S3, OAuth2, JWT signing). Without it, secrets are stored unencrypted. |
+| `PB_HSTS` | Optional | `true` to emit `Strict-Transport-Security` header. Only meaningful over HTTPS. |
+| `PB_METRICS_ADDR` | Optional | Bind address for the Prometheus `/metrics` listener (e.g. `127.0.0.1:9090`). Off when unset. |
+| `PB_METRICS_EXPOSE` | Optional | `true` only if you bind `/metrics` on a non-loopback address. Required for container deployments. |
+| `PB_BACKUP_MAX_EXTRACT_BYTES` | Optional | Decompressed-size cap for restore, default `8 GiB`. |
 
 Example `.env` — see [Appendix A](#appendix-a-envproduction-example).
 
@@ -115,20 +113,20 @@ Migrate manually if you prefer (equivalent to what `serve` does on start):
 ./pgbase serve --http="127.0.0.1:8090"
 ```
 
-CORS: `serve` accepts `--origins <list>` (default `["*"]`). This is safe with Bearer-token auth and `AllowCredentials=false` (PGB-I05); set the real origin list if the dashboard is served from a different origin.
+CORS: `serve` accepts `--origins <list>` (default `["*"]`). Set the real origin list if the dashboard is served from a different origin.
 
-When running behind a reverse proxy, also set **`TrustedProxy`** in the dashboard settings so `RealIP`, IP rate limiting, and OAuth CSRF checks see the client IP instead of the proxy's.
+When running behind a reverse proxy, set **`TrustedProxy`** in the dashboard settings so `RealIP`, IP rate limiting, and OAuth CSRF checks see the client IP instead of the proxy's.
 
-> **`TrustedProxy` only if ALL inbound traffic passes through the trusted proxy.** `RealIP()` trusts the configured `X-Forwarded-For` header verbatim — any host that can reach the app directly (or emit its own header) can spoof it. That directly weakens IP-based controls: rate limits and the `SuperuserIPs` whitelist can be bypassed with a forged header. Apply the same rule at the network edge: only the trusted proxy may reach the app port (bind loopback / internal network), and strip forged headers at the proxy itself.
+> **Important:** Only set `TrustedProxy` when ALL inbound traffic passes through the trusted proxy. The app trusts the `X-Forwarded-For` header verbatim — any host that can reach the app directly can spoof it.
 
 ---
 
 ## 5. Dashboard settings to enable for production
 
-- **Rate limiting** — off by default (PGB-I03); enable in *Settings → Rate Limits* (login, auth, files, API). Login also has a built-in dummy-hash timing mitigation; OTP has a hardcoded 5/180s limiter.
+- **Rate limiting** — off by default; enable in *Settings → Rate Limits* (login, auth, files, API).
 - **Superuser IP whitelist** — *Settings → Admin* → `SuperuserIPs` to restrict which IPs may sign in as superuser.
-- **Trusted proxy** — `TrustedProxy` headers (e.g. `X-Forwarded-For`) when behind a proxy. **Only set it when the app is guaranteed to be reachable exclusively through that trusted proxy** — otherwise the forwarded header can be spoofed to bypass rate limiting and the `SuperuserIPs` whitelist.
-- Consider rotating and storing the `PB_ENCRYPTION_KEY` externally — losing it makes existing encrypted settings undecryptable.
+- **Trusted proxy** — `TrustedProxy` headers (e.g. `X-Forwarded-For`) when behind a proxy.
+- Store `PB_ENCRYPTION_KEY` externally — losing it makes existing encrypted settings undecryptable.
 
 ---
 
@@ -150,22 +148,22 @@ When running behind a reverse proxy, also set **`TrustedProxy`** in the dashboar
 **Fast path:** the diagram above is exactly what [`docker-compose.prod.yml`](#0-quick-single-host-production-docker-compose) wires for you on one host — Caddy terminates TLS, `pgbase` stays on the internal network, and (for a single-host stack) the postgres service is colocated instead of managed.
 
 - **Never** expose the database port publicly (the demo compose binds it to `127.0.0.1` only).
-- **Never** run the process as root (the shipped Dockerfile already runs as an unprivileged user; `/pb_data` is chowned accordingly).
-- Keep `pb_data`, backups, and the metrics listener off the public internet; bind `/metrics` to loopback (PGB-N01).
+- **Never** run the process as root (the shipped Dockerfile already runs as an unprivileged user).
+- Keep `pb_data`, backups, and the metrics listener off the public internet; bind `/metrics` to loopback.
 
 ---
 
 ## 7. Backup & restore
 
-- Backups use the **native `pg_dump`/`pg_restore`** format by default; create, download, upload, delete and restore are **superuser-only** (`/api/backups…`).
+- Backups use the **native `pg_dump`/`pg_restore`** format by default; create, download, upload, delete and restore are **superuser-only**.
 - Backup creation is bounded (default 10 min) and restore is bounded to 10 min; decompression is capped by `PB_BACKUP_MAX_EXTRACT_BYTES` (default 8 GiB).
-- **Warning:** restore replays the archive via `pg_restore --clean`, i.e. it executes arbitrary SQL from the dump. Treat the backups bucket/filesystem as a full-DB-trust boundary (a tampered archive = DB takeover, PGB-N03). Guard it like your database backup credentials.
+- **Warning:** restore replays the archive via `pg_restore --clean`, i.e. it executes arbitrary SQL from the dump. Treat the backups bucket/filesystem as a full-DB-trust boundary.
 
 ---
 
 ## 8. Monitoring (Prometheus)
 
-pgbase ships an **opt-in** Prometheus endpoint on a **separate listener** from the API. It is unauthenticated (PGB-N01), so traffic must stay on loopback (or a protected internal interface).
+PG-BASE ships an **opt-in** Prometheus endpoint on a **separate listener** from the API. It is unauthenticated, so traffic must stay on loopback (or a protected internal interface).
 
 **Enable**
 
@@ -190,8 +188,8 @@ curl http://127.0.0.1:9090/metrics    # Prometheus text format
 
 **Security note:** no authentication is applied to `/metrics`. Keep it:
 
-- **loopback**: `127.0.0.1:9090` (host) — Prometheus on the same machine, or
-- **internal-only**: bind a private interface; **or** publish the container port on `127.0.0.1` only (see compose note), **or** protect it with a reverse-proxy `basic_auth`, mTLS, or a firewall/NetworkPolicy. Non-loopback binds require `PB_METRICS_EXPOSE=true` (the app refuses otherwise).
+- **loopback**: `127.0.0.1:9090` (host) — Prometheus on the same machine
+- **internal-only**: bind a private interface, or publish the container port on `127.0.0.1` only, or protect with a reverse-proxy `basic_auth`, mTLS, or firewall. Non-loopback binds require `PB_METRICS_EXPOSE=true`.
 
 ### 8.1 Scraping — examples
 
@@ -245,7 +243,7 @@ See also `developing.md #3d` for implementation details and the exact env semant
 ./pgbase update
 ```
 
-It **refuses non-HTTPS sources** and **verifies the asset sha256 against the release `checksums.txt`** before replacing the binary (PGB-L09). Prefer image-based deploys in containers.
+It refuses non-HTTPS sources and verifies the asset sha256 against the release `checksums.txt` before replacing the binary. Prefer image-based deploys in containers.
 
 ---
 
@@ -357,4 +355,4 @@ WantedBy=multi-user.target
 
 ---
 
-*See also [Developing](./developing.md) and the [README](https://github.com/arief-fajri/pgbase/blob/main/README.md).*
+*See also [Development Setup](../contributor/developing.md) and the [README](https://github.com/arief-fajri/pgbase/blob/main/README.md).*

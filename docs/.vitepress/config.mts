@@ -25,118 +25,98 @@ export default withMermaid(defineConfig({
     themeConfig: {
         logo: "/logo.svg",
         outline: [2, 3],
-        // Audience-based navigation: three tracks surfaced as dropdowns.
+        // Navigation: 5 items with dropdowns for Build, Deploy, Reference.
         nav: [
+            { text: "Getting Started", link: "/getting-started" },
             {
                 text: "Build",
                 items: [
-                    { text: "Fork deltas", link: "/fork-deltas" },
-                    { text: "Collections & API rules", link: "/collections-and-api-rules" },
-                    { text: "Auth flows", link: "/flows/auth" },
-                    { text: "Realtime flows", link: "/flows/realtime" },
+                    { text: "Collections & API Rules", link: "/collections-and-api-rules" },
+                    { text: "Auth Flows", link: "/flows/auth" },
+                    { text: "Realtime Flows", link: "/flows/realtime" },
                 ],
             },
             {
-                text: "Operate",
+                text: "Deploy",
                 items: [
-                    { text: "Single-host production", link: "/single-host-production" },
-                    { text: "Production runbook", link: "/production" },
-                    { text: "Disaster recovery", link: "/DISASTER-RECOVERY" },
-                    { text: "Observability", link: "/OBSERVABILITY" },
-                ],
-            },
-            {
-                text: "Methodology",
-                items: [
-                    { text: "Platform design", link: "/PLATFORM" },
-                    { text: "Guard rails", link: "/GUARDRAILS" },
-                    { text: "Failure modes", link: "/FAILURE-MODES" },
-                    { text: "Checklists", link: "/CHECKLISTS" },
-                    { text: "Upstream status", link: "/UPSTREAM" },
-                ],
-            },
-            {
-                text: "Contribute",
-                items: [
-                    { text: "Contributing", link: "/contributing" },
-                    { text: "Developing", link: "/developing" },
-                    { text: "Releasing", link: "/contributing-releasing" },
-                    { text: "Architecture", link: "/architecture/end-to-end" },
+                    { text: "Single-Host Setup", link: "/deployment/single-host" },
+                    { text: "Production Runbook", link: "/deployment/production" },
+                    { text: "Disaster Recovery", link: "/deployment/disaster-recovery" },
                 ],
             },
             {
                 text: "Reference",
                 items: [
-                    { text: "Env variables", link: "/reference/env" },
-                    { text: "Roadmap", link: "/roadmap" },
+                    { text: "Environment Variables", link: "/reference/env" },
+                    { text: "API Overview", link: "/reference/api-overview" },
                 ],
             },
+            { text: "Development", link: "/contributor/" },
         ],
-        // Single audience-grouped sidebar, shown site-wide.
+        // Sidebar: 6 sections.
         sidebar: [
             {
-                text: "Get started",
+                text: "Get Started",
                 items: [
                     { text: "Overview", link: "/" },
-                    { text: "For AI agents", link: "/agents" },
-                    { text: "Comparison & positioning", link: "/comparison" },
-                    { text: "Fork deltas", link: "/fork-deltas" },
+                    { text: "Getting Started", link: "/getting-started" },
+                    { text: "Comparison", link: "/comparison" },
+                    { text: "What's Different", link: "/fork-deltas" },
                 ],
             },
             {
                 text: "Build",
-                collapsed: false,
                 items: [
-                    { text: "Collections & API rules", link: "/collections-and-api-rules" },
-                    { text: "Auth flows", link: "/flows/auth" },
-                    { text: "Realtime flows", link: "/flows/realtime" },
+                    { text: "Collections & API Rules", link: "/collections-and-api-rules" },
+                    { text: "Authentication Flows", link: "/flows/auth" },
+                    { text: "Realtime Flows", link: "/flows/realtime" },
                 ],
             },
             {
-                text: "Operate",
-                collapsed: false,
+                text: "Deploy",
                 items: [
-                    { text: "Single-host production", link: "/single-host-production" },
-                    { text: "Production runbook", link: "/production" },
-                    { text: "Disaster recovery", link: "/DISASTER-RECOVERY" },
-                    { text: "Observability", link: "/OBSERVABILITY" },
-                    { text: "Env reference", link: "/reference/env" },
+                    { text: "Single-Host Setup", link: "/deployment/single-host" },
+                    { text: "Production Runbook", link: "/deployment/production" },
+                    { text: "Disaster Recovery", link: "/deployment/disaster-recovery" },
                 ],
             },
             {
-                text: "Methodology",
-                collapsed: false,
+                text: "Architecture",
                 items: [
-                    { text: "Platform design", link: "/PLATFORM" },
-                    { text: "Guard rails", link: "/GUARDRAILS" },
-                    { text: "Failure modes", link: "/FAILURE-MODES" },
-                    { text: "Observability", link: "/OBSERVABILITY" },
-                    { text: "Checklists", link: "/CHECKLISTS" },
-                    { text: "Disaster recovery", link: "/DISASTER-RECOVERY" },
-                    { text: "Upstream status", link: "/UPSTREAM" },
+                    { text: "System Overview", link: "/architecture/overview" },
+                    { text: "Backend Layers", link: "/architecture/backend-layers" },
+                    { text: "Audit Trail", link: "/architecture/audit-design" },
                 ],
             },
             {
-                text: "Contribute",
+                text: "Reference",
+                items: [
+                    { text: "Environment Variables", link: "/reference/env" },
+                    { text: "API Overview", link: "/reference/api-overview" },
+                ],
+            },
+            {
+                text: "Development",
                 collapsed: false,
                 items: [
-                    { text: "Contributing", link: "/contributing" },
-                    { text: "Developing", link: "/developing" },
-                    { text: "Releasing", link: "/contributing-releasing" },
+                    { text: "Overview", link: "/contributor/" },
+                    { text: "Development Setup", link: "/contributor/developing" },
+                    { text: "Contributing Guide", link: "/contributor/contributing" },
+                    { text: "Release Process", link: "/contributor/releasing" },
                     {
-                        text: "Architecture",
+                        text: "Engineering Methodology",
                         collapsed: true,
                         items: [
-                            { text: "End-to-end", link: "/architecture/end-to-end" },
-                            { text: "Backend layers", link: "/architecture/backend-layers" },
-                            { text: "Audit design", link: "/architecture/audit-design" },
+                            { text: "Platform Design", link: "/contributor/methodology/platform-design" },
+                            { text: "Quality Guardrails", link: "/contributor/methodology/guardrails" },
+                            { text: "Failure Analysis", link: "/contributor/methodology/failure-modes" },
+                            { text: "Observability", link: "/contributor/methodology/observability" },
+                            { text: "Evaluation Checklists", link: "/contributor/methodology/checklists" },
                         ],
                     },
+                    { text: "Upstream Tracking", link: "/contributor/upstream" },
+                    { text: "Roadmap", link: "/contributor/roadmap" },
                 ],
-            },
-            {
-                text: "Project",
-                items: [{ text: "Roadmap", link: "/roadmap" }],
             },
         ],
         search: { provider: "local" },

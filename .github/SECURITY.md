@@ -67,7 +67,7 @@ upstream PocketBase project itself.
 For how security fixes are tracked against upstream (backport/triage policy), see
 [FORK_STRATEGY.md](https://github.com/arief-fajri/pgbase/blob/main/FORK_STRATEGY.md) and the
 **Upstream tracking (fork duty)** section of the
-[contributing/releasing guide](https://github.com/arief-fajri/pgbase/blob/main/docs/contributing-releasing.md).
+[contributing/releasing guide](https://github.com/arief-fajri/pgbase/blob/main/docs/contributor/releasing.md).
 
 ## Reports that are usually NOT security issues
 

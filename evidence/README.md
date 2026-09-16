@@ -1,8 +1,8 @@
 # Evidence
 
 > **An experiment without a traceable artifact is not evidence (G-AI-07).**
-> This directory holds the artifacts that prove the [desired outcomes](./docs/PLATFORM.md#2-desired-outcomes)
-> hold and the [guard rails](./docs/GUARDRAILS.md) are enforced. Claims like "restore works",
+> This directory holds the artifacts that prove the [desired outcomes](./docs/contributor/methodology/platform-design.md#2-desired-outcomes)
+> hold and the [guardrails](./docs/contributor/methodology/guardrails.md) are enforced. Claims like "restore works",
 > "migrations fail safely", or "pool saturation is bounded" are only true here,
 > with a dated, versioned record.
 
