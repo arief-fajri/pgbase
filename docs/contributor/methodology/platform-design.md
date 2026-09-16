@@ -1,10 +1,10 @@
 # Platform Design
 
-<DocMeta audience="Contributor" status="living document" verified="v0.5.2 (923e860)" />
+<DocMeta audience="Contributor" status="stable" verified="v0.5.2" />
 
-> Canonical system model for PG-BASE. This is the **first phase of the system-thinking loop**: it answers *what system we are building, what its boundaries are, and what properties must remain true*. Guard rails are codified separately in [GUARDRAILS.md](./GUARDRAILS.md), failure behavior in [FAILURE-MODES.md](./FAILURE-MODES.md), observability in [OBSERVABILITY.md](./OBSERVABILITY.md).
+> Canonical system model for PG-BASE. This document defines what system we are building, what its boundaries are, and what properties must remain true. Guard rails are codified separately in [Quality Guardrails](./guardrails.md), failure behavior in [Failure Analysis](./failure-modes.md), observability in [Observability](./observability.md).
 >
-> Related deep-dives: [end-to-end architecture](./architecture/end-to-end.md), [backend layers](./architecture/backend-layers.md).
+> Related deep-dives: [System Overview](../../architecture/overview.md), [Backend Layers](../../architecture/backend-layers.md).
 
 ## 1. System boundary
 
@@ -40,7 +40,7 @@ External dependencies are part of the system model:
 - PgBouncer where deployed (transaction or session pooling)
 - Prometheus-compatible monitoring
 - container / runtime environment
-- upstream PocketBase source and behavior (see [UPSTREAM.md](./UPSTREAM.md))
+- upstream PocketBase source and behavior (see [Upstream Tracking](../upstream.md))
 
 The runnable entrypoint is `examples/base`; the root Go package is a library. The root package boots a dual-pool PostgreSQL connection set through `PB_POSTGRES_*` env vars (see `core/db_connect.go`, `core/base.go`).
 
@@ -49,7 +49,7 @@ The runnable entrypoint is `examples/base`; the root Go package is a library. Th
 PG-BASE must satisfy these high-level outcomes. Every non-trivial change should be traceable to one or more of them:
 
 1. **PostgreSQL-native** — PostgreSQL is not an adapter hidden behind a SQLite abstraction. Connection pooling, transactions, locks, timeouts, migrations, and recovery are explicit concerns.
-2. **PocketBase-compatible where promised** — existing application behavior remains compatible unless a change is intentionally documented ([fork-deltas.md](./fork-deltas.md) is the contract).
+2. **PocketBase-compatible where promised** — existing application behavior remains compatible unless a change is intentionally documented ([fork-deltas.md](../../fork-deltas.md) is the contract).
 3. **Self-hostable** — a developer/operator can run the platform without a proprietary control plane.
 4. **Secure by default** — production defaults minimize accidental exposure.
 5. **Observable** — operators can determine whether the system is healthy and why it is degrading.
@@ -83,11 +83,11 @@ Corrupt data  <  Temporary request failure
 
 The system prefers rejecting or timing out an operation over committing invalid or partially persisted state.
 
-**P5 — Operational behavior is part of the product.** Startup, shutdown, migration, backup, restore, failure, observability, and security posture are product properties, not afterthoughts. See [OBSERVABILITY.md](./OBSERVABILITY.md), [DISASTER-RECOVERY.md](./DISASTER-RECOVERY.md), and [FAILURE-MODES.md](./FAILURE-MODES.md).
+**P5 — Operational behavior is part of the product.** Startup, shutdown, migration, backup, restore, failure, observability, and security posture are product properties, not afterthoughts. See [Observability](./observability.md), [Disaster Recovery](../../deployment/disaster-recovery.md), and [Failure Analysis](./failure-modes.md).
 
 ## 4. Core system invariants
 
-Invariants are split by boundary. Each one names where it is enforced. Violations are release-blocking (see [CHECKLISTS.md](./CHECKLISTS.md)).
+Invariants are split by boundary. Each one names where it is enforced. Violations are release-blocking (see [Evaluation Checklists](./checklists.md)).
 
 ### 4.1 Data invariants
 
@@ -99,7 +99,7 @@ I4. Database schema state must be knowable and reproducible.
 I5. Backup data considered valid must be restorable.
 ```
 
-Enforcement anchors: `core/db_tx.go` (transaction wrapper), `migrations/` (versioned DDL + `_migrations` history), `core/migrations_runner.go` (advisory-lock serialized, transactional), `core/backup_pg_import.go` (restore path — currently the weakest gate, see FAILURE-MODES / roadmap Task 45).
+Enforcement anchors: `core/db_tx.go` (transaction wrapper), `migrations/` (versioned DDL + `_migrations` history), `core/migrations_runner.go` (advisory-lock serialized, transactional), `core/backup_pg_import.go` (restore path).
 
 ### 4.2 API invariants
 
@@ -109,7 +109,7 @@ I7. Breaking behavior must be explicit, documented, and versioned where necessar
 I8. HTTP status codes and error semantics must be deterministic.
 ```
 
-Enforcement anchors: `docs/fork-deltas.md` (the contract), G-API guard rails, `apis/router` error semantics.
+Enforcement anchors: `docs/fork-deltas.md` (the contract), G-API guardrails, `apis/router` error semantics.
 
 ### 4.3 Security invariants
 
@@ -147,16 +147,16 @@ Request → Authentication → Authorization → Validation → Business logic
         → Transaction boundary → PostgreSQL → Commit → Response / Realtime event
 ```
 
-**Critical design question: at what point does the system consider the operation successful?** For database-backed operations the answer is tied to a successful transaction commit, not to an in-memory operation. This is material for the realtime outbox (publish after commit — currently a known weakness, see [FAILURE-MODES.md](./FAILURE-MODES.md) W-01) and for audit writes (guarded by SAVEPOINT inside the record transaction).
+**Critical design question: at what point does the system consider the operation successful?** For database-backed operations the answer is tied to a successful transaction commit, not to an in-memory operation. This is material for the realtime outbox (publish after commit — currently a known weakness, see [Failure Analysis](./failure-modes.md) W-01) and for audit writes (guarded by SAVEPOINT inside the record transaction).
 
 ## 6. Failure-mode model
 
-Failure modes and their expected behavior are codified in [FAILURE-MODES.md](./FAILURE-MODES.md), including the A–E failure classification (implementation / design / missing guard rail / missing observability / incorrect acceptance criteria). When a test fails, classify the failure there **before** changing code.
+Failure modes and their expected behavior are codified in [Failure Analysis](./failure-modes.md), including the A–E failure classification (implementation / design / missing guard rail / missing observability / incorrect acceptance criteria). When a test fails, classify the failure there **before** changing code.
 
 ## 7. Deep dives
 
-- [End-to-end architecture](./architecture/end-to-end.md) — components, layers, flowchart
-- [Backend layers](./architecture/backend-layers.md) — bootstrap chain, dual-pool, middleware order, migrations runner
-- [Audit design](./architecture/audit-design.md) — audit/read-partitioning details
-- [Fork deltas](./fork-deltas.md) — the public compatibility contract
-- [Guard rails](./GUARDRAILS.md) — the never-allowed constraints that operationalize this model
+- [System Overview](../../architecture/overview.md) — components, layers, flowchart
+- [Backend Layers](../../architecture/backend-layers.md) — bootstrap chain, dual-pool, middleware order, migrations runner
+- [Audit Trail](../../architecture/audit-design.md) — audit/read-partitioning details
+- [Fork Deltas](../../fork-deltas.md) — the public compatibility contract
+- [Quality Guardrails](./guardrails.md) — the never-allowed constraints that operationalize this model

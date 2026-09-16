@@ -2,7 +2,7 @@
 
 <DocMeta audience="Contributor" status="living document" verified="v0.5.2 (923e860)" />
 
-> Live status of the PG-BASE → PocketBase relationship. This is the thin snapshot doc; the **policy** is `FORK_STRATEGY.md` in the repo root (hard-fork decision, security SLA, adopt/skip/diverge rules) and the **contract** is [fork-deltas.md](./fork-deltas.md). This page answers only: *which upstream are we on, and what currently diverges?*
+> Live status of the PG-BASE → PocketBase relationship. This is the thin snapshot doc; the **policy** is `FORK_STRATEGY.md` in the repo root (hard-fork decision, security SLA, adopt/skip/diverge rules) and the **contract** is [fork-deltas.md](../fork-deltas.md). This page answers only: *which upstream are we on, and what currently diverges?*
 
 ## 1. Current upstream
 
@@ -23,7 +23,7 @@
 | Backups | native `pg_dump`/`pg_restore` + legacy SQLite import | `core/backup_pg_*.go` |
 | Security hardening | SSRF guard, download caps, identifier quoting, pinned CI/digests | `tools/security/`, `.github/workflows/` |
 | Scale/ops | realtime outbox (opt-in), Prometheus metrics, pool tuning | `core/realtime_outbox.go`, `apis/metrics.go` |
-| Behavior deltas | the 9 documented public-API deltas | [fork-deltas.md](./fork-deltas.md) |
+| Behavior deltas | the 9 documented public-API deltas | [fork-deltas.md](../fork-deltas.md) |
 | Tests | database-per-test harness | `tests/app.go` |
 | Router surface enumeration | additive `RouterGroup.Routes()` (no upstream equivalent); backs the API-compat baseline | `tools/router/group.go`, `apis/api_surface_baseline_test.go` |
 | Single-bucket DB access | additive `App.RunInSingleTx` (no upstream equivalent): data + aux operations share one pool connection/transaction; required by single-connection migrations (G-DB-10), so DDL never interleaves across connections | `core/db_tx.go`, `core/migrations_runner.go` |

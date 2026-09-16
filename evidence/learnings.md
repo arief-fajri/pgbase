@@ -17,6 +17,19 @@
 
 <!-- New entries go above this line. -->
 
+## 2026-09-16 — Documentation restructure: public/internal separation
+
+- **Event:** Complete documentation restructure to separate public-facing docs from internal contributor docs.
+- **Change:** Moved 14 files to new locations, created 3 new files, updated 50+ cross-references.
+  - Public docs remain at `docs/` root (index, getting-started, comparison, fork-deltas, collections, flows, reference)
+  - Internal docs moved to `docs/contributor/` (developing, contributing, releasing, roadmap, upstream, methodology)
+  - Deployment docs moved to `docs/deployment/` (production, single-host, disaster-recovery)
+  - Architecture docs promoted to top-level sidebar (overview, backend-layers, audit-design)
+  - Created getting-started.md, reference/api-overview.md, contributor/index.md
+- **Tone adjustments:** Renamed "Guard Rails" → "Quality Guardrails", "Failure Modes" → "Failure Analysis", "Checklists" → "Evaluation Checklists". Softened language in methodology docs. Removed PGB-xxx internal codes from deployment docs.
+- **Verification:** `npm run docs:build` success, `make docs-check` clean, `go build ./...` clean, 0 broken links.
+- **Evidence lessons:** (1) Relative path updates in markdown are error-prone — systematic grep + batch edit is essential. (2) VitePress dead link checker catches broken refs at build time — valuable safety net. (3) File renames via `git mv` preserve history; content edits via `edit` tool are faster than full rewrites for targeted changes.
+
 ## 2026-09-16 — Realtime outbox listener shutdown race + custom model resolution
 
 - **Event:** Both CI jobs (`goreleaser` and `race`) failed in `apis` package tests.

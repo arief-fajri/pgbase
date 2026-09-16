@@ -1,13 +1,13 @@
-# Guard Rails
+# Quality Guardrails
 
-<DocMeta audience="Contributor" status="living document" verified="v0.5.2 (923e860)" />
+<DocMeta audience="Contributor" status="stable" verified="v0.5.2" />
 
-> Guard rails are the **second phase of the system-thinking loop**. They are the constraints that prevent PG-BASE from entering unacceptable states.
+> Guardrails are the constraints that prevent PG-BASE from entering unacceptable states.
 >
 > - A **test** answers: *did we observe the expected behavior?*
-> - A **guard rail** answers: *what behavior is never allowed?*
+> - A **guardrail** answers: *what behavior is never allowed?*
 >
-> Each entry names its **enforcement mechanism** so the constraint is not a recommendation but a check. System model and invariants: [PLATFORM.md](./PLATFORM.md). Failure classification: [FAILURE-MODES.md](./FAILURE-MODES.md).
+> Each entry names its **enforcement mechanism** so the constraint is not a recommendation but a check. System model and invariants: [Platform Design](./platform-design.md). Failure classification: [Failure Analysis](./failure-modes.md).
 
 ## 0. How to read the enforcement column
 
@@ -194,7 +194,7 @@ G-AI-08  The roadmap and this file are the AI's contract: when executing an item
 
 ## 8. Guard-rail gaps (currently open)
 
-These guard rails are defined but their enforcement is `(gap)`; they are tracked in [CHECKLISTS.md](./CHECKLISTS.md) and the roadmap:
+These guardrails are defined but their enforcement is `(gap)`; they are tracked in [Evaluation Checklists](./checklists.md) and the roadmap:
 
 | Guard rail | Missing enforcement | Linked roadmap item |
 |---|---|---|

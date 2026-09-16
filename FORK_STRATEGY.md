@@ -2,7 +2,7 @@
 
 > Decision record · Decided: 2026-09-11 · Owner: maintainer · Review cadence: every roadmap phase boundary, or immediately on any revisit trigger (§7)
 >
-> Related: [`.github/SECURITY.md`](/.github/SECURITY.md) (vulnerability routing), [`docs/fork-deltas.md`](/docs/fork-deltas.md) (the compatibility contract), [`docs/contributing-releasing.md`](/docs/contributing-releasing.md) §5 (fork duty).
+> Related: [`.github/SECURITY.md`](/.github/SECURITY.md) (vulnerability routing), [`docs/fork-deltas.md`](/docs/fork-deltas.md) (the compatibility contract), [`docs/contributor/releasing.md`](/docs/contributor/releasing.md) §5 (fork duty).
 
 ## 1. Decision
 

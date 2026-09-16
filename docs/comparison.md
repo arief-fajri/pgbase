@@ -56,7 +56,7 @@ both predate PG-BASE and have their own priorities.
 
 ## When NOT to choose PG-BASE
 
-Honest boundaries (all tracked in the [roadmap](./roadmap.md)):
+Honest boundaries (all tracked in the [roadmap](./contributor/roadmap.md)):
 
 - You need **vector/AI features today** — pgvector support is roadmap
   (Sprint 0b), not shipped.
@@ -79,4 +79,4 @@ Honest boundaries (all tracked in the [roadmap](./roadmap.md)):
 - Upstream security advisories are tracked under a documented SLA
   (`FORK_STRATEGY.md`, repo root).
 
-See also: [for agents](./agents.md) · [single-host production](./single-host-production.md) · [roadmap](./roadmap.md)
+See also: [for agents](./agents.md) · [single-host production](./deployment/single-host.md) · [roadmap](./contributor/roadmap.md)

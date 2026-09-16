@@ -94,7 +94,7 @@ Full list (pool tuning, timeouts, backup caps, rate limits):
 
 ## What is deliberately NOT there yet
 
-Honest boundaries (see the [roadmap](./roadmap.md)):
+Honest boundaries (see the [roadmap](./contributor/roadmap.md)):
 
 - No MCP server yet (Sprint 0b) — this page + the CLI contract are the
   agent interface today.
@@ -102,4 +102,4 @@ Honest boundaries (see the [roadmap](./roadmap.md)):
   ships the pgvector extension pre-created, so the stack stays valid when
   they land.
 - Multi-instance topologies need S3 file storage + the realtime outbox
-  (opt-in) — see [single-host production](./single-host-production.md) first.
+  (opt-in) — see [single-host production](./deployment/single-host.md) first.

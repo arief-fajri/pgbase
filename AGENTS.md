@@ -16,11 +16,11 @@ PLATFORM DESIGN → GUARD RAILS → IMPLEMENT → OBSERVE → TEST → EVALUATE 
 ```
 
 Full framework details: 
-[docs/PLATFORM.md](docs/PLATFORM.md) (what we are building),
-[docs/GUARDRAILS.md](docs/GUARDRAILS.md) (what is never allowed),
-[docs/FAILURE-MODES.md](docs/FAILURE-MODES.md) (classify before you fix),
-[docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) (prove guard rails hold),
-[docs/CHECKLISTS.md](docs/CHECKLISTS.md) (evaluation gates).
+[docs/contributor/methodology/platform-design.md](docs/contributor/methodology/platform-design.md) (what we are building),
+[docs/contributor/methodology/guardrails.md](docs/contributor/methodology/guardrails.md) (what is never allowed),
+[docs/contributor/methodology/failure-modes.md](docs/contributor/methodology/failure-modes.md) (classify before you fix),
+[docs/contributor/methodology/observability.md](docs/contributor/methodology/observability.md) (prove guardrails hold),
+[docs/contributor/methodology/checklists.md](docs/contributor/methodology/checklists.md) (evaluation gates).
 
 ### System thinking preflight (before starting non-trivial work)
 
@@ -46,16 +46,16 @@ When a test fails or a runbook step misbehaves, **classify it before changing co
 | Type | Pattern | Response |
 |---|---|---|
 | **A — Implementation failure** | Design ✓, guard rail ✓, implementation ✗ | Fix implementation |
-| **B — Design failure** | Implementation ✓, design was insufficient | Update PLATFORM.md |
-| **C — Missing guard rail** | System entered a forbidden state | Add a guard rail (GUARDRAILS.md) |
-| **D — Missing observability** | System failed but operators can't tell why | Add measurement (OBSERVABILITY.md) |
-| **E — Incorrect acceptance criteria** | Checklist passed but behavior was unsafe | Update CHECKLISTS.md |
+| **B — Design failure** | Implementation ✓, design was insufficient | Update platform-design.md |
+| **C — Missing guard rail** | System entered a forbidden state | Add a guardrail (guardrails.md) |
+| **D — Missing observability** | System failed but operators can't tell why | Add measurement (observability.md) |
+| **E — Incorrect acceptance criteria** | Checklist passed but behavior was unsafe | Update checklists.md |
 
 **You may never jump from a failing test directly to a code change.** Record the classification (PR/issue) first.
 
 ### Decision authority
 
-Your autonomy is bounded. Respect the levels in [GUARDRAILS.md §7](docs/GUARDRAILS.md#7-ai-decision-authority-g-ai):
+Your autonomy is bounded. Respect the levels in [guardrails.md §7](docs/contributor/methodology/guardrails.md#7-ai-decision-authority-g-ai):
 
 | Level | What | Action |
 |---|---|---|
@@ -76,12 +76,12 @@ Your autonomy is bounded. Respect the levels in [GUARDRAILS.md §7](docs/GUARDRA
 
 ## Read first (per task)
 
-- Architecture: [architecture/end-to-end.md](docs/architecture/end-to-end.md), [architecture/backend-layers.md](docs/architecture/backend-layers.md)
+- Architecture: [architecture/overview.md](docs/architecture/overview.md), [architecture/backend-layers.md](docs/architecture/backend-layers.md)
 - Behavior deltas vs upstream: [fork-deltas.md](docs/fork-deltas.md)
 - Fork/upstream policy: [FORK_STRATEGY.md](FORK_STRATEGY.md)
-- Full dev guide: [docs/developing.md](docs/developing.md) (single source of truth for commands)
-- System model & invariants: [docs/PLATFORM.md](docs/PLATFORM.md)
-- Guard rails & authority: [docs/GUARDRAILS.md](docs/GUARDRAILS.md)
+- Full dev guide: [docs/contributor/developing.md](docs/contributor/developing.md) (single source of truth for commands)
+- System model & invariants: [docs/contributor/methodology/platform-design.md](docs/contributor/methodology/platform-design.md)
+- Guard rails & authority: [docs/contributor/methodology/guardrails.md](docs/contributor/methodology/guardrails.md)
 
 ## Build
 
@@ -146,6 +146,6 @@ Formatting: `gofmt`/`goimports` defaults (alphabetical import order within group
 4. SQL identifiers in DDL paths must use `dbutils.DefaultDialect.QuoteIdentifier()`.
 5. Env fallbacks for tests (`PGTEST_*`) must not appear in production code paths.
 6. Security-relevant changes need a regression test (SSRF guard, caps, quoting, auth behaviors all have existing tests to model after).
-7. **Never change a system property without defining how its correctness will be observed** (PLATFORM P5).
-8. **Every guard rail must have an enforcement mechanism** (GUARDRAILS.md); a guard rail without enforcement is a suggestion, not a rail.
+7. **Never change a system property without defining how its correctness will be observed** (Platform Design P5).
+8. **Every guardrail must have an enforcement mechanism** (guardrails.md); a guardrail without enforcement is a suggestion, not a rail.
 9. **Every AI non-trivial change must complete the 10-step DoD** (above) with answers in the PR description.

@@ -2,7 +2,7 @@
 
 <What this change does — one paragraph.>
 
-## System-thinking Definition of Done (10 steps)
+## Definition of Done (10 steps)
 
 1. **System property changed:** <what system property are we changing?>
 2. **Desired outcome:** <which PLATFORM.md §2 outcome should change?>
