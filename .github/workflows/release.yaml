@@ -226,8 +226,12 @@ jobs:
         run: golangci-lint run -c ./golangci.yml ./...
 
   # Docker image for ghcr.io (Sprint 0a one-command provision). PR runs
-  # validate the Dockerfile builds; `v*` tag pushes publish
-  # ghcr.io/<owner>/pgbase:<tag> and :latest.
+  # validate the Dockerfile builds; `v*` tag pushes publish only the immutable
+  # ghcr.io/<owner>/pgbase:<tag> after all quality gates pass.
+  # The `:latest` tag is NOT moved here — it is promoted by the separate
+  # docker-latest workflow when a human publishes the release (see
+  # .github/workflows/docker-latest.yaml).  This prevents `:latest` from
+  # ever pointing at an unvalidated build.
   # linux/amd64 only for now — the Go binary cross-compiles trivially, so a
   # multi-arch (arm64) follow-up is cheap once there is demand for it.
   # Plain `docker build`/`push` steps on purpose: no third-party actions to
@@ -239,6 +243,7 @@ jobs:
   # Danger Zone → Change visibility → Public (packages created via
   # GITHUB_TOKEN start private, which would break the curl | sh quickstart).
   docker:
+    needs: [goreleaser, race, lint]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -253,7 +258,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: docker build .
 
-      - name: Publish image to ghcr.io
+      - name: Publish image to ghcr.io (immutable tag only)
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -263,6 +268,7 @@ jobs:
           # ghcr requires lowercase repository paths
           IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/pgbase"
           TAG="${GITHUB_REF_NAME}"
-          docker build -t "$IMAGE:$TAG" -t "$IMAGE:latest" .
+          # Only push the immutable version tag.  The :latest tag is promoted
+          # separately by the docker-latest workflow after the release is published.
+          docker build -t "$IMAGE:$TAG" .
           docker push "$IMAGE:$TAG"
-          docker push "$IMAGE:latest"

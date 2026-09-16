@@ -15,6 +15,31 @@
 - Roadmap Sprint 0b is **held** until the methodology gate (experiments A–E executed once
   with L2–L3 verification) and the doc restructure land (E1–E8).
 
+## 2026-09-17 — Guard rail: GHCR `:latest` gated on quality + publish event
+
+- **Event:** v0.5.4 tag push triggered `release.yaml`; the `docker` job published
+  `ghcr.io/arief-fajri/pgbase:latest` immediately, in parallel with the
+  test/race/lint jobs. A user could `docker pull :latest` from an unvalidated
+  build.
+- **Classified:** C (missing guard rail). Design intent existed (draft release
+  gate), but the Docker image tag lacked enforcement — system entered a
+  forbidden state.
+- **Fix:** (1) Added `needs: [goreleaser, race, lint]` to the `docker` job;
+  (2) removed `:latest` from the tag-push step, keeping only the immutable
+  `:vX.Y.Z` tag; (3) created `docker-latest.yaml` triggered by
+  `release: [published]` that re-tags the validated image as `:latest`.
+- **Guardrails added:** G-CI-01 (artifacts gated on quality jobs) and G-CI-02
+  (`:latest` == last published release).
+- **Documentation:** `releasing.md` §4 and `developing.md` §15 updated to
+  reflect the two-workflow contract.
+- **DRR:** `evidence/records/DRR-0000.md` (B2, confirmed by maintainer).
+- **Lessons:** (1) A guard rail without enforcement is a suggestion, not a rail.
+  The `needs:` keyword is the enforcement mechanism — without it, parallel
+  jobs have no ordering guarantee. (2) `:latest` should always mean "last
+  published validated release", not "last tag pushed". (3) Retagging by digest
+  (pull → tag → push) is simpler and more deterministic than rebuilding on
+  the publish event.
+
 <!-- New entries go above this line. -->
 
 ## 2026-09-16 — Documentation restructure: public/internal separation
