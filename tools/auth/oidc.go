@@ -24,9 +24,9 @@ import (
 var idTokenLeeway time.Duration = 5 * time.Minute
 
 func init() {
-	Providers[NameOIDC] = wrapFactory(NewOIDCProvider)
-	Providers[NameOIDC+"2"] = wrapFactory(NewOIDCProvider)
-	Providers[NameOIDC+"3"] = wrapFactory(NewOIDCProvider)
+	RegisterProvider(NameOIDC, wrapFactory(NewOIDCProvider))
+	RegisterProvider(NameOIDC+"2", wrapFactory(NewOIDCProvider))
+	RegisterProvider(NameOIDC+"3", wrapFactory(NewOIDCProvider))
 
 	if leewayStr := os.Getenv("PB_ID_TOKEN_LEEWAY"); leewayStr != "" {
 		leeway, err := strconv.Atoi(leewayStr)

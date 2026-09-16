@@ -41,7 +41,18 @@ export default withMermaid(defineConfig({
                 items: [
                     { text: "Single-host production", link: "/single-host-production" },
                     { text: "Production runbook", link: "/production" },
-                    { text: "Backup, restore & observability", link: "/backup-restore-observability" },
+                    { text: "Disaster recovery", link: "/DISASTER-RECOVERY" },
+                    { text: "Observability", link: "/OBSERVABILITY" },
+                ],
+            },
+            {
+                text: "Methodology",
+                items: [
+                    { text: "Platform design", link: "/PLATFORM" },
+                    { text: "Guard rails", link: "/GUARDRAILS" },
+                    { text: "Failure modes", link: "/FAILURE-MODES" },
+                    { text: "Checklists", link: "/CHECKLISTS" },
+                    { text: "Upstream status", link: "/UPSTREAM" },
                 ],
             },
             {
@@ -87,8 +98,22 @@ export default withMermaid(defineConfig({
                 items: [
                     { text: "Single-host production", link: "/single-host-production" },
                     { text: "Production runbook", link: "/production" },
-                    { text: "Backup, restore & observability", link: "/backup-restore-observability" },
+                    { text: "Disaster recovery", link: "/DISASTER-RECOVERY" },
+                    { text: "Observability", link: "/OBSERVABILITY" },
                     { text: "Env reference", link: "/reference/env" },
+                ],
+            },
+            {
+                text: "Methodology",
+                collapsed: false,
+                items: [
+                    { text: "Platform design", link: "/PLATFORM" },
+                    { text: "Guard rails", link: "/GUARDRAILS" },
+                    { text: "Failure modes", link: "/FAILURE-MODES" },
+                    { text: "Observability", link: "/OBSERVABILITY" },
+                    { text: "Checklists", link: "/CHECKLISTS" },
+                    { text: "Disaster recovery", link: "/DISASTER-RECOVERY" },
+                    { text: "Upstream status", link: "/UPSTREAM" },
                 ],
             },
             {

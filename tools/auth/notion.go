@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	Providers[NameNotion] = wrapFactory(NewNotionProvider)
+	RegisterProvider(NameNotion, wrapFactory(NewNotionProvider))
 }
 
 var _ Provider = (*Notion)(nil)

@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	Providers[NameMicrosoft] = wrapFactory(NewMicrosoftProvider)
+	RegisterProvider(NameMicrosoft, wrapFactory(NewMicrosoftProvider))
 }
 
 var _ Provider = (*Microsoft)(nil)

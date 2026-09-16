@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	Providers[NameGitlab] = wrapFactory(NewGitlabProvider)
+	RegisterProvider(NameGitlab, wrapFactory(NewGitlabProvider))
 }
 
 var _ Provider = (*Gitlab)(nil)

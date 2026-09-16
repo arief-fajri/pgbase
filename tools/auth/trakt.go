@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	Providers[NameTrakt] = wrapFactory(NewTraktProvider)
+	RegisterProvider(NameTrakt, wrapFactory(NewTraktProvider))
 }
 
 var _ Provider = (*Trakt)(nil)

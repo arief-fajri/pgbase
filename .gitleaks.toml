@@ -1,0 +1,15 @@
+[extend]
+useDefault = true
+
+# Allowlist (global, extends the default set): test fixtures only. JWT /
+# signing fixtures and demo keys are intentionally hardcoded in Go test files
+# and the test seed (they map to settings encrypted with a throwaway dev key
+# and never reach production code or deployments). Anything found OUTSIDE
+# these paths still fails CI (G-SEC-01). If a real secret ever appears in a
+# _test.go file it must be moved to CI secrets / a test-only provider — do not
+# extend this allowlist.
+[allowlist]
+paths = [
+    '''(?i).*_test\.go''',
+    '''(?i)tests/.*''',
+]

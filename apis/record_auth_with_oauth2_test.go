@@ -151,12 +151,12 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{Id: "test_id"},
 						Token:    &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				user.Collection().MFA.Enabled = false
@@ -316,12 +316,12 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{Id: "test_id"},
 						Token:    &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				user.Collection().MFA.Enabled = false
@@ -432,12 +432,12 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{Id: "test_id", Email: "test@example.com"},
 						Token:    &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				user.Collection().MFA.Enabled = false
@@ -556,12 +556,12 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{Id: "test_id", Email: "test3@example.com"},
 						Token:    &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// ensure that there is at least one other external auth different than test
 				// so that later we can verify that they are not deleted
@@ -681,7 +681,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{
 							Id:    "test_id",
@@ -689,7 +689,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 						},
 						Token: &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				user.Collection().MFA.Enabled = false
@@ -802,7 +802,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{
 							Id:    "test_id",
@@ -810,7 +810,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 						},
 						Token: &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				user.Collection().MFA.Enabled = false
@@ -915,7 +915,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{
 							Id:    "test_id",
@@ -923,7 +923,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 						},
 						Token: &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				user.Collection().MFA.Enabled = false
@@ -1015,12 +1015,12 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{Id: "test_id"},
 						Token:    &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				usersCol.MFA.Enabled = false
@@ -1096,12 +1096,12 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{Id: "test_id"},
 						Token:    &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				usersCol.MFA.Enabled = false
@@ -1152,12 +1152,12 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{Id: "test_id"},
 						Token:    &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				usersCol.MFA.Enabled = false
@@ -1215,12 +1215,12 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{Id: "test_id"},
 						Token:    &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				usersCol.MFA.Enabled = false
@@ -1309,7 +1309,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{
 							Id:    "test_id",
@@ -1317,7 +1317,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 						},
 						Token: &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				usersCol.MFA.Enabled = false
@@ -1394,7 +1394,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{
 							Id:        "oauth2_id",
@@ -1404,7 +1404,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 						},
 						Token: &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				usersCol.MFA.Enabled = false
@@ -1485,7 +1485,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{
 							Id:        "oauth2_id",
@@ -1495,7 +1495,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 						},
 						Token: &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				usersCol.MFA.Enabled = false
@@ -1571,7 +1571,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{
 							Id:        "oauth2_id",
@@ -1580,7 +1580,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 						},
 						Token: &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				usersCol.MFA.Enabled = false
@@ -1651,7 +1651,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{
 							Id:        "oauth2_id",
@@ -1662,7 +1662,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 						},
 						Token: &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				usersCol.MFA.Enabled = false
@@ -1736,7 +1736,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{
 							Id:       "oauth2_id",
@@ -1746,7 +1746,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 						},
 						Token: &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// make the username index case-insensitive to ensure that case-insensitive match is used
 				index, ok := dbutils.FindSingleColumnUniqueIndex(usersCol.Indexes, "username")
@@ -1826,7 +1826,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{
 							Id:       "oauth2_id",
@@ -1836,7 +1836,7 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 						},
 						Token: &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				usersCol.MFA.Enabled = false
@@ -1908,12 +1908,12 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{Id: "test_id"},
 						Token:    &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				// add the test provider in the collection
 				user.Collection().MFA.Enabled = false
@@ -1974,12 +1974,12 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers[auth.NameApple] = func() auth.Provider {
+				tests.RegisterTestProvider(t, auth.NameApple, func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{Id: "test_id"},
 						Token:    &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				app.Store().Set("@redirect_name_test_code", "test_store_name")
 
@@ -2022,12 +2022,12 @@ func TestRecordAuthWithOAuth2(t *testing.T) {
 				}
 
 				// register the test provider
-				auth.Providers["test"] = func() auth.Provider {
+				tests.RegisterTestProvider(t, "test", func() auth.Provider {
 					return &oauth2MockProvider{
 						AuthUser: &auth.AuthUser{Id: "test_id"},
 						Token:    &oauth2.Token{AccessToken: "abc"},
 					}
-				}
+				})
 
 				app.Store().Set("@redirect_name_test_code", "test_store_name")
 

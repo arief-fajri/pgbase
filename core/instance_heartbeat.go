@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -151,6 +152,10 @@ func (guard *instanceHeartbeatGuard) cleanup(e *TerminateEvent) error {
 // runCycle writes this instance's heartbeat and detects multi-instance peers,
 // warning (once per single->multi transition) when found.
 func (guard *instanceHeartbeatGuard) runCycle() {
+	if !guard.app.IsBootstrapped() {
+		return
+	}
+
 	// best-effort: a failing heartbeat must not crash the ticker
 	if err := guard.writeHeartbeat(); err != nil {
 		guard.app.Logger().Warn("Failed to write instance heartbeat", slog.String("error", err.Error()))
@@ -176,7 +181,12 @@ func (guard *instanceHeartbeatGuard) runCycle() {
 // writeHeartbeat upserts this instance's presence (single cheap statement, works
 // behind PgBouncer transaction pooling).
 func (guard *instanceHeartbeatGuard) writeHeartbeat() error {
-	_, err := guard.app.AuxNonconcurrentDB().
+	db := guard.app.AuxNonconcurrentDB()
+	if db == nil {
+		return errors.New("app not bootstrapped or already terminated")
+	}
+
+	_, err := db.
 		NewQuery(fmt.Sprintf(
 			`INSERT INTO "%s" ("instance_id", "seen_at") VALUES ({:id}, NOW())
 			 ON CONFLICT ("instance_id") DO UPDATE SET "seen_at" = NOW()`,
@@ -193,7 +203,12 @@ func (guard *instanceHeartbeatGuard) writeHeartbeat() error {
 func (guard *instanceHeartbeatGuard) hasPeer() (bool, error) {
 	var count int64
 
-	err := guard.app.AuxNonconcurrentDB().
+	db := guard.app.AuxNonconcurrentDB()
+	if db == nil {
+		return false, errors.New("app not bootstrapped or already terminated")
+	}
+
+	err := db.
 		NewQuery(fmt.Sprintf(
 			`SELECT COUNT(*) FROM "%s"
 			 WHERE "instance_id" <> {:self}
@@ -231,7 +246,12 @@ func (guard *instanceHeartbeatGuard) warnMultiInstance() {
 // purgeStaleRows removes heartbeat rows of instances that have not reported
 // within the stale age (ie. dead instances) to keep the table tiny.
 func (guard *instanceHeartbeatGuard) purgeStaleRows() error {
-	_, err := guard.app.AuxNonconcurrentDB().
+	db := guard.app.AuxNonconcurrentDB()
+	if db == nil {
+		return errors.New("app not bootstrapped or already terminated")
+	}
+
+	_, err := db.
 		NewQuery(fmt.Sprintf(
 			`DELETE FROM "%s" WHERE "seen_at" < NOW() - ({:age}::text)::interval`,
 			instanceHeartbeatsTableName,

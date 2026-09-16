@@ -43,4 +43,8 @@ docs/.vitepress/*.timestamp-*.mjs
 *.db-wal
 *.db-journal
 
-evidence
+# Evidence methodology (G-AI-07): harnesses, records, DRRs, learnings are
+# versioned. Raw harness stdout logs stay local (regenerable by the harnesses;
+# records link the canonical artifacts).
+evidence/experiments/logs/
+evidence/test/

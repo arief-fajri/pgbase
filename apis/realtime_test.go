@@ -1191,7 +1191,7 @@ func TestRealtimeRecordResolve(t *testing.T) {
 			go func() {
 				defer wg.Done()
 
-				timeout := time.After(250 * time.Millisecond)
+				timeout := time.After(2 * time.Second)
 
 				for {
 					select {

@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	Providers[NameBitbucket] = wrapFactory(NewBitbucketProvider)
+	RegisterProvider(NameBitbucket, wrapFactory(NewBitbucketProvider))
 }
 
 var _ Provider = (*Bitbucket)(nil)

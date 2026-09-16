@@ -1,0 +1,51 @@
+name: Bug / Failure report
+description: Report a failure. Classify it BEFORE proposing a fix (AGENTS.md §failure classification).
+body:
+  - type: dropdown
+    id: classification
+    attributes:
+      label: Failure classification (A–E)
+      description: >
+        A — implementation failure (design ✓, guard rail ✓, code ✗)
+        B — design failure (design was insufficient)
+        C — missing guard rail (system entered a forbidden state)
+        D — missing observability (failure happened but reason is invisible)
+        E — incorrect acceptance criteria (checklist passed but behavior is unsafe)
+      options:
+        - "A — Implementation failure"
+        - "B — Design failure"
+        - "C — Missing guard rail"
+        - "D — Missing observability"
+        - "E — Incorrect acceptance criteria"
+    validations:
+      required: true
+  - type: input
+    id: guardrail-or-invariant
+    attributes:
+      label: Guard rail / invariant implicated
+      description: Reference the G-# or I# from docs/GUARDRAILS.md / docs/PLATFORM.md. "None — gap" is an acceptable answer (that is itself class C/D).
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands / scenario, and observed vs expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Environment
+      description: PG-BASE version, PostgreSQL version, topology (single/multi-instance), PgBouncer, storage.
+    validations:
+      required: false
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed change (after classification!)
+      description: >
+        If class B/C/D/E, the fix must also update the corresponding system layer
+        (PLATFORM.md / GUARDRAILS.md / OBSERVABILITY.md / CHECKLISTS.md) in the same PR.
+    validations:
+      required: false

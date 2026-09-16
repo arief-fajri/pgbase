@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	Providers[NameWakatime] = wrapFactory(NewWakatimeProvider)
+	RegisterProvider(NameWakatime, wrapFactory(NewWakatimeProvider))
 }
 
 var _ Provider = (*Wakatime)(nil)
