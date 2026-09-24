@@ -27,7 +27,7 @@ The dashboard ships a live, collection-aware reference at `ui/src/apiPreview/` (
 | Auth | `docsAuthWithPassword\|OAuth2\|OTP\|Refresh\|ListAuthMethods\|Verification\|PasswordReset\|EmailChange.js` | Live `identityFields`; OTP/MFA tabs appear only when enabled |
 | Syntax | `filterSyntax.js`, `expandInfo.js`, `fieldsInfo.js` | Operators `= != > >= < <= ~ !~ ?= ?!= ?> ?>= ?< ?<= ?~ ?!~`, `&& \|\| (...)`, auto-`%` wrap, URL-encoding note |
 
-Workflow: open `#/collections` → collection → record → **API preview**. This doc only covers fork deltas (`fork-deltas.md`); syntax truth lives in the preview + upstream docs.
+Workflow: open `#/collections` → collection → record → **API preview**. Syntax truth lives in that preview. Behavior that callers must rely on is the [API contract](./reference/api-contract.md).
 
 ## 3. CRUD routes (rule-checked)
 
@@ -45,7 +45,7 @@ Expand is batched server-side (N+1 removed in v0.5.0); file fields serve via `ap
 
 ## 4. Indexes (what builders can declare)
 
-Declare indexes in the collection's `indexes` JSON; schema sync rebuilds only changed/added ones (index-diff sync, v0.5.0). Auth identity fields require the `LOWER()` partial unique form (see `fork-deltas.md` #2). GIN/`jsonb_path_ops` for multi-value JSONB filters is `roadmap-open` (PERF-I02) — expect full scans today.
+Declare indexes in the collection's `indexes` JSON; schema sync rebuilds only changed/added ones (index-diff sync, v0.5.0). Auth identity fields require the `LOWER()` partial unique form (see [API contract](./reference/api-contract.md) §2). GIN/`jsonb_path_ops` for multi-value JSONB filters is `roadmap-open` (PERF-I02) — expect full scans today.
 
 Exceptional escape hatch for huge hot tables: build out-of-band (`developing.md` #5b):
 

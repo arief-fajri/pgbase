@@ -40,7 +40,6 @@ External dependencies are part of the system model:
 - PgBouncer where deployed (transaction or session pooling)
 - Prometheus-compatible monitoring
 - container / runtime environment
-- upstream PocketBase source and behavior (see [Upstream Tracking](../upstream.md))
 
 The runnable entrypoint is `examples/base`; the root Go package is a library. The root package boots a dual-pool PostgreSQL connection set through `PB_POSTGRES_*` env vars (see `core/db_connect.go`, `core/base.go`).
 
@@ -49,7 +48,7 @@ The runnable entrypoint is `examples/base`; the root Go package is a library. Th
 PG-BASE must satisfy these high-level outcomes. Every non-trivial change should be traceable to one or more of them:
 
 1. **PostgreSQL-native** — PostgreSQL is not an adapter hidden behind a SQLite abstraction. Connection pooling, transactions, locks, timeouts, migrations, and recovery are explicit concerns.
-2. **PocketBase-compatible where promised** — existing application behavior remains compatible unless a change is intentionally documented ([fork-deltas.md](../../fork-deltas.md) is the contract).
+2. **API contract is explicit** — caller-visible behavior does not change unless the change is documented in [api-contract.md](../../reference/api-contract.md) and covered by a regression test.
 3. **Self-hostable** — a developer/operator can run the platform without a proprietary control plane.
 4. **Secure by default** — production defaults minimize accidental exposure.
 5. **Observable** — operators can determine whether the system is healthy and why it is degrading.
@@ -71,7 +70,7 @@ PG-BASE must satisfy these high-level outcomes. Every non-trivial change should 
 - **PgBouncer**: transaction pooling requires the pgx client setting `default_query_exec_mode=exec|simple_protocol` (named prepared statements do not survive backend changes); role-level timeouts still hold.
 - **Failure/reconnection behavior**: `connect_timeout` bounds dials; the outbox `LISTEN` connection is a dedicated pgx conn (not pooled, not PgBouncer transaction mode).
 
-**P2 — Preserve application semantics.** Changing the persistence layer must not unintentionally change: auth behavior, authorization, filtering, sorting, pagination, API response structure, HTTP status semantics, realtime behavior, file behavior, validation behavior. Enforced by the compatibility contract in `fork-deltas.md` and G-API guard rails.
+**P2 — Preserve application semantics.** Changing the persistence layer must not unintentionally change: auth behavior, authorization, filtering, sorting, pagination, API response structure, HTTP status semantics, realtime behavior, file behavior, validation behavior. Enforced by [api-contract.md](../../reference/api-contract.md) and the G-API guard rails.
 
 **P3 — Fail boundedly.** Every potentially blocking external operation has a bounded lifecycle: HTTP read/write timeouts (5 min server defaults), query timeout (30s), statement timeout (60s), lock timeout (30s), connection acquisition timeout (`connect_timeout=10s`), graceful shutdown, realtime connection idle timeout (5 min).
 
@@ -109,7 +108,7 @@ I7. Breaking behavior must be explicit, documented, and versioned where necessar
 I8. HTTP status codes and error semantics must be deterministic.
 ```
 
-Enforcement anchors: `docs/fork-deltas.md` (the contract), G-API guardrails, `apis/router` error semantics.
+Enforcement anchors: `docs/reference/api-contract.md` (the contract), G-API guardrails, `apis/router` error semantics.
 
 ### 4.3 Security invariants
 
@@ -158,5 +157,5 @@ Failure modes and their expected behavior are codified in [Failure Analysis](./f
 - [System Overview](../../architecture/overview.md) — components, layers, flowchart
 - [Backend Layers](../../architecture/backend-layers.md) — bootstrap chain, dual-pool, middleware order, migrations runner
 - [Audit Trail](../../architecture/audit-design.md) — audit/read-partitioning details
-- [Fork Deltas](../../fork-deltas.md) — the public compatibility contract
+- [API Contract](../../reference/api-contract.md) — the public behavior contract
 - [Quality Guardrails](./guardrails.md) — the never-allowed constraints that operationalize this model

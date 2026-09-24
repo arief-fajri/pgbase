@@ -1,17 +1,8 @@
-name: Decision request (B1 / B2)
-description: Request a decision under the AI decision-authority model (GUARDRAILS.md §7). B1 auto-applies after 24 h without objection; B2 blocks until explicit confirmation.
+name: Decision request (Level B)
+description: Request an explicit human confirmation under the AI decision-authority model (GUARDRAILS.md §8). The change stays blocked until a maintainer confirms. Silence is not approval.
 title: "DRR: <short decision summary>"
 labels: [decision-waiting]
 body:
-  - type: dropdown
-    id: level
-    attributes:
-      label: Authority level
-      options:
-        - "B1 — Recommend + 24 h window"
-        - "B2 — Explicit human confirmation required"
-    validations:
-      required: true
   - type: input
     id: guardrails
     attributes:
@@ -23,7 +14,7 @@ body:
     id: context
     attributes:
       label: Decision context
-      description: What is being decided, why now, what upstream/product context applies.
+      description: What is being decided, why now, and what product context applies.
     validations:
       required: true
   - type: textarea
@@ -48,6 +39,6 @@ body:
     validations:
       required: true
 
-# B1: if no objection is recorded within 24 h, the requester may apply the change
-# and update this issue's state. B2: remains open until an explicit maintainer decision.
-# Record the outcome in evidence/records/ (decision number = this issue number).
+# Level B: remains open until an explicit maintainer confirmation.
+# Silence is not approval. Record the outcome in evidence/records/
+# (decision number = this issue number).

@@ -117,4 +117,19 @@
 - **Experiments A–E (gate E5) executed once, all PASS (L3):**
   A `.../EXPERIMENT-A-20260912-161420.md`, B `...B-20260912-154253.md`,
   C `...C-20260912-155209.md`, D `...D-20260912-155751.md`, E `...E-20260912-160628.md`
-  (FAILURE-MODES §4 verdict matrix filled).
+   (FAILURE-MODES §4 verdict matrix filled).
+
+## 2026-09-25 — Positioning: application backend, not a fork tracker
+
+- Public identity is a self-hosted PostgreSQL application backend. PocketBase is the DX
+  inspiration and an acquisition path, not a release-tracking target.
+- Removed `FORK_STRATEGY.md`, `docs/fork-deltas.md`, and `docs/contributor/upstream.md`
+  with no redirects. Caller-visible behavior now lives in `docs/reference/api-contract.md`.
+- Roadmap is phases 0–5 (trust, migration, PostgreSQL advantage, agent interface, scale,
+  ecosystem). Migration is Phase 1, not the product thesis.
+
+## 2026-09-25 — Decision authority: B1 and B2 merged
+
+- Level B1 (apply after 24 h of silence) is retired. Former B1 and B2 cases are one
+  Level B: explicit human confirm. Silence is not approval.
+- Level A is unchanged. Historical DRRs keep their original labels.

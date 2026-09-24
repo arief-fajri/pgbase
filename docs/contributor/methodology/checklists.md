@@ -41,7 +41,7 @@
                                                                 end-to-end doc Task 36)
 ```
 
-## 3. API compatibility (reference: [fork-deltas.md](../../fork-deltas.md))
+## 3. API contract (reference: [api-contract.md](../../reference/api-contract.md))
 
 ```text
 [ ] Authentication behavior is compatible                         (compat suite Task 18/24 — gap)
@@ -58,7 +58,7 @@
 [ ] File behavior is compatible                                   (file endpoint tests — gap)
 ```
 
-Where possible, every row above is an automated comparison: run the same observable behavior against upstream PocketBase and PG-BASE, and require equivalent **external** behavior — not implementation equality.
+Where possible, every row above is an automated test of external behavior against the API contract — not an implementation snapshot, and not a comparison with another product.
 
 ## 4. Security (reference: G-SEC-01…08)
 
@@ -109,7 +109,7 @@ A release is not ready merely because unit tests pass. The release gate combines
 [ ] Failure experiments for affected subsystem pass               (A–E per affected area)
 [ ] Observability exists for affected subsystem                   (OBSERVABILITY.md §5 pairing)
 [ ] Documentation updated                                        (docs build + lychee green)
-[ ] Upstream divergence reviewed                                 (UPSTREAM.md / FORK_STRATEGY triage)
+[ ] API contract updated if caller-visible behavior changed      (api-contract.md)
 [ ] Rollback/recovery procedure exists                            (upgrade runbook)
 ```
 

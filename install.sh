@@ -109,5 +109,5 @@ printf 'Installed: %s (PG-BASE %s, %s/%s)\n\n' "$dest" "$tag" "$os" "$arch"
 printf 'Next steps — the binary talks to any PostgreSQL 16+:\n\n'
 printf '  %s serve --http 127.0.0.1:8090 \\\n    --pg-host <host> --pg-user <user> --pg-password <pass> --pg-dbname <db>\n\n' "$dest"
 printf '  # first superuser\n  %s superuser upsert admin@example.com <strong-password>\n\n' "$dest"
-printf 'Docs: https://arief-fajri.github.io/pgbase/ — API is PocketBase-compatible\n'
-printf '(fork deltas: https://arief-fajri.github.io/pgbase/fork-deltas)\n'
+printf 'Docs: https://arief-fajri.github.io/pgbase/\n'
+printf 'API contract: https://arief-fajri.github.io/pgbase/reference/api-contract\n'

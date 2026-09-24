@@ -17,7 +17,7 @@ sequenceDiagram
   A-->>C: {token, record} or 400
 ```
 
-`apis/record_auth_with_password.go:23` returns `ForbiddenError` when `PasswordAuth.Enabled` is false. Identity lookup is the hot index-served path (see `fork-deltas.md` #2).
+`apis/record_auth_with_password.go:23` returns `ForbiddenError` when `PasswordAuth.Enabled` is false. Identity lookup is the hot index-served path (see [API contract](../reference/api-contract.md) §2).
 
 ## 2. OAuth2 (redirect + subscription)
 
@@ -32,7 +32,7 @@ sequenceDiagram
   A-->>C: redirect ../_/#/auth/oauth2-redirect-{success,failure}
 ```
 
-`apis/record_auth_with_oauth2_redirect.go:31-66,111-140`; topic `@oauth2` (`:15`); Apple name parsing `:140`. Providers: `tools/auth/` (`google,github,apple,oidc,…` + `base_provider.go`). `TrustedProxy` misconfig breaks the IP check — see `fork-deltas.md` #7.
+`apis/record_auth_with_oauth2_redirect.go:31-66,111-140`; topic `@oauth2` (`:15`); Apple name parsing `:140`. Providers: `tools/auth/` (`google,github,apple,oidc,…` + `base_provider.go`). `TrustedProxy` misconfig breaks the IP check — see [API contract](../reference/api-contract.md) §7.
 
 ## 3. OTP (email, 5/180s, single-use)
 

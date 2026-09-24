@@ -9,7 +9,7 @@ export default withMermaid(defineConfig({
         flowchart: { nodeSpacing: 40, rankSpacing: 60 },
     },
     title: "PGBase Docs",
-    description: "PostgreSQL-powered backend as a service (PocketBase fork) — architecture, flows, features.",
+    description: "The simple, self-hosted application backend for PostgreSQL. One binary. Your database.",
     // Project pages are served from a subpath: https://arief-fajri.github.io/pgbase/
     // Local dev therefore serves at http://localhost:5174/pgbase/
     base: "/pgbase/",
@@ -49,6 +49,7 @@ export default withMermaid(defineConfig({
                 items: [
                     { text: "Environment Variables", link: "/reference/env" },
                     { text: "API Overview", link: "/reference/api-overview" },
+                    { text: "API Contract", link: "/reference/api-contract" },
                 ],
             },
             { text: "Development", link: "/contributor/" },
@@ -61,7 +62,7 @@ export default withMermaid(defineConfig({
                     { text: "Overview", link: "/" },
                     { text: "Getting Started", link: "/getting-started" },
                     { text: "Comparison", link: "/comparison" },
-                    { text: "What's Different", link: "/fork-deltas" },
+                    { text: "Migrate from PocketBase", link: "/migrate" },
                 ],
             },
             {
@@ -93,6 +94,7 @@ export default withMermaid(defineConfig({
                 items: [
                     { text: "Environment Variables", link: "/reference/env" },
                     { text: "API Overview", link: "/reference/api-overview" },
+                    { text: "API Contract", link: "/reference/api-contract" },
                 ],
             },
             {
@@ -114,7 +116,6 @@ export default withMermaid(defineConfig({
                             { text: "Evaluation Checklists", link: "/contributor/methodology/checklists" },
                         ],
                     },
-                    { text: "Upstream Tracking", link: "/contributor/upstream" },
                     { text: "Roadmap", link: "/contributor/roadmap" },
                 ],
             },
@@ -125,7 +126,7 @@ export default withMermaid(defineConfig({
         },
         socialLinks: [{ icon: "github", link: "https://github.com/arief-fajri/pgbase" }],
         footer: {
-            message: "Fork of PocketBase · MIT Licensed",
+            message: "MIT Licensed",
             copyright: "© 2026 PGBase",
         },
     },

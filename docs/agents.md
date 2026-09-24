@@ -41,12 +41,12 @@ Provision a PG-BASE backend for this project.
    POST {base}/api/collections  (Authorization: superuser token from
    POST {base}/api/collections/_superusers/auth-with-password)
 
-3. Use the PocketBase SDK for CRUD — the REST API is PocketBase-compatible:
+3. Use the JS or Dart SDK for CRUD, or call the REST API directly:
    GET/POST {base}/api/collections/items/records with filter/sort/page params.
 
-4. Do NOT use SQLite-specific assumptions; the storage engine is PostgreSQL
-   (JSONB for schemaless fields, timestamptz for dates). Known behavior
-   differences vs PocketBase: https://arief-fajri.github.io/pgbase/fork-deltas
+4. The storage engine is PostgreSQL (JSONB for schemaless fields, timestamptz
+   for dates). Behavior contract:
+   https://arief-fajri.github.io/pgbase/reference/api-contract
 ```
 
 ## Deterministic CLI contract
@@ -86,20 +86,18 @@ Full list (pool tuning, timeouts, backup caps, rate limits):
 
 ## API surface
 
-- REST + realtime: PocketBase-compatible — use the
-  [PocketBase JS/Dart SDKs](https://pocketbase.io/docs) and docs.
-- Differences: [fork deltas](./fork-deltas.md) (PostgreSQL-only engine,
-  case-insensitive identity indexes, editor sanitization, batch transaction
-  semantics — read before relying on edge behavior).
+- REST + realtime: see the [API overview](./reference/api-overview.md) and
+  the [API contract](./reference/api-contract.md).
+- PocketBase JS and Dart SDKs work against this API today. They are a
+  convenience. The contract is the source of truth.
 
 ## What is deliberately NOT there yet
 
 Honest boundaries (see the [roadmap](./contributor/roadmap.md)):
 
-- No MCP server yet (Sprint 0b) — this page + the CLI contract are the
-  agent interface today.
-- No vector/similarity fields yet (Sprint 0b) — the quickstart's Postgres
-  ships the pgvector extension pre-created, so the stack stays valid when
-  they land.
+- No MCP server yet — this page and the CLI contract are the agent
+  interface today.
+- No vector/similarity fields yet — the quickstart's Postgres ships the
+  pgvector extension pre-created, so the stack stays valid when they land.
 - Multi-instance topologies need S3 file storage + the realtime outbox
   (opt-in) — see [single-host production](./deployment/single-host.md) first.

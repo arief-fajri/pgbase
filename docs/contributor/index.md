@@ -35,5 +35,4 @@ If a test fails, use [Failure Analysis](./methodology/failure-modes.md) to class
 
 ## Project resources
 
-- [Upstream Tracking](./upstream.md) — PG-BASE vs PocketBase status
 - [Roadmap](./roadmap.md) — product and development roadmap

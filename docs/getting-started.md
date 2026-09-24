@@ -82,11 +82,12 @@ Full reference: [Environment Variables](./reference/env.md).
 
 ## Compare with alternatives
 
-Not sure if PG-BASE is right for you? See [Comparison](./comparison.md) for a detailed breakdown against PocketBase, Supabase, and other options.
+Not sure if PG-BASE is the right shape? See [Comparison](./comparison.md).
 
 ## Learn more
 
-- [What's Different vs PocketBase](./fork-deltas.md) — compatibility contract
+- [API contract](./reference/api-contract.md) — behavior you can rely on
+- [Migrate from PocketBase](./migrate.md) — what import can and cannot do today
 - [Collections & API Rules](./collections-and-api-rules.md) — data model reference
 - [Authentication Flows](./flows/auth.md) — how auth works
 - [Deployment Guide](./deployment/single-host.md) — production setup

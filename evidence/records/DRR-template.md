@@ -1,17 +1,17 @@
 # DRR-<issue#> — <short decision summary>
 
 <!--
-Decision Request Record for Level B1 / B2 decisions (GUARDRAILS.md §7, G-AI-02/03).
+Decision Request Record for Level B decisions (GUARDRAILS.md §8, G-AI-02/03).
 File lives at evidence/records/DRR-<issue#>.md; the GitHub issue (template
-.github/ISSUE_TEMPLATE/decision_request.yml) is the surface where humans object or approve.
+.github/ISSUE_TEMPLATE/decision_request.yml) is the surface where a human confirms.
 
-B1: apply only after 24 h without a recorded objection.
-B2: no auto-approval — blocked until explicit maintainer confirmation.
+Level B: no auto-approval. Blocked until explicit maintainer confirmation.
+Silence is not approval.
 -->
 
 ## Decision
 
-- **Authority level:** B1 / B2
+- **Authority level:** B
 - **Guard rails / invariants implicated:** G-# / I-# (or "none, because <reason>")
 - **Requester:** <agent / person>
 - **Date opened:** YYYY-MM-DD
@@ -40,8 +40,8 @@ B2: no auto-approval — blocked until explicit maintainer confirmation.
 
 - Opened: YYYY-MM-DD HH:MM
 - Objections: <none / details / dates>
-- Applied (B1 only, ≥24 h): YYYY-MM-DD HH:MM
-- Confirmed (B2): <maintainer / date>
+- Confirmed: <maintainer / date>
+- Applied: YYYY-MM-DD HH:MM (only after confirmation)
 
 ## Outcome
 

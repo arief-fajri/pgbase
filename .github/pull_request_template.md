@@ -18,8 +18,7 @@
 ## Decision authority
 
 - [ ] **Level A** — internal, reversible, guard-rail-safe, contract-safe
-- [ ] **Level B1** (24 h window) — reversible, test-covered, non-contract → DRR in `evidence/records/`
-- [ ] **Level B2** (explicit human confirm required) — contract / security / destructive / upstream DIVERGE
+- [ ] **Level B** (explicit human confirm required) — anything that is not Level A → DRR in `evidence/records/`, blocked until a human confirms
 
 > If this change is in response to a failure, state the **classification (A–E)** before describing the fix (AGENTS.md §failure classification).
 

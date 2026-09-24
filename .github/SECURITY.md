@@ -1,10 +1,7 @@
 # Security Policy
 
-PG-BASE is a **hard fork of [PocketBase](https://github.com/pocketbase/pocketbase)** that
-replaces the SQLite storage engine with PostgreSQL and adds fork-specific features
-(audit trails, native `pg_dump`/`pg_restore` backups, PostgreSQL-native migrations, and
-assorted security hardening). We take the security of this fork seriously and appreciate
-responsible disclosure.
+PG-BASE is a self-hosted, single-binary application backend for PostgreSQL.
+We take its security seriously and appreciate responsible disclosure.
 
 ## Reporting a vulnerability
 
@@ -19,19 +16,6 @@ This creates a private advisory visible only to the maintainers and to you.
 
 A short _"I think I found a security issue when I do X"_ is enough to start. Please include
 enough detail to reproduce (affected version/commit, steps, and impact).
-
-### Fork vs. upstream — where to report
-
-PG-BASE inherits most of its code from upstream PocketBase. Route reports accordingly:
-
-- **Upstream PocketBase bug** (a flaw that also reproduces on unmodified PocketBase, e.g. a
-  core API-rule or auth issue that is not PostgreSQL-specific) → please also report it
-  upstream so all users benefit: <https://github.com/pocketbase/pocketbase/security>.
-- **PG-BASE-specific issue** (the PostgreSQL layer, audit trails, backup/restore,
-  Docker/Compose provisioning, or any of the fork's hardening changes) → report it **here**.
-
-If you are unsure, report it here and we will help triage and, where appropriate,
-coordinate with upstream.
 
 ## Supported versions
 
@@ -51,8 +35,7 @@ CLI (`serve`, `migrate`, `backup`, `restore`, `superuser`), the Docker/Compose d
 assets in this repository, and the GitHub Actions workflows.
 
 Out of scope: your own application data, API rules, and `pb_hooks` scripts (these run with
-full trust — see the JSVM note below), third-party OAuth2 providers you configure, and the
-upstream PocketBase project itself.
+full trust — see the JSVM note below), and third-party OAuth2 providers you configure.
 
 ## What to expect
 
@@ -64,14 +47,12 @@ upstream PocketBase project itself.
 - Coordinated disclosure is appreciated: please allow us time to ship a fix before
   publishing details or a PoC.
 
-For how security fixes are tracked against upstream (backport/triage policy), see
-[FORK_STRATEGY.md](https://github.com/arief-fajri/pgbase/blob/main/FORK_STRATEGY.md) and the
-**Upstream tracking (fork duty)** section of the
-[contributing/releasing guide](https://github.com/arief-fajri/pgbase/blob/main/docs/contributor/releasing.md).
+Dependency advisories are triaged in this repository. See the
+[release guide](https://github.com/arief-fajri/pgbase/blob/main/docs/contributor/releasing.md).
 
 ## Reports that are usually NOT security issues
 
-The items below are inherited behaviours or accepted trade-offs. They are generally **not**
+The items below are accepted trade-offs. They are generally **not**
 treated as vulnerabilities in PG-BASE — but if you can demonstrate concrete impact, we still
 want to hear about it.
 
