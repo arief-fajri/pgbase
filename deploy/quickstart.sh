@@ -16,7 +16,7 @@
 #   PGBASE_SKIP_SUPERUSER  set to 1 to skip superuser creation
 #
 # Requires: docker (Engine 24+), docker compose v2.23.1+, curl.
-# Trial stack only — for production see https://arief-fajri.github.io/pgbase/production
+# Trial stack only — for production see https://arief-fajri.github.io/pgbase/deployment/production
 set -eu
 
 REPO="arief-fajri/pgbase"
@@ -117,8 +117,8 @@ if [ -n "$superuser_password" ]; then
     printf '  Login     : %s / %s\n' "$SUPERUSER_EMAIL" "$superuser_password"
 fi
 printf '\n'
-printf 'The REST API is PocketBase-compatible — use the PocketBase SDKs and\n'
-printf 'docs, plus the fork deltas: https://arief-fajri.github.io/pgbase/fork-deltas\n\n'
+printf 'API contract: https://arief-fajri.github.io/pgbase/reference/api-contract\n'
+printf 'Docs: https://arief-fajri.github.io/pgbase/\n\n'
 printf 'Manage the stack from %s:\n' "$DIR"
 printf '  stop          docker compose down\n'
 printf '  stop + wipe   docker compose down -v   (deletes ALL data)\n'

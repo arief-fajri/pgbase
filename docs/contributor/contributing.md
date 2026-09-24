@@ -3,7 +3,7 @@
 <DocMeta audience="Contributor" status="stable" verified="v0.5.2 (923e860)" />
 
 > [!IMPORTANT]
-> PGBase is a hard fork of [PocketBase](https://github.com/pocketbase/pocketbase) with the embedded SQLite database replaced by PostgreSQL. When in doubt about upstream behavior, refer to the [PocketBase repository](https://github.com/pocketbase/pocketbase) and [PocketBase docs](https://pocketbase.io/docs) — the public API and DB schema are intentionally PocketBase-compatible.
+> PG-BASE is a single-binary application backend for PostgreSQL. The public behavior contract is [api-contract.md](../reference/api-contract.md). Do not treat another project's docs as the source of truth.
 
 This document describes how to prepare a PR for a change in the main repository.
 

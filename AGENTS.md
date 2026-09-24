@@ -1,6 +1,6 @@
 # AGENTS.md — instructions for AI coding agents working on this repository
 
-PG-BASE is a hard fork of PocketBase with PostgreSQL as the only storage engine (pgx v5 + forked `dbx`). The public REST API stays PocketBase-compatible — compatibility is a product feature, divergence must be deliberate, tested, and documented in `docs/fork-deltas.md`.
+PG-BASE is a self-hosted, single-binary application backend for PostgreSQL. The public behavior contract is `docs/reference/api-contract.md`. Caller-visible changes must be deliberate, tested, and written there. PocketBase is the inspiration for the programming model.
 
 **This file is the single entry point for every AI agent session.** Read it first,
 before any other file.
@@ -55,20 +55,19 @@ When a test fails or a runbook step misbehaves, **classify it before changing co
 
 ### Decision authority
 
-Your autonomy is bounded. Respect the levels in [guardrails.md §7](docs/contributor/methodology/guardrails.md#7-ai-decision-authority-g-ai):
+Your autonomy is bounded. Respect the levels in [guardrails.md §8](docs/contributor/methodology/guardrails.md#8-ai-decision-authority-g-ai):
 
 | Level | What | Action |
 |---|---|---|
-| **A — Decide & execute** | Internal, reversible, guard-rail-safe, contract-safe | Execute, record in DRR |
-| **B1 — Recommend, 24 h window** | Reversible, test-covered, non-contract | DRR → apply after 24 h without objection |
-| **B2 — Explicit human confirm** | Contract, security, destructive, upstream DIVERGE | Blocked until confirmed |
+| **A — Decide & execute** | Internal, reversible, guard-rail-safe, contract-safe | Execute, record |
+| **B — Explicit human confirm** | Everything else: dependency fix, non-contract refactor, API contract, security, destructive | DRR first. Blocked until a human confirms. Silence is not approval. |
 
-**When in doubt: raise the class, never lower it.** You must not downgrade B2→B1 or A.
+**When in doubt: raise the class, never lower it.** You must not downgrade B to A.
 
 ### Evidence and learning
 
 - Failure experiments (A–E) produce records in `evidence/experiments/`.
-- Decision Request Records (DRR) for B1/B2 decisions go in `evidence/records/`.
+- Decision Request Records (DRR) for Level B decisions go in `evidence/records/`.
 - After implementing, append what you learned to `evidence/learnings.md`.
 - An experiment without a traceable artifact is not evidence (G-AI-07).
 
@@ -77,8 +76,8 @@ Your autonomy is bounded. Respect the levels in [guardrails.md §7](docs/contrib
 ## Read first (per task)
 
 - Architecture: [architecture/overview.md](docs/architecture/overview.md), [architecture/backend-layers.md](docs/architecture/backend-layers.md)
-- Behavior deltas vs upstream: [fork-deltas.md](docs/fork-deltas.md)
-- Fork/upstream policy: [FORK_STRATEGY.md](FORK_STRATEGY.md)
+- API contract: [api-contract.md](docs/reference/api-contract.md)
+- Product roadmap: [roadmap.md](docs/contributor/roadmap.md)
 - Full dev guide: [docs/contributor/developing.md](docs/contributor/developing.md) (single source of truth for commands)
 - System model & invariants: [docs/contributor/methodology/platform-design.md](docs/contributor/methodology/platform-design.md)
 - Guard rails & authority: [docs/contributor/methodology/guardrails.md](docs/contributor/methodology/guardrails.md)
@@ -131,17 +130,17 @@ Formatting: `gofmt`/`goimports` defaults (alphabetical import order within group
 - `core/` — domain: app bootstrap, collections, records, fields, auth, audit, backup
 - `apis/` — REST routes and middlewares
 - `forms/` — request-validation layer used by apis
-- `tools/` — self-contained utilities (search/filter+sort translation is fork-diverged: `tools/search`)
+- `tools/` — self-contained utilities (filter and sort SQL translation: `tools/search`)
 - `migrations/` — PostgreSQL-only DDL, auto-applied at boot via advisory lock
-- `third_party/dbx` — forked query builder (PgSQL dialect)
+- `third_party/dbx` — query builder (PostgreSQL dialect)
 - `plugins/` — optional: jsvm hooks, migratecmd, ghupdate
 - `tests/` — test harness (`tests/app.go`)
 - `ui/src` — dashboard SPA (vanilla-JS custom reactive framework, not React/Svelte/Vue; 14 field types under `ui/src/fields/<type>/`)
 
 ## Hard rules
 
-1. Never re-introduce SQLite or `sqlite3` references — the port is complete.
-2. Never break the PocketBase REST API contract without a documented, tested fork-delta entry and a compat regression test.
+1. Never add SQLite as a storage engine.
+2. Never change caller-visible API behavior without an entry in `docs/reference/api-contract.md` and a regression test.
 3. New DDL goes in `migrations/` (PostgreSQL syntax; follow the existing naming `YYYYMMDDHHMMSS_name.go` + `init()` registration).
 4. SQL identifiers in DDL paths must use `dbutils.DefaultDialect.QuoteIdentifier()`.
 5. Env fallbacks for tests (`PGTEST_*`) must not appear in production code paths.

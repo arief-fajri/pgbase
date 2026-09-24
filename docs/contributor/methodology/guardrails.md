@@ -83,15 +83,14 @@ Leave explicit capacity for administrative/maintenance connections. Example: 1 i
 ## 3. API compatibility (G-API)
 
 ```text
-G-API-01  Declared PocketBase-compatible endpoints must not change behavior without an explicit
-          compatibility decision.
-          Enforcement: process + test — fork-deltas.md is the contract; compat suite (roadmap Task 18/24, gap) ⚠️
+G-API-01  Declared API behavior must not change without an explicit contract update.
+          Enforcement: process + test — docs/reference/api-contract.md is the contract; compat suite (roadmap Phase 1, gap) ⚠️
 G-API-02  Status code changes require explicit review.
-          Enforcement: process — DoD + B2 authority (contract change) ✅
+          Enforcement: process — DoD + Level B confirm (contract change) ✅
 G-API-03  Response schema changes require explicit review.
-          Enforcement: process — DoD + B2 authority ✅
-G-API-04  Authentication and authorization semantics must not silently diverge.
-          Enforcement: process + test — fork-deltas §7; compat tests (gap) ⚠️
+          Enforcement: process — DoD + Level B confirm ✅
+G-API-04  Authentication and authorization semantics must not change silently.
+          Enforcement: process + test — api-contract §7; compat tests (gap) ⚠️
 G-API-05  Filtering, sorting, pagination, and validation semantics require compatibility tests.
           Enforcement: test — tools/search translation; trial suite (Task 18, gap) ⚠️
 ```
@@ -152,13 +151,13 @@ G-CI-02  The :latest tag must always equal the last published GitHub release.
          image from the release event, not from the tag push ✅
 ```
 
-## 7. Upgrade / upstream (G-UPG)
+## 7. Upgrade (G-UPG)
 
 ```text
-G-UPG-01  Every intentional divergence from upstream PocketBase must have a reason.
-          Enforcement: process + docs — FORK_STRATEGY.md §3, fork-deltas.md ✅
-G-UPG-02  Upstream changes must be traceable.
-          Enforcement: process — CHANGELOG "Upstream tracking" notes; triage log ✅
+G-UPG-01  Every caller-visible behavior change must be written in the API contract.
+          Enforcement: process + docs — docs/reference/api-contract.md ✅
+G-UPG-02  Dependency advisories (Go, npm) must be triaged.
+          Enforcement: process + CI — weekly security-scan (govulncheck, npm audit) ✅
 G-UPG-03  Schema changes must be versioned.
           Enforcement: code — migrations/ + _migrations history ✅
 G-UPG-04  An upgrade must have a documented rollback/recovery strategy.
@@ -166,7 +165,7 @@ G-UPG-04  An upgrade must have a documented rollback/recovery strategy.
 G-UPG-05  Existing data must remain readable after a supported upgrade.
           Enforcement: test — migration round-trip tests; PG matrix (gap) ⚠️
 G-UPG-06  Breaking changes must be explicit.
-          Enforcement: process — versioning policy (roadmap Task 23, gap) + B2 authority ✅⚠️
+          Enforcement: process — versioning policy (roadmap Task 23, gap) + Level B confirm ✅⚠️
 ```
 
 ## 8. AI decision authority (G-AI)
@@ -176,16 +175,14 @@ AI agents perform most routine development for this project. Their autonomy is b
 ```text
 G-AI-01  An AI agent may decide and execute (Level A) only changes that do not cross any G-DATA /
          G-API / G-SEC / G-REL / G-UPG guard rail and do not change the public contract.
-G-AI-02  Contract changes (fork-deltas, HTTP status/response schema, auth semantics), destructive
-         migrations, new third-party dependencies, security-posture changes, and upstream DIVERGE
-         decisions are Level B2: they require explicit human confirmation with NO auto-approval
-         window.
-G-AI-03  Reversible, internal, test-covered changes (applying an upstream BUG fix, adding a
-         low-cardinality metric, non-destructive schema change with a down-migration) are Level B1:
-         an AI may apply them after 24 hours without a recorded objection. Every auto-application is
-         logged as a Decision Request Record (DRR) in evidence/records/.
-G-AI-04  When in doubt raise, never lower the classification: an AI must not reclassify a B2 decision
-         as B1 or A (up-classification is allowed).
+G-AI-02  Anything that is not Level A is Level B — Explicit human confirm. That includes former
+          B1 cases (dependency security fix, reversible non-contract refactor, non-destructive
+          schema change) and former B2 cases (API contract, destructive migration, new dependency,
+          security-posture change). Open a DRR. Do not apply the change until a human confirms it.
+G-AI-03  There is no silent-approval window. Absence of objection is not confirmation. A Level B
+          change stays blocked until the DRR records an explicit human confirm.
+G-AI-04  When in doubt raise, never lower the classification: an AI must not reclassify a Level B
+         decision as Level A.
 G-AI-05  Every non-trivial AI change must complete the 10-step Definition of Done (AGENTS.md §DoD),
          referencing the invariant and guard-rail IDs it touches.
 G-AI-06  An AI must classify a failure (A–E, FAILURE-MODES.md §3) BEFORE changing code. It may never
@@ -201,9 +198,8 @@ G-AI-08  The roadmap and this file are the AI's contract: when executing an item
 
 | Level | Meaning | Example | Action |
 |---|---|---|---|
-| **A** | Decide & execute | code structure, new tests for existing invariants, low-cardinality metrics, running experiments | Execute, log in DRR |
-| **B1** | Recommend + 24 h window | upstream BUG backport, reversible internal refactor, metric addition | DRR → apply after 24 h without objection |
-| **B2** | Explicit human confirm | fork-deltas change, destructive migration, new dependency, upstream DIVERGE, security exposure | DRR → blocked until confirmed |
+| **A** | Decide & execute | code structure, new tests for existing invariants, a metric that crosses no guard rail, running experiments | Execute, record |
+| **B** | Explicit human confirm | dependency fix, non-contract refactor, API contract change, destructive migration, new dependency, security exposure | DRR → blocked until a human confirms |
 
 ## 9. Guard-rail gaps (currently open)
 

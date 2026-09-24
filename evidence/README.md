@@ -11,7 +11,7 @@
 ```text
 evidence/
 ├── experiments/     # failure-experiment records A–E (template below)
-├── records/         # Decision Request Records (B1/B2) — decision number = GitHub issue number
+├── records/         # Decision Request Records (Level B) — decision number = GitHub issue number
 └── learnings.md     # cross-session learning log (10-step DoD step 10 lands here)
 ```
 

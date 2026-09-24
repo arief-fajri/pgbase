@@ -4,7 +4,7 @@
 
 Step-by-step guide to run, test, and contribute to **PG-BASE** in a local environment.
 
-PG-BASE is a PostgreSQL-powered backend-as-a-service and a fork of [PocketBase v0.39.11](https://pocketbase.io). It ships a REST API, real-time subscriptions, auth, file storage, and a web dashboard.
+PG-BASE is a single-binary application backend for PostgreSQL. It ships a REST API, real-time subscriptions, auth, file storage, and a web dashboard.
 
 > **Target audience:** every engineer, from junior to senior. If any step looks confusing or fails, open an issue — this document is meant to be the single source of truth for local development.
 
@@ -195,7 +195,7 @@ Because the defaults already match the section 2 database, the minimal dev comma
 PB_POSTGRES_PASSWORD=secret go run ./examples/base serve --http="127.0.0.1:8090"
 ```
 
-> The API will be available at `http://127.0.0.1:8090`. Read more about the API at [PocketBase docs](https://pocketbase.io/docs).
+> The API will be available at `http://127.0.0.1:8090`. Behavior you can rely on is the [API contract](../reference/api-contract.md).
 
 ### Connection pool sizing (high concurrency / multiple instances)
 
@@ -275,7 +275,7 @@ To fully drop the constraint, remove the index from the collection's `indexes` l
 
 ### Note on OAuth2 username uniqueness
 
-The OAuth2 sign-up uniqueness check runs `LOWER(username) = LOWER(?)` without the `username <> ''` predicate, so it does not use the partial functional index. This is intentional and mirrors upstream: the check is a secondary guard with `LIMIT 1` over a bounded set, not a hot login path. The password identity lookup — the actual hot path — is index-served.
+The OAuth2 sign-up uniqueness check runs `LOWER(username) = LOWER(?)` without the `username <> ''` predicate, so it does not use the partial functional index. This is intentional: the check is a secondary guard with `LIMIT 1` over a bounded set, not a hot login path. The password identity lookup — the actual hot path — is index-served.
 
 ---
 
@@ -359,7 +359,7 @@ npm run dev
 | UI dev server | `http://localhost:5173` |
 | Backend API URL | `http://127.0.0.1:8090` (from `ui/.env.development`) |
 
-The UI is a client-side app. It does **not** rely on a Vite proxy — the PocketBase JS SDK is initialized with `PB_BACKEND_URL` (`ui/src/pb.js`) and talks to the backend **directly** (cross-origin, allowed by the backend's default CORS `--origins *`). So **both servers must run at the same time**, and the backend must be reachable at the URL in `PB_BACKEND_URL`.
+The UI is a client-side app. It does **not** rely on a Vite proxy — the JS client is initialized with `PB_BACKEND_URL` (`ui/src/pb.js`) and talks to the backend **directly** (cross-origin, allowed by the backend's default CORS `--origins *`). So **both servers must run at the same time**, and the backend must be reachable at the URL in `PB_BACKEND_URL`.
 
 To point the UI at a different backend, create `ui/.env.development.local` (this file wins over `.env.development`):
 
@@ -431,7 +431,7 @@ The default backup format (`pg`) runs `pg_dump` as an external process with its 
 
 ### Record primary keys (IDX-6, awareness only)
 
-Record ids are random 15-char lowercase strings (fallback `gen_random_bytes`). As TEXT primary keys they are **not monotonic**, which causes B-tree page splits on insert, slightly larger relation columns/indexes, and no time-ordering (the earlier `-@rowid`→`-created` logs bug). This is an upstream/architectural tradeoff, kept for id-format compatibility; no change is planned.
+Record ids are random 15-char lowercase strings (fallback `gen_random_bytes`). As TEXT primary keys they are **not monotonic**, which causes B-tree page splits on insert, slightly larger relation columns/indexes, and no time-ordering (the earlier `-@rowid`→`-created` logs bug). This ID shape is part of the [API contract](../reference/api-contract.md); no change is planned.
 
 ---
 
@@ -725,7 +725,7 @@ pgbase/
 5. If you changed the UI, run `npm run build` before building the binary.
 6. Open a PR against `main` and follow the contribution notes in [Contributing](./contributing.md).
 7. Once merged, cut a release by updating `CHANGELOG.md` and pushing a version tag (see section 15).
-8. Reference upstream behavior via the [PocketBase docs](https://pocketbase.io/docs) — the public API and DB schema are intentionally PocketBase-compatible.
+8. If the change affects caller-visible behavior, update [api-contract.md](../reference/api-contract.md) in the same PR and add a regression test.
 
 ---
 
@@ -769,7 +769,7 @@ Releases are **git-tag driven** and produced by [GoReleaser](https://goreleaser.
 
 ### How the draft release notes are generated
 
-`.goreleaser.yaml` leaves GoReleaser's changelog pipe **enabled** (there is no `changelog.disable`), and `release.draft: true` makes every release a draft. The workflow extracts the newest `CHANGELOG.md` section into a file and hands it to GoReleaser via `--release-notes`; because that file is non-empty, GoReleaser uses it verbatim as the release body and skips the git-log changelog — so the pre-fork PocketBase history is never pulled in:
+`.goreleaser.yaml` leaves GoReleaser's changelog pipe **enabled** (there is no `changelog.disable`), and `release.draft: true` makes every release a draft. The workflow extracts the newest `CHANGELOG.md` section into a file and hands it to GoReleaser via `--release-notes`; because that file is non-empty, GoReleaser uses it verbatim as the release body and skips the git-log changelog:
 
 ```bash
 # runs in CI on tag pushes — prints the body of the first "## " section

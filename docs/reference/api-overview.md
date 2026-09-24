@@ -2,7 +2,7 @@
 
 <DocMeta audience="Developer" status="stable" verified="v0.5.2" />
 
-PG-BASE provides a REST API that is compatible with [PocketBase](https://pocketbase.io/docs). If you know the PocketBase API, you already know PG-BASE.
+PG-BASE exposes a REST and realtime API in front of your PostgreSQL database. This page is the map. Behavior that callers must rely on is the [API contract](./api-contract.md). A complete per-endpoint reference is not published yet.
 
 ## Base URL
 
@@ -105,23 +105,15 @@ Execute multiple operations in a single request.
 
 The admin dashboard is available at `/_/` and provides a UI for managing collections, records, files, settings, and more.
 
-## Differences from PocketBase
+## Behavior contract
 
-PG-BASE is compatible with PocketBase, but there are [9 documented differences](../fork-deltas.md) including:
+Read the [API contract](./api-contract.md) before you rely on edge behavior. It covers the PostgreSQL engine, identity indexes, record IDs, editor HTML, realtime scope, batch transactions, auth limits, and file-fetch guards.
 
-- PostgreSQL-only storage engine (no SQLite)
-- Case-insensitive identity indexes
-- Editor HTML sanitization
-- Single-instance realtime defaults
-- Batch transaction semantics
-
-## Full API documentation
-
-For complete API details, see the [PocketBase API docs](https://pocketbase.io/docs) — the API is intentionally compatible.
+The in-dashboard API preview is the live syntax reference for a collection. It is more accurate than this overview.
 
 ## SDKs
 
-Use the official PocketBase SDKs:
+These clients work against this API today. They are a convenience. This overview and the contract are the source of truth.
 
 - [JavaScript/TypeScript](https://github.com/pocketbase/js-sdk)
 - [Dart/Flutter](https://github.com/pocketbase/dart-sdk)

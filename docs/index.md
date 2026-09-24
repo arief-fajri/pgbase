@@ -3,48 +3,48 @@ layout: home
 
 hero:
   name: PGBase
-  text: PostgreSQL-powered backend as a service
-  tagline: PocketBase DX with PostgreSQL underneath. Self-hosted by default.
+  text: Your PostgreSQL. Your backend. One binary.
+  tagline: The simple, self-hosted application backend for PostgreSQL. Build with the simplicity of PocketBase. Keep the power and portability of PostgreSQL.
   image:
     src: /hero.svg
-    alt: PGBase — a central app connected to auth, realtime, files, API rules, audit trails and backup
+    alt: PGBase — one binary in front of PostgreSQL, exposing auth, realtime, files, API rules, and backups
   actions:
     - theme: brand
-      text: Getting Started
+      text: Start with PostgreSQL
       link: /getting-started
     - theme: alt
-      text: Compare
-      link: /comparison
+      text: Migrate from PocketBase
+      link: /migrate
     - theme: alt
-      text: GitHub
-      link: https://github.com/arief-fajri/pgbase
+      text: Deploy with your AI agent
+      link: /agents
 
 features:
   - icon: 🚀
-    title: Quick Start
-    details: Get running in minutes with Docker or a single binary. One command to a working backend with PostgreSQL.
+    title: One binary
+    details: Docker or a static binary in front of PostgreSQL you already run. No platform to operate.
     link: /getting-started
-    linkText: Get started now
+    linkText: Get started
   - icon: 🧩
-    title: Build
-    details: Collections, API rules, auth, and realtime from a dashboard — the PocketBase API you already know.
+    title: Application layer
+    details: Collections, API rules, auth, realtime, and files from a dashboard. SQL stays available.
     link: /collections-and-api-rules
-    linkText: Collections & API rules
+    linkText: Collections and API rules
   - icon: 🛠️
-    title: Deploy
-    details: Single-host Compose + Caddy, native pg_dump backups, Prometheus metrics, and a go-live checklist.
+    title: Production primitives
+    details: Native pg_dump backups, a runbook, Prometheus metrics, and a go-live checklist.
     link: /deployment/single-host
     linkText: Deployment guide
   - icon: 📖
-    title: API Reference
-    details: REST + realtime endpoints compatible with PocketBase SDKs. Full CRUD, auth, file storage, and batch operations.
-    link: /reference/api-overview
-    linkText: API overview
+    title: API contract
+    details: REST and realtime you can build against here. PocketBase JS and Dart SDKs work today.
+    link: /reference/api-contract
+    linkText: Read the contract
   - icon: 🐘
-    title: PostgreSQL-native
-    details: pgx v5 + dbx, JSONB columns, timestamptz, pgcrypto IDs, and month-partitioned audit tables.
-    link: /fork-deltas
-    linkText: What changed vs upstream
+    title: PostgreSQL stays yours
+    details: JSONB, timestamptz, pgcrypto, pooling, and psql. The database is not hidden.
+    link: /architecture/overview
+    linkText: System overview
   - icon: 📋
     title: Audit trails
     details: Separate write and read trails with per-field diffs and independent retention windows.
@@ -52,26 +52,26 @@ features:
     linkText: Audit design
 ---
 
-## Who is this for?
+## Who this is for
 
-| Audience | What you'll find |
-|----------|-----------------|
-| **App Builders** | Quick start, API reference, collections & rules, auth flows, realtime |
-| **Operators** | Deployment guides, production runbook, disaster recovery, environment variables |
-| **Contributors** | Development setup, architecture overview, engineering methodology, roadmap |
+| You | Start here |
+|---|---|
+| You already run PostgreSQL and need auth, CRUD, rules, realtime, files, and an admin UI | [Getting started](./getting-started.md) |
+| You have a PocketBase data directory and want it in PostgreSQL | [Migrate](./migrate.md) — import works; a dedicated CLI does not yet |
+| You are an operator | [Single-host setup](./deployment/single-host.md), [production runbook](./deployment/production.md) |
+| An agent is provisioning the backend | [For agents](./agents.md) |
 
-## Production Ready
+PG-BASE is the application layer for PostgreSQL. It is not a hosted platform, and it is not an embedded-database backend. See [Comparison](./comparison.md).
 
-PG-BASE is built for production use from day one:
+## Production shape
 
-- **Backup/restore tested** — native `pg_dump`/`pg_restore` with automated round-trip verification
-- **Race-safe** — full test suite passes under `-race` detector
-- **SSRF protected** — built-in guards against server-side request forgery
-- **Connection pooling** — dual-pool architecture with bounded limits and observability
-- **Security hardened** — non-root containers, opt-in encryption, rate limiting, HSTS
+- **One binary + one PostgreSQL.** Optional S3 for files. Compose is the documented production path.
+- **Backup and restore** use native `pg_dump` / `pg_restore`. Restore verification is still partial — see the [roadmap](./contributor/roadmap.md).
+- **Secure defaults** — SSRF guards, download caps, opt-in encryption, rate limiting.
+- **Observable enough to start** — Prometheus `/metrics`, request logs, pool stats. Tracing is not shipped.
 
-## Conventions & badges
+## Conventions
 
-- **`stable`** — verified on the current tag. **`experimental`** — opt-in, still hardening (realtime outbox). **`roadmap-open`** — planned, not yet built (see the [roadmap](./contributor/roadmap.md)).
-- Environment defaults live **only** in the [env reference](./reference/env.md); every other page links there.
+- **`stable`** — verified on the current tag. **`experimental`** — opt-in, still hardening (realtime outbox). **`roadmap-open`** — planned, not built.
+- Environment defaults live only in the [env reference](./reference/env.md).
 - If a page's **Verified** badge is older than the current release, treat the code as truth and open a docs issue.

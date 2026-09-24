@@ -39,6 +39,6 @@ Two workflows cooperate:
 
 Mistaken local tag: `git tag -d vX.Y.Z`. Deleting a pushed tag also removes the draft — avoid unless necessary. (`developing.md` #15.)
 
-## 5. Upstream tracking (fork duty)
+## 5. Dependency advisories
 
-The fork strategy and its maintenance-cost estimate live in `FORK_STRATEGY.md` at the repository root (hard fork, watch → triage → act, security backport SLA, adopt/skip/diverge rules, revisit triggers). In short: watch upstream releases + Go/npm advisories, triage applicability, backport security fixes within the SLA; per-feature adopt/skip/diverge decisions; scheduled `govulncheck` + `npm audit` gates; compatibility matrix (JS/Dart SDK × PG 16/17) before publishing claims.
+Watch Go and npm advisories for this repository. The weekly `security-scan` workflow runs `govulncheck` and `npm audit`. A confirmed issue in PG-BASE is fixed here and shipped in a patched release. Do not route reports to another project. See [SECURITY.md](https://github.com/arief-fajri/pgbase/blob/main/.github/SECURITY.md).

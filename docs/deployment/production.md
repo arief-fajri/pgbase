@@ -329,7 +329,7 @@ server {
 
 ```ini
 [Unit]
-Description=pgbase (PocketBase/Postgres fork)
+Description=pgbase (PostgreSQL application backend)
 After=network-online.target
 Wants=network-online.target
 

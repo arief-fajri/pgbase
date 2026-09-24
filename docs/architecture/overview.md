@@ -2,11 +2,11 @@
 
 <DocMeta audience="All" status="stable" verified="v0.5.2" />
 
-> PG-BASE is a fork of PocketBase v0.39 that replaces SQLite with **PostgreSQL**.
+> PG-BASE is a single-binary application backend in front of **PostgreSQL**. The database stays yours.
 
 ## Overview
 
-PG-BASE is a **PostgreSQL**-powered backend-as-a-service. The runnable entrypoint lives in `examples/base` (the root package is a library).
+PG-BASE is a single-binary application backend for **PostgreSQL**. The runnable entrypoint lives in `examples/base` (the root package is a library).
 
 ## Layers
 
@@ -29,11 +29,11 @@ PG-BASE is a **PostgreSQL**-powered backend-as-a-service. The runnable entrypoin
 
 ### 3. HTTP API (`apis/`)
 
-**Notable fork change**: upstream Echo is replaced by a thin wrapper over Go's std `http.ServeMux` (Go 1.22) in `tools/router`.
+The HTTP router is a thin wrapper over Go's std `http.ServeMux` (Go 1.22) in `tools/router`.
 
 - `apis.Serve` → `RunAllMigrations()` → `NewRouter()`.
 - Global middlewares: `activityLogger` → `panicRecover` → `rateLimit` → `loadAuthToken` (JWT) → `superuserIPsWhitelist` → `securityHeaders` → `BodyLimit` (32 MiB); plus CORS and gzip.
-- Route groups: CRUD `/api/collections/{coll}/records`, auth `/auth-*`, `/api/settings`, `/api/logs`, `/api/audits` (fork), `/api/backups`, `/api/crons`, `/api/files`, `/api/batch`, `/api/realtime` (SSE), `/api/health`, `/api/sql` (fork, superuser SQL runner), UI `/_/{path...}`, and Prometheus `/metrics` on a separate listener.
+- Route groups: CRUD `/api/collections/{coll}/records`, auth `/auth-*`, `/api/settings`, `/api/logs`, `/api/audits`, `/api/backups`, `/api/crons`, `/api/files`, `/api/batch`, `/api/realtime` (SSE), `/api/health`, `/api/sql` (superuser SQL runner), UI `/_/{path...}`, and Prometheus `/metrics` on a separate listener.
 - Admins (`_superusers`) and regular users are **both `Record`s of auth collections** — there are no longer `/api/users` or `/api/admins` groups.
 
 ### 4. Request → DB flow
@@ -52,7 +52,7 @@ Handler → `e.RequestInfo()` (body/query/auth) → validation via `forms.Record
 - Create/update/delete broadcasts are driven by hooks and filtered per subscriber using `viewRule`/`listRule`.
 - **Fork**: every event is also written to the `_realtime_outbox` table plus `NOTIFY pb_realtime_outbox`; a dedicated pgx `LISTEN` connection propagates events **across instances**.
 
-### 7. Audit trail (fork feature)
+### 7. Audit trail
 
 - `_audits` (create/update/delete changes: diff, snapshot, actor, IP/UA) hooked from `OnRecord*Execute`, written in-transaction guarded by SAVEPOINT.
 - `_audit_reads` (view/list access metadata) is enqueued to a **batched writer** (flush 200 rows / 3s / single tx).

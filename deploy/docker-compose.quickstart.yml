@@ -9,7 +9,7 @@
 #
 # SECURITY: ships no default credentials — set PB_POSTGRES_PASSWORD (the
 # quickstart script generates one for you; plain compose fails fast without
-# it). For production use docs/production.md instead of this trial stack.
+# it). For production use docs/deployment/production.md instead of this trial stack.
 #
 # The Postgres image is pgvector/pgvector:pg16 — the official postgres:16
 # image with the pgvector extension preinstalled. PG-BASE's vector features
@@ -47,7 +47,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     # pgcrypto is REQUIRED before PG-BASE's first boot (the aux + data
-    # bootstrap deadlocks without it — see docs/fork-deltas.md); vector is
+    # bootstrap deadlocks without it — see docs/reference/api-contract.md); vector is
     # pre-created for the roadmap vector features. Self-contained via the
     # inline configs block below — no repo checkout needed.
     configs:
