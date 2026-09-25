@@ -4,6 +4,24 @@
 > appends here so knowledge accumulates between AI sessions and training runs.
 > Format per entry: date · area · what happened · what changed in the system model/docs.
 
+## 2026-09-25 — Phase 0 docs truth: secret scanning was shipped, not "Not started" (PR-2)
+
+- **Event:** Pre-Phase-0 audit assumed secret scanning was unbuilt and planned to build it. The
+  tree said otherwise: `.gitleaks.toml` + the `secret-scan` job (gitleaks v8.24.3, full history,
+  PR/push/schedule/dispatch) have been in place since `b4106df`. The gap was in the *docs state*,
+  not the code.
+- **What changed:** roadmap §4 gained a Shipped inventory row (with anchors) and dropped the
+  "Not started" Phase 0 row; G-SEC-01 flipped (gap)→✅ with the workflow as its enforcement;
+  checklists §4 "No secrets committed" ticked, §6 annotation re-pointed (the release gate itself
+  stays unticked — §6 is a per-release matrix, not a standing posture).
+- **Lesson:** executing a phase plan against a stale roadmap builds work that already exists.
+  Audit the tree before planning an item; the §4 inventory (what exists) and the §5 phase table
+  (what remains) are different documents answering different questions — a shipped capability
+  belongs in §4 with anchors, not in a phase table.
+- **Follow-up:** the same drift risk exists for the remaining Phase 0 rows (readiness, restore
+  verification, metrics…) — each PR must close its row in the same commit, or the roadmap lies
+  again.
+
 ## 2026-09-25 — W-11 closed: listener host/port override removed (DRR-0001)
 
 - **Event:** The outbox listener's host/port override query never worked:

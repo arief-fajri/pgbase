@@ -101,7 +101,8 @@ G-API-05  Filtering, sorting, pagination, and validation semantics require compa
 
 ```text
 G-SEC-01  No secrets in source control.
-           Enforcement: CI (gitignore + code review) — secret scanning job is a (gap, Phase 0) ⚠️
+          Enforcement: CI — gitignore + code review + gitleaks full-history scan on every PR/push
+          (job secret-scan in .github/workflows/security-scan.yaml; rules .gitleaks.toml) ✅
 G-SEC-02  Production secrets must be supplied through protected configuration.
           Enforcement: config — env / secret store; PB_ENCRYPTION_KEY via --encryptionEnv ✅
 G-SEC-03  Metrics must not be publicly exposed unintentionally.
@@ -210,7 +211,6 @@ These guardrails are defined but their enforcement is `(gap)`; they are tracked 
 
 | Guard rail | Missing enforcement | Linked roadmap item |
 |---|---|---|
-| G-SEC-01 | CI secret scan | Phase 0 / secret scanning |
 | G-REL-01 | timeout and rollback counters | Phase 0 / diagnostic metrics |
 | G-API-01/04/05 | compatibility test suite | Phase 1 / compatibility suite |
 | G-REL-04 | restore drill + `last_verified_backup` metric | Phase 0 / restore drills |

@@ -63,7 +63,7 @@ Where possible, every row above is an automated test of external behavior agains
 ## 4. Security (reference: G-SEC-01…08)
 
 ```text
-[ ] No secrets committed                                         (gitignore; CI secret scan — Phase 0 / secret scanning)
+[x] No secrets committed                                         (gitignore; CI secret scan ✅ — gitleaks full history, security-scan.yaml)
 [ ] Production secrets supplied securely                         (env/secret store; --encryptionEnv) ✅
 [ ] TLS enabled/configured                                       (sslmode require/verify-full; HSTS) ✅
 [ ] Database not unintentionally public                          (prod compose internal-only network) ✅
@@ -103,7 +103,7 @@ A release is not ready merely because unit tests pass. The release gate combines
 [ ] PostgreSQL compatibility tests pass                          (PG 16/17 matrix — Phase 0 / versioning)
 [ ] API compatibility tests pass                                 (Phase 1 / compatibility suite)
 [ ] Realtime tests pass                                          (realtime + outbox suites)
-[ ] Security checks pass                                         (govulncheck, npm audit, secret scan — Phase 0)
+[ ] Security checks pass                                         (govulncheck, npm audit, secret scan — security-scan.yaml)
 [ ] Migration tests pass                                         (experiment D + migration tests)
 [ ] Backup/restore verification passes                            (experiment E + last_verified)
 [ ] Failure experiments for affected subsystem pass               (A–E per affected area)

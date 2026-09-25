@@ -112,6 +112,7 @@ Verified against the tree at v0.5.4. This is inventory, not a promise that every
 |---|---|---|
 | PostgreSQL engine (`pgx` v5, JSONB, `timestamptz`) | Shipped | `core/db_connect.go`, `tools/dbutils/pgsql.go` |
 | Security hardening (SSRF guard, download caps, identifier quoting, pinned CI) | Shipped | `tools/security/`, `.github/workflows/` |
+| Secret scanning (gitleaks full history) | Shipped | `.gitleaks.toml`, `.github/workflows/security-scan.yaml` |
 | Audit trails (`_audits`, `_audit_reads`, partitioned) | Shipped | `core/audit_hooks.go`, `migrations/` |
 | Native `pg_dump` / `pg_restore` plus offline CLI | Shipped | `core/backup_pg_*.go`, `cmd/backup.go` |
 | Legacy SQLite archive import | Partial — no dry-run, no report, no dedicated command | `core/backup_sqlite_import.go` |
@@ -137,7 +138,7 @@ Each item still needs the 10-step definition of done in its PR. See [Checklists 
 
 ### Phase 0 — Trust
 
-Most of this is done: security policy, reproducible releases, native backups, metrics, production docs, one-command install, production-path hygiene (W-06).
+Most of this is done: security policy, secret scanning, reproducible releases, native backups, metrics, production docs, one-command install, production-path hygiene (W-06).
 
 Still P0, because "we have a backup" is not "we trust a restore":
 
@@ -147,7 +148,6 @@ Still P0, because "we have a backup" is not "we trust a restore":
 | Restore drills | Not started | A recorded drill that feeds `last_verified_backup` |
 | Readiness | Partial | `/api/ready` checks the database. Liveness is not readiness. |
 | Versioning and upgrade policy | Not started | How PG-BASE versions break, how to roll back an app or PostgreSQL upgrade, and a PostgreSQL 16/17 CI matrix so that claim is observed |
-| Secret scanning | Not started | A CI job that fails the build on committed secrets (G-SEC-01), alongside govulncheck and npm audit |
 | Diagnostic metrics | Not started | Error ratio (`pgbase_http_requests_total`), DB event counters (query/lock timeout, reconnect, rollback) for G-DB-03/04 and G-REL-01, and backup attempt/success/duration/size. `last_verified_backup` stays with restore drills |
 | Reliability tests | Not started | Query-timeout, connect-timeout, and graceful-shutdown tests — Evaluation Checklists §1–2 gaps |
 
