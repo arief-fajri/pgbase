@@ -386,9 +386,11 @@ func TestRealtimeOutboxEventsAfterExcludesOwnOrigin(t *testing.T) {
 }
 
 // TestRealtimeOutboxListenerConfigIgnoresTestEnv is the regression test for
-// W-06: the listener's connection parameters must never be filled from the
-// PGTEST_* test fallbacks. Credentials come from the stored config, which is
-// resolved from the PB_POSTGRES_* env at init time (hard rule 5 / G-DB-05).
+// W-06 and W-11: the listener's connection parameters must never be filled
+// from the PGTEST_* test fallbacks, and its host/port must always come from
+// the stored config — no live-connection override (DRR-0001). Credentials and
+// dial target come from the stored config, which is resolved from the
+// PB_POSTGRES_* env at init time (hard rule 5 / G-DB-05).
 func TestRealtimeOutboxListenerConfigIgnoresTestEnv(t *testing.T) {
 	t.Setenv("PGTEST_PASSWORD", "leaked-test-password")
 	t.Setenv("PGTEST_SSLMODE", "verify-full")
@@ -421,5 +423,16 @@ func TestRealtimeOutboxListenerConfigIgnoresTestEnv(t *testing.T) {
 	// closure (test harness) is honoured
 	if cfg.User == "" || cfg.DBName == "" {
 		t.Fatalf("expected the live connection identity to be filled, got %+v", cfg)
+	}
+
+	// W-11 / DRR-0001: host/port always come from the stored config. A
+	// live-connection override deliberately does not exist — the server-side
+	// view of the connection is not a dialable client address in NAT or
+	// port-mapped topologies.
+	if cfg.Host != app.dbConfig.Host || cfg.Port != app.dbConfig.Port {
+		t.Fatalf(
+			"listener host/port = %q/%d, want the stored config %q/%d (W-11)",
+			cfg.Host, cfg.Port, app.dbConfig.Host, app.dbConfig.Port,
+		)
 	}
 }

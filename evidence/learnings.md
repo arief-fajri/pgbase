@@ -4,6 +4,36 @@
 > appends here so knowledge accumulates between AI sessions and training runs.
 > Format per entry: date · area · what happened · what changed in the system model/docs.
 
+## 2026-09-25 — W-11 closed: listener host/port override removed (DRR-0001)
+
+- **Event:** The outbox listener's host/port override query never worked:
+  `COALESCE(inet_server_addr(), '')` coerces the empty literal to `inet` at parse
+  analysis → the query always fails (`invalid input syntax for type inet: ""`) and the
+  `err == nil` guard swallowed the error, so the override branch was dead code and the
+  listener always dialed the stored-config host/port. Classified **A** (COALESCE
+  typing) + **B** (the override design itself: `inet_server_addr()`/`inet_server_port()`
+  report the server-side view of the connection, which is never a dialable client
+  address in NAT/port-mapped topologies — Docker Desktop, managed PG, pgbouncer) +
+  **D** (silent failure).
+- **Decision (DRR-0001, Level B, confirmed by maintainer):** fixed-by-removal — the
+  listener dials stored-config host/port, aligned with the `pgConnInfo` backup-path
+  precedent (`core/backup_pg_export.go`); user/dbname still follow the live connection
+  so a custom `DBConnect` is honoured for the database name. Fixing the cast was
+  rejected: it would make the listener dial unroutable container-internal addresses
+  (and redden the macOS e2e test) in exactly the topologies where a custom
+  `DBConnect` matters.
+- **Lesson 1 (design):** a dial target cannot be derived from the server's view of the
+  connection — client and listener share one process/network namespace, and server
+  introspection cannot recover mapped ports or routable addresses. Stored config is
+  the only universal source for host/port; live-connection introspection is valid only
+  for identity fields the server owns (database, user, schema).
+- **Lesson 2 (evidence quality):** removing dead code still needs a regression test —
+  `TestRealtimeOutboxListenerConfigIgnoresTestEnv` now asserts
+  `cfg.Host/Port == app.dbConfig.Host/Port`, so the removal cannot be "fixed back"
+  into an environment-dependent listener without a red test.
+- **Docs:** failure-modes.md W-11 row added; the W-06 entry's Lesson 2 flipped to
+  resolved.
+
 ## 2026-09-25 — W-06 closed: test env fallback out of production code (PR-1)
 
 - **Event:** Phase 0 production-path hygiene: removed the `PGTEST_PASSWORD`/`PGTEST_SSLMODE` fallback
@@ -17,16 +47,15 @@
   (`core/hard_rules_test.go`) is the mechanical enforcement of hard rule 5 / G-DB-05 — and it
   immediately caught its own production comment mentioning the token, which is how enforcement
   should behave.
-- **Lesson 2 (finding, NOT fixed here):** the listener's host/port override query
+- **Lesson 2 (finding, resolved 2026-09-25 — W-11 / DRR-0001):** the listener's host/port override query
   `SELECT COALESCE(inet_server_addr(), '') ...` always fails (`invalid input syntax for type inet:
   ""` — the empty literal is cast to `inet` at parse time) and the error is swallowed by
   `err == nil`, so the "override host/port from the live connection" path is dead code. The
   listener silently keeps the stored config host/port. Side effect: Docker Desktop macOS works by
   accident (localhost:5433), while a custom `DBConnect` pointing elsewhere is not honoured for
-  host/port despite the comment. Class A (wrong COALESCE typing), but a fix changes behaviour and
-  reddens `apis/realtime_outbox_listener_test.go` on macOS (container IP `inet_server_addr()` is
-  not routable from the host) — needs its own classified decision (candidate W-11 row + design
-  choice: drop the override or cast `host(inet_server_addr())::text`).
+  host/port despite the comment. Class A (wrong COALESCE typing) + B (the override design itself:
+  the server-side view is not a dialable client address in NAT/port-mapped topologies) + D
+  (silent failure) — resolved by removal, see the W-11 entry above.
 - **Docs:** `failure-modes.md` W-06 → Fixed (anchor re-pointed from the deleted lines to
   `realtimeOutboxListenerConfig`); roadmap Phase 0 row deleted (shipped items are named in the
   "Most of this is done" sentence); G-DB-05 enforcement now names the static scan.

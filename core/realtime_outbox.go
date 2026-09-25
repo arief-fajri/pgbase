@@ -253,13 +253,16 @@ func (app *BaseApp) OpenRealtimeOutboxListener(connectCtx context.Context) (*pgx
 // realtimeOutboxListenerConfig assembles the DBConfig for the outbox listener:
 // it starts from the config captured at init time and overrides the identity
 // fields from the live connection so a custom DBConnect closure (test harness)
-// is honoured for user and dbname; host/port follow the live connection when
-// the lookup succeeds.
+// is honoured for user and dbname.
 //
-// Password/SSLMode cannot be read from the live connection, so they always come
-// from the stored config (resolved from the PB_POSTGRES_* env at init time).
-// The test-harness env prefix is deliberately never consulted here: production
-// code must not depend on test configuration (hard rule 5 / G-DB-05).
+// Host/port always come from the stored config (resolved from the PB_POSTGRES_*
+// env at init time), the same source of truth as the backup path (pgConnInfo).
+// They are deliberately NOT read from the live connection: inet_server_addr()/
+// inet_server_port() report the server-side view of the connection, which is not
+// a dialable client-side address in NAT/port-mapped topologies (Docker Desktop,
+// managed PG, pgbouncer) — see DRR-0001 / W-11. The test-harness env prefix is
+// deliberately never consulted here: production code must not depend on test
+// configuration (hard rule 5 / G-DB-05).
 func (app *BaseApp) realtimeOutboxListenerConfig() (DBConfig, error) {
 	app.bootstrapMu.RLock()
 	bootstrapped := app.dataDB != nil
@@ -279,19 +282,6 @@ func (app *BaseApp) realtimeOutboxListenerConfig() (DBConfig, error) {
 	}
 	cfg.DBName = currentDB
 	cfg.User = currentUser
-
-	var serverHost string
-	var serverPort int
-	if err := app.NonconcurrentDB().NewQuery(
-		`SELECT COALESCE(inet_server_addr(), '') AS host, inet_server_port() AS port`,
-	).Row(&serverHost, &serverPort); err == nil {
-		if serverHost != "" {
-			cfg.Host = serverHost
-		}
-		if serverPort > 0 {
-			cfg.Port = serverPort
-		}
-	}
 
 	return cfg, nil
 }
