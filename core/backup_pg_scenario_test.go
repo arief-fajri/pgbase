@@ -173,3 +173,70 @@ func auxCountRows(t *testing.T, app core.App, table string) int {
 	}
 	return n
 }
+
+// TestImportFromPGDumpRejectsCorruptArchive is a W-08 regression test: a
+// corrupt archive must be rejected BEFORE the destructive pg_restore wipes
+// the live database (pre-restore TOC validation), not "succeed" silently
+// afterwards. The live data must still be answerable after the rejection.
+func TestImportFromPGDumpRejectsCorruptArchive(t *testing.T) {
+	requireNativePGTools(t)
+
+	ctx := context.Background()
+
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatalf("NewTestApp: %v", err)
+	}
+	defer app.Cleanup()
+
+	// seed a marker so the survival of the live database is observable
+	demo1, err := app.FindCollectionByNameOrId("demo1")
+	if err != nil {
+		t.Fatalf("find demo1: %v", err)
+	}
+	baseDemo1 := countRows(t, app, "demo1")
+
+	marker := core.NewRecord(demo1)
+	marker.Set("text", "corrupt-archive-marker")
+	if err := app.SaveNoValidate(marker); err != nil {
+		t.Fatalf("create marker record: %v", err)
+	}
+	markerId := marker.Id
+
+	// a real dump of the live database, then corrupted in place (destroy the
+	// custom-format header so pg_restore --list cannot even read the TOC)
+	dumpDir := t.TempDir()
+	dumpPath := filepath.Join(dumpDir, pgBackupDumpNameForTest)
+	if err := app.ExportToPGDump(ctx, dumpPath); err != nil {
+		t.Fatalf("ExportToPGDump: %v", err)
+	}
+	data, err := os.ReadFile(dumpPath)
+	if err != nil {
+		t.Fatalf("read dump: %v", err)
+	}
+	for i := 0; i < 64 && i < len(data); i++ {
+		data[i] = 0x00
+	}
+	if err := os.WriteFile(dumpPath, data, 0o644); err != nil {
+		t.Fatalf("write corrupted dump: %v", err)
+	}
+
+	// the corrupt archive must be rejected loudly
+	importErr := app.ImportFromPGDump(ctx, dumpDir)
+	if importErr == nil {
+		t.Fatal("expected the corrupt archive to be rejected, got success")
+	}
+
+	// ... and rejected BEFORE the destructive restore: the live database is
+	// still answerable with its data intact (the marker record survived)
+	if got := countRows(t, app, "demo1"); got != baseDemo1+1 {
+		t.Fatalf("live database was wiped by the rejected restore: demo1 count = %d, want %d", got, baseDemo1+1)
+	}
+	var gotText string
+	if err := app.DB().NewQuery(`SELECT text FROM "demo1" WHERE id = '` + markerId + `'`).Row(&gotText); err != nil {
+		t.Fatalf("read marker record after the rejected restore: %v", err)
+	}
+	if gotText != "corrupt-archive-marker" {
+		t.Fatalf("marker text mismatch: got %q", gotText)
+	}
+}

@@ -4,6 +4,35 @@
 > appends here so knowledge accumulates between AI sessions and training runs.
 > Format per entry: date · area · what happened · what changed in the system model/docs.
 
+## 2026-09-26 — W-08 closed: restore gate is now archive-derived (PR-4)
+
+- **Event:** The old restore success gate was `count(_collections) >= 1` — a restore that dropped
+  every other table still "succeeded". Replaced with an archive-derived gate
+  (`core/backup_pg_verify.go`): pre-restore TOC validation (a corrupt archive is rejected BEFORE
+  the destructive restore — the live DB survives), stderr classification with a narrow benign
+  allowlist, TOC table/index completeness, and semantic sanity (`_collections`, `_params`
+  settings row, superuser password).
+- **Lesson 1 (design):** a manifest of row counts captured around pg_dump is racy — backups run
+  concurrently with live traffic, so valid restores would false-alarm (alarm fatigue destroys
+  trust in the gate). Expectations must be derived from the archive itself (`pg_restore --list`),
+  which is race-free and version-agnostic (an old backup is only required to restore what it
+  actually contains).
+- **Lesson 2 (design):** state-only checks cannot distinguish "table restored" from "old table
+  never dropped" (same names). The deterministic fingerprint of a restore that did not finish is
+  the **post-data section**: indexes are created after ALL table data, so a missing TOC index is
+  the completion marker.
+- **Lesson 3 (benign noise inventory):** the strict stderr classifier immediately surfaced the
+  real benign families the old swallow-everything behavior had been hiding on this machine:
+  `unrecognized configuration parameter "transaction_timeout"` (pg_dump 18.3 client → PG 16.15
+  server SET preamble) and `cannot drop inherited constraint "_audits_default_pkey" of relation
+  "_audits_default"` (the --clean DROP of partition children's inherited pkeys). TOC parsing also
+  has two-word types beyond TABLE DATA: `TABLE ATTACH` and `INDEX ATTACH` (partition attach
+  steps, not objects). Each benign pattern is allowlisted narrowly, with the observed instance
+  documented in the code.
+- **Verified:** round-trip test green (benign allowlist validated against the routine
+  in-place restore); corrupt-archive regression green (live data survives rejection); drill
+  EXPERIMENT-E re-run PASS at L2 (no false alarm on a valid restore).
+
 ## 2026-09-26 — Phase 0 readiness: /api/ready shipped (PR-3, DRR-0002)
 
 - **Event:** The readiness gap was not in the code but in two deployment artifacts: the compose-prod

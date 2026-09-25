@@ -122,7 +122,7 @@ Verified against the tree at v0.5.4. This is inventory, not a promise that every
 | One-command provision and install | Shipped | `deploy/quickstart.sh`, `install.sh` |
 | Agent quick start and CLI contract | Partial — MCP not started | `docs/agents.md` |
 | Production Compose, Caddy, runbook | Shipped | `docker-compose.prod.yml`, `docs/deployment/` |
-| Restore verification | Partial | roadmap Phase 0 leftover |
+| Restore verification | Shipped | `core/backup_pg_verify.go` — archive-derived TOC gate: pre-restore archive validation, stderr classification, table/index completeness, settings/auth sanity (W-08 closed 2026-09-26) |
 | pgvector field, similarity API | Not started | Phase 2 |
 | MCP server | Not started | Phase 3 |
 | Distributed rate limiter | Not started — limit is per instance | Phase 4 |
@@ -138,13 +138,12 @@ Each item still needs the 10-step definition of done in its PR. See [Checklists 
 
 ### Phase 0 — Trust
 
-Most of this is done: security policy, secret scanning, reproducible releases, native backups, metrics, production docs, one-command install, production-path hygiene (W-06), readiness (`/api/ready`).
+Most of this is done: security policy, secret scanning, reproducible releases, native backups, metrics, production docs, one-command install, production-path hygiene (W-06), readiness (`/api/ready`), restore verification (W-08).
 
 Still P0, because "we have a backup" is not "we trust a restore":
 
 | Item | State | Target |
 |---|---|---|
-| Restore verification | Partial | Post-restore counts, expected schema, settings sanity. A partial restore fails loudly. |
 | Restore drills | Not started | A recorded drill that feeds `last_verified_backup` |
 | Versioning and upgrade policy | Not started | How PG-BASE versions break, how to roll back an app or PostgreSQL upgrade, and a PostgreSQL 16/17 CI matrix so that claim is observed |
 | Diagnostic metrics | Not started | Error ratio (`pgbase_http_requests_total`), DB event counters (query/lock timeout, reconnect, rollback) for G-DB-03/04 and G-REL-01, and backup attempt/success/duration/size. `last_verified_backup` stays with restore drills |
