@@ -191,6 +191,8 @@ curl http://127.0.0.1:9090/metrics    # Prometheus text format
 - **loopback**: `127.0.0.1:9090` (host) — Prometheus on the same machine
 - **internal-only**: bind a private interface, or publish the container port on `127.0.0.1` only, or protect with a reverse-proxy `basic_auth`, mTLS, or firewall. Non-loopback binds require `PB_METRICS_EXPOSE=true`.
 
+**Liveness vs readiness:** `GET /api/health` answers `200` while the process serves (liveness — it never touches the database, so a load balancer does not kill a healthy process during a DB outage). `GET /api/ready` answers `503` until the data pool can execute a query and the core schema is readable (readiness). Wire load balancers, Kubernetes probes, and the Compose healthcheck to `/api/ready` (the shipped `docker-compose.prod.yml` already does); use `/api/health` only to decide whether the process itself is alive.
+
 ### 8.1 Scraping — examples
 
 **Same-host Prometheus** (binary/`prom/prometheus` Docker run on the host):

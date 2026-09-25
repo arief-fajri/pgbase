@@ -97,7 +97,8 @@ Execute multiple operations in a single request.
 | `/api/audits` | Audit trail |
 | `/api/backups` | Backup management |
 | `/api/crons` | Cron jobs |
-| `/api/health` | Health check |
+| `/api/health` | Health check (liveness) |
+| `/api/ready` | Readiness check (verifies the database and core schema) |
 | `/api/sql` | Direct SQL execution |
 | `/api/collections/_superusers/*` | Superuser auth |
 

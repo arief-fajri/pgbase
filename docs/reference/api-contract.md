@@ -56,6 +56,10 @@ Primary keys are random, non-monotonic TEXT (`gen_random_bytes` fallback). Inser
 
 `NewFileFromURL` uses `SafeHTTPClient` (`tools/security/httputil.go`). Private, loopback, and multicast dials are rejected. Oversized responses are capped. File responses carry `X-Content-Type-Options: nosniff` (v0.5.2).
 
-## 9. Intentionally not in this contract yet
+## 9. Liveness vs readiness
+
+`GET /api/health` is liveness only: it answers `200` while the process serves and never touches the database — a load balancer must not kill a healthy process just because PostgreSQL is down. `GET /api/ready` (`apis/ready.go`) is the readiness probe: `200` only when the data pool can execute a query and the core `_collections` schema is readable (bounded by a 5 s probe timeout); otherwise `503` with a static `"API is not ready."` message — the raw error is logged server-side only, never in the response body. Wire readiness probes (load balancers, Kubernetes, the Compose healthcheck in `docker-compose.prod.yml`) to `/api/ready`; use `/api/health` only to decide whether the process itself is alive.
+
+## 10. Intentionally not in this contract yet
 
 Do not assume these. They are on the [roadmap](../contributor/roadmap.md): multi-instance rate limiting (today the limit is per instance; Phase 4), `_logs` retention that does not bloat on cleanup (Phase 4), GIN indexes for multi-value JSONB filters (Phase 4), a dedicated PocketBase migration CLI (Phase 1), a published endpoint reference (Phase 1), and a PostgreSQL 16/17 compatibility matrix (Phase 0).

@@ -126,7 +126,7 @@ Verified against the tree at v0.5.4. This is inventory, not a promise that every
 | pgvector field, similarity API | Not started | Phase 2 |
 | MCP server | Not started | Phase 3 |
 | Distributed rate limiter | Not started — limit is per instance | Phase 4 |
-| Readiness distinct from liveness | Not started — `/api/health` does not ping the database | Phase 0 leftover |
+| Readiness distinct from liveness | Shipped | `apis/ready.go` (`GET /api/ready`: 200/503 on a data-pool + `_collections` probe; health stays liveness-only) |
 
 System model: [Platform Design](./methodology/platform-design.md), [Guardrails](./methodology/guardrails.md), [Observability](./methodology/observability.md), [Checklists](./methodology/checklists.md). Known weaknesses stay in [Failure Analysis](./methodology/failure-modes.md).
 
@@ -138,7 +138,7 @@ Each item still needs the 10-step definition of done in its PR. See [Checklists 
 
 ### Phase 0 — Trust
 
-Most of this is done: security policy, secret scanning, reproducible releases, native backups, metrics, production docs, one-command install, production-path hygiene (W-06).
+Most of this is done: security policy, secret scanning, reproducible releases, native backups, metrics, production docs, one-command install, production-path hygiene (W-06), readiness (`/api/ready`).
 
 Still P0, because "we have a backup" is not "we trust a restore":
 
@@ -146,7 +146,6 @@ Still P0, because "we have a backup" is not "we trust a restore":
 |---|---|---|
 | Restore verification | Partial | Post-restore counts, expected schema, settings sanity. A partial restore fails loudly. |
 | Restore drills | Not started | A recorded drill that feeds `last_verified_backup` |
-| Readiness | Partial | `/api/ready` checks the database. Liveness is not readiness. |
 | Versioning and upgrade policy | Not started | How PG-BASE versions break, how to roll back an app or PostgreSQL upgrade, and a PostgreSQL 16/17 CI matrix so that claim is observed |
 | Diagnostic metrics | Not started | Error ratio (`pgbase_http_requests_total`), DB event counters (query/lock timeout, reconnect, rollback) for G-DB-03/04 and G-REL-01, and backup attempt/success/duration/size. `last_verified_backup` stays with restore drills |
 | Reliability tests | Not started | Query-timeout, connect-timeout, and graceful-shutdown tests — Evaluation Checklists §1–2 gaps |

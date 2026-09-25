@@ -4,6 +4,26 @@
 > appends here so knowledge accumulates between AI sessions and training runs.
 > Format per entry: date · area · what happened · what changed in the system model/docs.
 
+## 2026-09-26 — Phase 0 readiness: /api/ready shipped (PR-3, DRR-0002)
+
+- **Event:** The readiness gap was not in the code but in two deployment artifacts: the compose-prod
+  healthcheck and the quickstart wait loop both probed liveness-only `/api/health`, so a container
+  counted "healthy" during a full database outage. Fixed by adding the missing endpoint
+  (`apis/ready.go`, `GET /api/ready` 200/503) and switching both probes to it.
+- **What changed:** one bounded probe query through the normal data pool
+  (`SELECT (SELECT count(*) FROM "_collections")`, 5 s bound) — proves pool acquire + server answer
+  + core schema readable in a single round trip; 503 carries a **static** message (driver errors
+  can contain host/user details — logged server-side only, a security-relevant regression-tested
+  decision); `/api/health` deliberately unchanged (liveness).
+- **Lesson 1:** the "DB is down" test does not need a dead server: closing the app's data pool
+  (`app.DB().(*dbx.DB).DB().Close()`) fails queries fast ("sql: database is closed") while the
+  process keeps serving — exactly the state that distinguishes readiness (503) from liveness (200).
+  `ResetBootstrapState` tolerates an already-closed pool, so the scenario cleanup stays intact.
+- **Lesson 2:** `app.DB()` returns the `dbx.Builder` interface — reaching the `*sql.DB` handle
+  needs a type assertion (`apis/metrics.go` `sqlDBFromBuilder` precedent), not a method call.
+- **Follow-up:** PR-4 (restore verification hardening) is next; PR-7 reliability tests should assert
+  `/api/ready` turns 503 during a query-timeout window (bounded probe) once those tests exist.
+
 ## 2026-09-25 — Phase 0 docs truth: secret scanning was shipped, not "Not started" (PR-2)
 
 - **Event:** Pre-Phase-0 audit assumed secret scanning was unbuilt and planned to build it. The

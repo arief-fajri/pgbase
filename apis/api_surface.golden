@@ -21,6 +21,7 @@ GET /api/logs
 GET /api/logs/stats
 GET /api/logs/{id}
 GET /api/oauth2-redirect
+GET /api/ready
 GET /api/realtime
 GET /api/settings
 PATCH /api/collections/{collection}

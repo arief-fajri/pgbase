@@ -80,14 +80,14 @@ log "waiting for PG-BASE to answer on 127.0.0.1:$PORT"
 ready=0
 i=0
 while [ "$i" -lt 60 ]; do
-    if curl -fsS "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
+    if curl -fsS "http://127.0.0.1:$PORT/api/ready" >/dev/null 2>&1; then
         ready=1
         break
     fi
     i=$((i + 1))
     sleep 2
 done
-[ "$ready" = "1" ] || die "PG-BASE did not become healthy within 120s — check: docker compose logs pgbase"
+[ "$ready" = "1" ] || die "PG-BASE did not become ready within 120s — check: docker compose logs pgbase"
 
 # --- first superuser ---------------------------------------------------------
 if [ "${PGBASE_SKIP_SUPERUSER:-0}" = "1" ]; then
