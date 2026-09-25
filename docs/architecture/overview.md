@@ -1,6 +1,6 @@
 # System Overview
 
-<DocMeta audience="All" status="stable" verified="v0.5.2" />
+<DocMeta audience="All" status="stable" verified="v0.5.4" />
 
 > PG-BASE is a single-binary application backend in front of **PostgreSQL**. The database stays yours.
 

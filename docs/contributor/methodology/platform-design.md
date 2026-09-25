@@ -1,6 +1,6 @@
 # Platform Design
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.2" />
+<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
 
 > Canonical system model for PG-BASE. This document defines what system we are building, what its boundaries are, and what properties must remain true. Guard rails are codified separately in [Quality Guardrails](./guardrails.md), failure behavior in [Failure Analysis](./failure-modes.md), observability in [Observability](./observability.md).
 >
@@ -132,7 +132,7 @@ I17. Cold-start determinism: applying migrations to an empty database is
      single-connection and deterministic (no cross-connection catalog DDL).
      Observation: core/coldboot_migration_test.go (Bootstrap + RunAllMigrations
      on a truly empty DB); guard rails G-DB-09/G-DB-10; proven 2026-09-12 in
-     FAILURE-MODES W-10.
+      Failure Analysis W-10.
 ```
 
 Enforcement anchors: `SetMaxOpenConns` (data 80 / aux 10), layered timeouts above, realtime subscriber queue (32) with drop counters, graceful shutdown on SIGINT/SIGTERM.

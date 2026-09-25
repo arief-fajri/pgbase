@@ -1,8 +1,8 @@
 # API Overview
 
-<DocMeta audience="Developer" status="stable" verified="v0.5.2" />
+<DocMeta audience="Developer" status="stable" verified="v0.5.4" />
 
-PG-BASE exposes a REST and realtime API in front of your PostgreSQL database. This page is the map. Behavior that callers must rely on is the [API contract](./api-contract.md). A complete per-endpoint reference is not published yet.
+PG-BASE exposes a REST and realtime API in front of your PostgreSQL database. This page is the map. Behavior that callers must rely on is the [API contract](./api-contract.md). A complete per-endpoint reference is not published yet — that is [Phase 1](../contributor/roadmap.md).
 
 ## Base URL
 

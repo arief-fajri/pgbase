@@ -1,6 +1,6 @@
 # Comparison
 
-<DocMeta audience="All" status="living document" verified="v0.5.2 (923e860)" />
+<DocMeta audience="All" status="living document" verified="v0.5.4" />
 
 PG-BASE is a self-hosted PostgreSQL application backend: one binary in front of a database you already operate. It is not a smaller Supabase, and it is not a database with a new name.
 

@@ -1,6 +1,6 @@
 # Single-Host Setup
 
-<DocMeta audience="Operator" status="stable" verified="v0.5.2" />
+<DocMeta audience="Operator" status="stable" verified="v0.5.4" />
 
 The simplest production topology for small to medium workloads: one VPS, Docker Compose, and automatic HTTPS via Caddy.
 

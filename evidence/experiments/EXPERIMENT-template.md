@@ -2,8 +2,8 @@
 
 <!--
 Template: copy to evidence/experiments/EXPERIMENT-<ID>-<YYYYMMDD>-<run>.md
-Scenario descriptions: docs/FAILURE-MODES.md §4
-The FAILURE-MODES §4 verdict matrix must be updated when this record is finalized.
+Scenario descriptions: docs/contributor/methodology/failure-modes.md §4
+The failure-modes.md §4 verdict matrix must be updated when this record is finalized.
 -->
 
 ## Frontmatter

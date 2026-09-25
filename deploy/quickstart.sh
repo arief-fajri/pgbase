@@ -1,5 +1,5 @@
 #!/bin/sh
-# PG-BASE one-command trial provision (Sprint 0a quickstart).
+# PG-BASE one-command trial provision.
 #
 #   curl -fsSL https://raw.githubusercontent.com/arief-fajri/pgbase/main/deploy/quickstart.sh | sh
 #

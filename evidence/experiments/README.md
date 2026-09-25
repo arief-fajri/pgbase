@@ -1,6 +1,6 @@
 # Controlled failure experiments — harness (gate E5)
 
-Scenarios defined in [FAILURE-MODES.md §4](../../docs/FAILURE-MODES.md#4-controlled-failure-experiments).
+Scenarios defined in [failure-modes.md §4](../../docs/contributor/methodology/failure-modes.md#4-controlled-failure-experiments).
 Harness scripts make each scenario **bounded, reproducible, idempotent**, and log
 raw evidence for L0–L3 review. They are run **by a human operator** (they stop/start
 the shared test PostgreSQL container and create/drop dedicated `pgbase_exp_*` databases).
@@ -54,7 +54,7 @@ Exit code 0 = `RESULT: PASS`; non-zero = `RESULT: FAIL`. Every run writes
 
 Per run: copy [`EXPERIMENT-template.md`](./EXPERIMENT-template.md) to
 `EXPERIMENT-<ID>-<YYYYMMDD>-<run>.md`, fill Verdict + L2/L3 blocks, and update the
-`Verdict` column in [FAILURE-MODES.md §4](../../docs/FAILURE-MODES.md#4-controlled-failure-experiments)
+`Verdict` column in [failure-modes.md §4](../../docs/contributor/methodology/failure-modes.md#4-controlled-failure-experiments)
 and this line in [`evidence/learnings.md`](../learnings.md).
 
 Environment overrides (all optional):

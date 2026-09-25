@@ -5,13 +5,13 @@
 ## Definition of Done (10 steps)
 
 1. **System property changed:** <what system property are we changing?>
-2. **Desired outcome:** <which PLATFORM.md §2 outcome should change?>
-3. **Invariant that must remain true:** <I# reference, PLATFORM.md §4>
-4. **Guard rails that apply:** <G-# references, GUARDRAILS.md — say "none crossed" explicitly for Level A changes>
-5. **How the behavior is observed:** <metric / diagnostic / log — see OBSERVABILITY.md>
+2. **Desired outcome:** <which platform-design.md §2 outcome should change?>
+3. **Invariant that must remain true:** <I# reference, docs/contributor/methodology/platform-design.md §4>
+4. **Guard rails that apply:** <G-# references, docs/contributor/methodology/guardrails.md — say "none crossed" explicitly for Level A changes>
+5. **How the behavior is observed:** <metric / diagnostic / log — see docs/contributor/methodology/observability.md>
 6. **How it is tested:** <test names / packages / commands>
-7. **Relevant failure modes:** <FAILURE-MODES.md table row(s), or "none">
-8. **Acceptance checklist:** <which CHECKLISTS.md section(s) apply; check the rows>
+7. **Relevant failure modes:** <docs/contributor/methodology/failure-modes.md table row(s), or "none">
+8. **Acceptance checklist:** <which docs/contributor/methodology/checklists.md section(s) apply; check the rows>
 9. **Evidence it works:** <artifact path in `evidence/`, test output, benchmark — no artifact = no evidence>
 10. **Learning recorded:** <what did we learn — appended to `evidence/learnings.md`>
 

@@ -1,8 +1,8 @@
 # Evidence
 
 > **An experiment without a traceable artifact is not evidence (G-AI-07).**
-> This directory holds the artifacts that prove the [desired outcomes](./docs/contributor/methodology/platform-design.md#2-desired-outcomes)
-> hold and the [guardrails](./docs/contributor/methodology/guardrails.md) are enforced. Claims like "restore works",
+> This directory holds the artifacts that prove the [desired outcomes](../docs/contributor/methodology/platform-design.md#2-desired-outcomes)
+> hold and the [guardrails](../docs/contributor/methodology/guardrails.md) are enforced. Claims like "restore works",
 > "migrations fail safely", or "pool saturation is bounded" are only true here,
 > with a dated, versioned record.
 
@@ -32,6 +32,6 @@ evidence/
 1. Copy the matching template (`experiments/EXPERIMENT-template.md` or `records/DRR-template.md`).
 2. Fill frontmatter fields (date, version, env, guard rails, verdict, level).
 3. Attach raw output (log, SQL transcript, metrics snapshot) alongside — raw harness logs live under `experiments/logs/` (gitignored, regenerable); the committed artifact is this record plus any captured transcript you embed inline.
-4. Record the verdict in the matrix in `docs/FAILURE-MODES.md` §4.
+4. Record the verdict in the matrix in `docs/contributor/methodology/failure-modes.md` §4.
 5. Append lessons to `learnings.md`.
 6. Commit together with the code that produced it.

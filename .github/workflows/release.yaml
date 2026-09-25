@@ -134,7 +134,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Race-detector pass of the full test suite (Sprint 0a CI hygiene). Runs as
+  # Race-detector pass of the full test suite. Runs as
   # its own job in parallel with the main `goreleaser` job so the wall-clock
   # time stays close to a single run, with its own timeout margin — race
   # instrumentation makes the suite roughly 1.5-2x slower than the plain pass.
@@ -195,7 +195,7 @@ jobs:
         # instrumentation overhead.
         run: go test -race ./... -count=1 -p 4 -timeout=2400s
 
-  # Lint pass (Sprint 0a CI hygiene) — same command as `make lint`, blocking.
+  # Lint pass — same command as `make lint`, blocking.
   # The version is pinned to the release the tree was verified clean against;
   # bump it deliberately after running the new version locally first.
   # Installed via `go install` from the Go module proxy, so the binary is
@@ -225,7 +225,7 @@ jobs:
       - name: Run lint
         run: golangci-lint run -c ./golangci.yml ./...
 
-  # Docker image for ghcr.io (Sprint 0a one-command provision). PR runs
+  # Docker image for ghcr.io (one-command provision). PR runs
   # validate the Dockerfile builds; `v*` tag pushes publish only the immutable
   # ghcr.io/<owner>/pgbase:<tag> after all quality gates pass.
   # The `:latest` tag is NOT moved here — it is promoted by the separate

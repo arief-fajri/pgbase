@@ -1,7 +1,7 @@
 # DRR-<issue#> — <short decision summary>
 
 <!--
-Decision Request Record for Level B decisions (GUARDRAILS.md §8, G-AI-02/03).
+Decision Request Record for Level B decisions (docs/contributor/methodology/guardrails.md §8, G-AI-02/03).
 File lives at evidence/records/DRR-<issue#>.md; the GitHub issue (template
 .github/ISSUE_TEMPLATE/decision_request.yml) is the surface where a human confirms.
 

@@ -1,4 +1,4 @@
-# One-command trial stack for PG-BASE (Sprint 0a quickstart).
+# One-command trial stack for PG-BASE.
 #
 # This file is fetched by deploy/quickstart.sh — you do not need the repo.
 # It boots PG-BASE + PostgreSQL with a single `docker compose up -d` and is
@@ -13,7 +13,7 @@
 #
 # The Postgres image is pgvector/pgvector:pg16 — the official postgres:16
 # image with the pgvector extension preinstalled. PG-BASE's vector features
-# are roadmap work (Sprint 0b); pre-creating the extension now means this
+# are Phase 2 roadmap work; pre-creating the extension now means this
 # stack keeps working unchanged when they land. Plain postgres:16 works too.
 #
 services:

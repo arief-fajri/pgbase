@@ -1,6 +1,6 @@
 name: security-scan
 
-# Scheduled dependency-vulnerability scans (Sprint 0a CI hygiene):
+# Scheduled dependency-vulnerability scans:
 # - govulncheck over the Go module (symbol-level analysis: fails only when a
 #   reachable vulnerability is found)
 # - npm audit over the embedded dashboard (ui/) and the docs site (docs/)

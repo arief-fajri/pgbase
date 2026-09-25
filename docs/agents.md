@@ -1,6 +1,6 @@
 # For AI Agents
 
-<DocMeta audience="App Builder" status="stable" verified="v0.5.2 (923e860)" />
+<DocMeta audience="App Builder" status="stable" verified="v0.5.4" />
 
 A deployment guide for AI coding agents (Claude Code, Codex, Cursor, …) that
 need to provision a PG-BASE backend for an application. Everything here is

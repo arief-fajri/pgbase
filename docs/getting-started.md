@@ -1,6 +1,6 @@
 # Getting Started
 
-<DocMeta audience="All" status="stable" verified="v0.5.2" />
+<DocMeta audience="All" status="stable" verified="v0.5.4" />
 
 Get PG-BASE running in minutes. Choose the path that fits your setup.
 

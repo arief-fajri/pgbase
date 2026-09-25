@@ -1,8 +1,8 @@
 # Reference: Environment Variables (canonical)
 
-<DocMeta audience="All" status="stable" verified="v0.5.2 (923e860)" />
+<DocMeta audience="All" status="stable" verified="v0.5.4" />
 
-**Single source of truth.** `README.md`, `developing.md`, `production.md` tables are frozen pointers here. Code truth: `core/db_connect.go:37-139`, `core/base.go:43-46,245-259`, `apis/metrics.go:34-59`, `apis/serve.go:84`, `tools/archive/extract.go:16-39`, `core/realtime_outbox.go:47-51`.
+**Single source of truth.** `README.md`, `developing.md`, `production.md` tables are frozen pointers here. Code truth: `core/db_connect.go:37-139`, `core/base.go:45-48,245-259`, `apis/metrics.go:34-59`, `apis/serve.go:84`, `tools/archive/extract.go:16-39`, `core/realtime_outbox.go:47-51`.
 
 Flags take precedence over env where both exist. `--pg-*` serve flags are **not wired** to the connection — set `PB_POSTGRES_*` env vars (`developing.md` #3).
 

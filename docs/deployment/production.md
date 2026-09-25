@@ -1,6 +1,6 @@
 # Production Runbook
 
-<DocMeta audience="Operator" status="stable" verified="v0.5.2" />
+<DocMeta audience="Operator" status="stable" verified="v0.5.4" />
 
 A self-contained runbook for deploying and operating **PG-BASE** in production. It assumes you already built the binary or image (see [Build](#1-build)) and have a PostgreSQL database to point at.
 
