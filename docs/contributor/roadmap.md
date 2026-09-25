@@ -137,7 +137,7 @@ Each item still needs the 10-step definition of done in its PR. See [Checklists 
 
 ### Phase 0 — Trust
 
-Most of this is done: security policy, reproducible releases, native backups, metrics, production docs, one-command install.
+Most of this is done: security policy, reproducible releases, native backups, metrics, production docs, one-command install, production-path hygiene (W-06).
 
 Still P0, because "we have a backup" is not "we trust a restore":
 
@@ -147,7 +147,6 @@ Still P0, because "we have a backup" is not "we trust a restore":
 | Restore drills | Not started | A recorded drill that feeds `last_verified_backup` |
 | Readiness | Partial | `/api/ready` checks the database. Liveness is not readiness. |
 | Versioning and upgrade policy | Not started | How PG-BASE versions break, how to roll back an app or PostgreSQL upgrade, and a PostgreSQL 16/17 CI matrix so that claim is observed |
-| Production-path hygiene | Not started | W-06: remove the `PGTEST_*` fallback from `core/realtime_outbox.go` production paths, with a regression test. Hard rule 5 holds |
 | Secret scanning | Not started | A CI job that fails the build on committed secrets (G-SEC-01), alongside govulncheck and npm audit |
 | Diagnostic metrics | Not started | Error ratio (`pgbase_http_requests_total`), DB event counters (query/lock timeout, reconnect, rollback) for G-DB-03/04 and G-REL-01, and backup attempt/success/duration/size. `last_verified_backup` stays with restore drills |
 | Reliability tests | Not started | Query-timeout, connect-timeout, and graceful-shutdown tests — Evaluation Checklists §1–2 gaps |

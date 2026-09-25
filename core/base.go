@@ -1225,8 +1225,10 @@ func (app *BaseApp) initDataDB() error {
 	// Capture the resolved connection config for the outbox listener so it
 	// reconnects to the same host/port/user/database without re-resolving
 	// from PB_POSTGRES_* env vars (which may differ from a custom DBConnect
-	// closure used by the test harness). Assigned together with the handle
-	// in one synchronized section (see bootstrapMu).
+	// closure used by the test harness). Password/SSLMode for the listener
+	// come only from this config, never from test env fallbacks (W-06).
+	// Assigned together with the handle in one synchronized section
+	// (see bootstrapMu).
 	app.bootstrapMu.Lock()
 	app.dbConfig = ResolveDBConfig(inputConfig)
 	app.dataDB = db

@@ -384,3 +384,42 @@ func TestRealtimeOutboxEventsAfterExcludesOwnOrigin(t *testing.T) {
 		t.Fatalf("expected foreign + legacy(NULL)-origin rows to be delivered, got %+v", events)
 	}
 }
+
+// TestRealtimeOutboxListenerConfigIgnoresTestEnv is the regression test for
+// W-06: the listener's connection parameters must never be filled from the
+// PGTEST_* test fallbacks. Credentials come from the stored config, which is
+// resolved from the PB_POSTGRES_* env at init time (hard rule 5 / G-DB-05).
+func TestRealtimeOutboxListenerConfigIgnoresTestEnv(t *testing.T) {
+	t.Setenv("PGTEST_PASSWORD", "leaked-test-password")
+	t.Setenv("PGTEST_SSLMODE", "verify-full")
+
+	app := newRealtimeOutboxTestApp(t)
+
+	if app.dbConfig.Password == "leaked-test-password" {
+		t.Fatal("test precondition failed: stored config password must not come from PGTEST_PASSWORD")
+	}
+
+	cfg, err := app.realtimeOutboxListenerConfig()
+	if err != nil {
+		t.Fatalf("failed to derive the listener config: %v", err)
+	}
+
+	if cfg.Password == "leaked-test-password" {
+		t.Fatal("listener config picked up PGTEST_PASSWORD; production code must not read test env (W-06)")
+	}
+	if cfg.Password != app.dbConfig.Password {
+		t.Fatalf("listener password = %q, want the stored config password %q", cfg.Password, app.dbConfig.Password)
+	}
+	if cfg.SSLMode == "verify-full" {
+		t.Fatal("listener config picked up PGTEST_SSLMODE; production code must not read test env (W-06)")
+	}
+	if cfg.SSLMode != app.dbConfig.SSLMode {
+		t.Fatalf("listener sslmode = %q, want the stored config sslmode %q", cfg.SSLMode, app.dbConfig.SSLMode)
+	}
+
+	// identity fields follow the live connection so a custom DBConnect
+	// closure (test harness) is honoured
+	if cfg.User == "" || cfg.DBName == "" {
+		t.Fatalf("expected the live connection identity to be filled, got %+v", cfg)
+	}
+}

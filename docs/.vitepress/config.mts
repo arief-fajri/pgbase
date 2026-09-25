@@ -101,7 +101,7 @@ export default withMermaid(defineConfig({
                 text: "Development",
                 collapsed: false,
                 items: [
-                    { text: "Overview", link: "/contributor/" },
+                    { text: "Development Overview", link: "/contributor/" },
                     { text: "Development Setup", link: "/contributor/developing" },
                     { text: "Contributing Guide", link: "/contributor/contributing" },
                     { text: "Release Process", link: "/contributor/releasing" },

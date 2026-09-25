@@ -54,7 +54,8 @@ G-DB-03  Database operations must have bounded execution time.
 G-DB-04  Lock waits must be bounded.
          Enforcement: code — lock_timeout 30s (role level, PgBouncer-safe) ✅
 G-DB-05  Database credentials must come from protected configuration.
-         Enforcement: config — PB_POSTGRES_* env / secret store; .env gitignored ✅
+         Enforcement: config — PB_POSTGRES_* env / secret store; .env gitignored; production code
+         never reads the test-harness env prefix (static scan, core/hard_rules_test.go) ✅
 G-DB-06  Production database traffic must use the intended TLS policy.
          Enforcement: code+config — sslmode=prefer default, non-loopback sslmode=disable warns;
          production requires require/verify-full ✅

@@ -4,6 +4,33 @@
 > appends here so knowledge accumulates between AI sessions and training runs.
 > Format per entry: date · area · what happened · what changed in the system model/docs.
 
+## 2026-09-25 — W-06 closed: test env fallback out of production code (PR-1)
+
+- **Event:** Phase 0 production-path hygiene: removed the `PGTEST_PASSWORD`/`PGTEST_SSLMODE` fallback
+  from `core/realtime_outbox.go` (`OpenRealtimeOutboxListener`); listener credentials now come only
+  from the config resolved via `PB_POSTGRES_*` at init time.
+- **Lesson 1 (evidence quality):** the first proposed regression test — "assert the listener DSN
+  never contains `PGTEST_PASSWORD`" — was a tautology: `buildDSN` is a pure function of its config
+  and never reads env, so the test could not detect a W-06 regression (L2 rule: the artifact must
+  prove the claim). The real seam is the config assembly, now extracted as
+  `realtimeOutboxListenerConfig` and tested with `t.Setenv` poisoning. A static scan
+  (`core/hard_rules_test.go`) is the mechanical enforcement of hard rule 5 / G-DB-05 — and it
+  immediately caught its own production comment mentioning the token, which is how enforcement
+  should behave.
+- **Lesson 2 (finding, NOT fixed here):** the listener's host/port override query
+  `SELECT COALESCE(inet_server_addr(), '') ...` always fails (`invalid input syntax for type inet:
+  ""` — the empty literal is cast to `inet` at parse time) and the error is swallowed by
+  `err == nil`, so the "override host/port from the live connection" path is dead code. The
+  listener silently keeps the stored config host/port. Side effect: Docker Desktop macOS works by
+  accident (localhost:5433), while a custom `DBConnect` pointing elsewhere is not honoured for
+  host/port despite the comment. Class A (wrong COALESCE typing), but a fix changes behaviour and
+  reddens `apis/realtime_outbox_listener_test.go` on macOS (container IP `inet_server_addr()` is
+  not routable from the host) — needs its own classified decision (candidate W-11 row + design
+  choice: drop the override or cast `host(inet_server_addr())::text`).
+- **Docs:** `failure-modes.md` W-06 → Fixed (anchor re-pointed from the deleted lines to
+  `realtimeOutboxListenerConfig`); roadmap Phase 0 row deleted (shipped items are named in the
+  "Most of this is done" sentence); G-DB-05 enforcement now names the static scan.
+
 ## 2026-09-25 — Docs: sprint IDs retired, roadmap is the only schedule
 
 - **Event:** Live docs still cited Sprint 0b, numbered tasks, and PERF/Theme/PGB codes after the roadmap moved to phases.
