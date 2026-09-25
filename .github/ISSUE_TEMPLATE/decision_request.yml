@@ -1,5 +1,5 @@
 name: Decision request (Level B)
-description: Request an explicit human confirmation under the AI decision-authority model (GUARDRAILS.md §8). The change stays blocked until a maintainer confirms. Silence is not approval.
+description: Request an explicit human confirmation under the AI decision-authority model (docs/contributor/methodology/guardrails.md §8). The change stays blocked until a maintainer confirms. Silence is not approval.
 title: "DRR: <short decision summary>"
 labels: [decision-waiting]
 body:

@@ -1,6 +1,6 @@
 # PG-BASE Development Guide
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.2 (923e860)" />
+<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
 
 Step-by-step guide to run, test, and contribute to **PG-BASE** in a local environment.
 
@@ -299,7 +299,7 @@ When enabled, each record write appends an event row to `_realtime_outbox` (`act
 ### Operational notes
 
 - `PB_REALTIME_OUTBOX` defaults to **off**: single-instance deployments have zero outbox reads, zero NOTIFY listeners and zero extra rows (the write path is unchanged).
-- **Trust model:** outbox rows are trusted exactly as much as DB writes. There is **no mutual authentication between instances** — origin is a random per-process id and rows with a NULL/legacy origin are always delivered. Any process with write access to the shared DB (e.g. a compromised instance) can forge/delete-snapshot rows that are re-broadcast to other instances' subscribers (whose API rules are re-evaluated, so exposure stays within rule grants). Delete snapshots are scrubbed of auth secrets (password, tokenKey) before being stored at rest (PGB-N02).
+- **Trust model:** outbox rows are trusted exactly as much as DB writes. There is **no mutual authentication between instances** — origin is a random per-process id and rows with a NULL/legacy origin are always delivered. Any process with write access to the shared DB (e.g. a compromised instance) can forge/delete-snapshot rows that are re-broadcast to other instances' subscribers (whose API rules are re-evaluated, so exposure stays within rule grants). Delete snapshots are scrubbed of auth secrets (password, tokenKey) before being stored at rest.
 - The listener needs a dedicated PostgreSQL connection (LISTEN is not multi-plexed by a transaction-pooling proxy); connect it directly or via a session-pooling front.
 - The outbox table is small (event rows, TTL-cleaned). With the listener disabled the rows are not produced at all.
 
@@ -411,7 +411,7 @@ PB_POSTGRES_PASSWORD=secret go run ./examples/base superuser upsert admin@exampl
 
 ## 5b. Schema & data-model notes
 
-### Manual `CREATE INDEX CONCURRENTLY` (IDX-4 escape hatch)
+### Manual `CREATE INDEX CONCURRENTLY`
 
 Collection schema changes run inside a transaction, so plain `CREATE INDEX` on a large populated table takes a `SHARE` lock that blocks **writes** for the build duration. Post-index-diff, only genuinely changed/added indexes trigger a rebuild, so this is usually a short window. For exceptional cases (a huge hot table), a DBA can build the index out-of-band to avoid the write stall:
 
@@ -425,11 +425,11 @@ Notes:
 - It may leave an `INVALID` index on failure; drop it before retrying (`DROP INDEX ...`).
 - After building, the index must also be declared in the collection's `indexes` JSON so the schema sync treats it as managed (or it will be re-created by the sync instead of reused).
 
-### Legacy SQLite-format backup export (TX-1 tradeoff)
+### Legacy SQLite-format backup export
 
 The default backup format (`pg`) runs `pg_dump` as an external process with its own consistent snapshot and is fully safe. The legacy opt-in format (`Backups.Format = "sqlite"`) wraps its reads in a single transaction to keep them snapshot-consistent. On PostgreSQL this does **not** block writes (MVCC), but the transaction pins the xmin horizon for the export duration, which can slow autovacuum cluster-wide on very large databases, and holds one data-pool connection. Use the default `pg` format; the legacy format is kept for SQLite-tooling interoperability.
 
-### Record primary keys (IDX-6, awareness only)
+### Record primary keys
 
 Record ids are random 15-char lowercase strings (fallback `gen_random_bytes`). As TEXT primary keys they are **not monotonic**, which causes B-tree page splits on insert, slightly larger relation columns/indexes, and no time-ordering (the earlier `-@rowid`→`-created` logs bug). This ID shape is part of the [API contract](../reference/api-contract.md); no change is planned.
 
@@ -497,7 +497,7 @@ The bundled `docker-compose.yml` is a local/demo stack. Before running pgbase in
 - **Network:** never publish the database port publicly; keep it on a private network. The demo binds it to `127.0.0.1` only.
 - **App TLS:** terminate HTTPS at a reverse proxy (or use the built-in `--https`) — do not serve plaintext HTTP publicly. When HTTPS is in front, set `PB_HSTS=true` to emit `Strict-Transport-Security` (2y, includeSubDomains; opt-in because it is meaningless on a plaintext connection).
 - **Settings encryption:** `PB_ENCRYPTION_KEY` is **mandatory for production**. Run with `--encryptionEnv <ENV_VAR>` so SMTP/S3/OAuth2/JWT secrets — including the **token-signing secret**, whose leak would allow forging valid auth tokens — are encrypted at rest (see section on settings below). Without it those secrets are stored base64-encoded but **unencrypted** (and copied verbatim into `pg_dump` backups); the server prints a warning on start when no encryption key is set.
-- **Editor (rich-text) fields:** `editor`-type field values are stored as HTML. Since v0.4.x the app **sanitizes editor content server-side at write time** (allow-list via bluemonday — scripts, event handlers, iframes, embeds and `javascript:`/`data:text`/SVG URLs are stripped; see PGB-M03). The dashboard renders stored HTML through a sandboxed editor, but the REST/records API still returns it verbatim. Treat editor content as **untrusted defense-in- depth** in any client app that injects it into the DOM (e.g. use a DOMPurify- style pass), especially when the collection's create/update API rules allow non-superuser writes. Note: native `pg_restore` backups restore the stored HTML as-is (admin-level restore capabability).
+- **Editor (rich-text) fields:** `editor`-type field values are stored as HTML. Since v0.4.x the app **sanitizes editor content server-side at write time** (allow-list via bluemonday — scripts, event handlers, iframes, embeds and `javascript:`/`data:text`/SVG URLs are stripped). The dashboard renders stored HTML through a sandboxed editor, but the REST/records API still returns it verbatim. Treat editor content as **untrusted defense-in- depth** in any client app that injects it into the DOM (e.g. use a DOMPurify- style pass), especially when the collection's create/update API rules allow non-superuser writes. Note: native `pg_restore` backups restore the stored HTML as-is (admin-level restore capabability).
 - **Connection pool:** size `(data+aux)×instances` under the DB's `max_connections` (see the connection-pool sizing section), and front large fan-out with PgBouncer.
 
 ---

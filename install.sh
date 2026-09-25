@@ -1,5 +1,5 @@
 #!/bin/sh
-# PG-BASE binary installer (Sprint 0a) — the composable path for agents and
+# PG-BASE binary installer — the composable path for agents and
 # bare-metal users. Downloads a release binary for the current platform from
 # GitHub Releases and verifies it against the release checksums before
 # extracting (fork policy: checksum-verified downloads).

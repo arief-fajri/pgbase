@@ -1,6 +1,6 @@
 # Migrate from PocketBase
 
-<DocMeta audience="App Builder" status="experimental" verified="v0.5.2 (923e860)" />
+<DocMeta audience="App Builder" status="experimental" verified="v0.5.4" />
 
 PG-BASE can import a PocketBase data directory today. A dedicated migration command, a compatibility report, and a verified playbook are **not shipped yet**. Do not treat this page as a finished migration product.
 

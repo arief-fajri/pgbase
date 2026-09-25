@@ -1,6 +1,6 @@
 # Evaluation Checklists
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.2" />
+<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
 
 > Checklists are evaluation gates, split by system boundary so they stay maintainable. A checklist item must be either verifiable in code, in a test run, or against evidence — a checkbox without a mechanism is decoration.
 >
@@ -15,9 +15,9 @@
 [x] CRUD operations work                                         (api/record tests)
 [ ] Transactions are atomic                                      (rollback tests — expand to W-01 class)
 [x] Failed writes do not partially persist                       (SAVEPOINT audit guard test)
-[ ] Concurrent writes behave correctly                           (concurrency tests — gap)
+[ ] Concurrent writes behave correctly                           (concurrency tests — Phase 4 / load harness)
 [x] Database constraints are enforced                            (functional unique identity indexes)
-[ ] Shutdown releases database resources                         (graceful shutdown test — gap)
+[ ] Shutdown releases database resources                         (graceful shutdown test — Phase 0 / reliability tests)
 [x] Startup failure is explicit and diagnosable                  (error propagation in Bootstrap)
 ```
 
@@ -29,22 +29,22 @@
 [ ] Migration state is reproducible                               (experiment D; reproducible boot)
 [ ] Migrations fail safely                                        (experiment D)
 [x] Transaction rollback works                                    (db_tx tests)
-[ ] Query timeout works                                           (timeout test — gap)
+[ ] Query timeout works                                           (timeout test — Phase 0 / reliability tests)
 [ ] Lock timeout works                                            (experiment C / timeout tests)
-[ ] Connection acquisition timeout works                          (connect_timeout tests — gap)
+[ ] Connection acquisition timeout works                          (connect_timeout tests — Phase 0 / reliability tests)
 [ ] Pool saturation is bounded                                    (experiment B)
 [ ] Pool saturation is observable                                 (wait metrics + alert) ✅ live
 [x] PostgreSQL restart is recoverable                             (experiment A)
 [ ] Network interruption is recoverable                           (experiment A extended)
 [x] TLS configuration works in production mode                    (sslmode warning + prod compose)
 [ ] PgBouncer transaction pooling works if supported              (exec/simple_protocol documented;
-                                                                end-to-end doc Task 36)
+                                                                end-to-end notes are Phase 4 / PgBouncer)
 ```
 
 ## 3. API contract (reference: [api-contract.md](../../reference/api-contract.md))
 
 ```text
-[ ] Authentication behavior is compatible                         (compat suite Task 18/24 — gap)
+[ ] Authentication behavior is compatible                         (Phase 1 / compatibility suite — gap)
 [ ] Authorization behavior is compatible                          (compat suite — gap)
 [ ] REST endpoints are compatible                                 (compat suite — gap)
 [ ] HTTP status codes are compatible                              (compat suite — gap)
@@ -63,7 +63,7 @@ Where possible, every row above is an automated test of external behavior agains
 ## 4. Security (reference: G-SEC-01…08)
 
 ```text
-[ ] No secrets committed                                         (gitignore; CI secret scan — gap)
+[ ] No secrets committed                                         (gitignore; CI secret scan — Phase 0 / secret scanning)
 [ ] Production secrets supplied securely                         (env/secret store; --encryptionEnv) ✅
 [ ] TLS enabled/configured                                       (sslmode require/verify-full; HSTS) ✅
 [ ] Database not unintentionally public                          (prod compose internal-only network) ✅
@@ -88,7 +88,7 @@ Where possible, every row above is an automated test of external behavior agains
 [ ] Restore preserves application data                            (experiment E)
 [ ] Restore preserves authentication data                         (experiment E)
 [ ] Restore preserves required files/configuration                (storage + settings)
-[ ] Restore procedure is documented                               (DISASTER-RECOVERY.md runbook)
+[ ] Restore procedure is documented                               ([disaster-recovery.md](../../deployment/disaster-recovery.md))
 [ ] Restore procedure has been executed successfully              (experiment E — gate)
 [ ] Last verified backup is observable                            (last_verified_backup metric — gap)
 ```
@@ -100,14 +100,14 @@ A release is not ready merely because unit tests pass. The release gate combines
 ```text
 [ ] Unit tests pass                                              (go test ./...)
 [ ] Integration tests pass                                       (DB-backed suite + -race)
-[ ] PostgreSQL compatibility tests pass                          (PG 16/17 matrix — gap Task 59)
-[ ] API compatibility tests pass                                 (Tasks 18/24)
+[ ] PostgreSQL compatibility tests pass                          (PG 16/17 matrix — Phase 0 / versioning)
+[ ] API compatibility tests pass                                 (Phase 1 / compatibility suite)
 [ ] Realtime tests pass                                          (realtime + outbox suites)
-[ ] Security checks pass                                         (govulncheck, npm audit, secret scan)
+[ ] Security checks pass                                         (govulncheck, npm audit, secret scan — Phase 0)
 [ ] Migration tests pass                                         (experiment D + migration tests)
 [ ] Backup/restore verification passes                            (experiment E + last_verified)
 [ ] Failure experiments for affected subsystem pass               (A–E per affected area)
-[ ] Observability exists for affected subsystem                   (OBSERVABILITY.md §5 pairing)
+[ ] Observability exists for affected subsystem                   ([observability.md](./observability.md) §5 pairing)
 [ ] Documentation updated                                        (docs build + lychee green)
 [ ] API contract updated if caller-visible behavior changed      (api-contract.md)
 [ ] Rollback/recovery procedure exists                            (upgrade runbook)

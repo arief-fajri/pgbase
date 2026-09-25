@@ -1,6 +1,6 @@
 # Architecture: Audit Trail Design
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.2 (923e860)" />
+<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
 
 ## 1. Two tables, one concern: write must never wait for read
 

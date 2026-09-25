@@ -1,6 +1,6 @@
 # Disaster Recovery
 
-<DocMeta audience="Operator" status="stable" verified="v0.5.2" />
+<DocMeta audience="Operator" status="stable" verified="v0.5.4" />
 
 Backup, restore, and recovery for PG-BASE.
 
@@ -29,14 +29,11 @@ Also via dashboard, `/api/backups` (superuser-only), autobackup cron (`Backups.C
 
 ## 2. Recovery targets
 
-Targets are product-owned and must be validated by ongoing drills. The values below are starting defaults:
+PG-BASE recovery is dump-based (`pg_dump` / `pg_restore`). RPO is the interval between verified backups, set by the operator's backup schedule. It is not a point-in-time target.
 
-```text
-RPO ≤ 15 minutes   (maximum acceptable data loss)
-RTO ≤  1 hour      (maximum acceptable recovery time)
-```
+PITR and WAL archiving are PostgreSQL operator tools. PG-BASE does not ship them.
 
-Dump-based workflows cannot hit a small RPO on large databases; PITR/WAL archiving (pgBackRest/WAL-G) is the path to tight RPO.
+RTO is the time to restore a dump into a clean database and boot. Validate it with the drill below.
 
 ## 3. Restore runbook (operator-executable)
 
@@ -51,7 +48,7 @@ Recovery procedures must be executable by an operator who did not write the orig
 ## 4. Verification discipline
 
 - A backup is **not valid** until a restore has been verified.
-- Restore success today is gated by a single `count(_collections) >= 1` check — this is a known weak point. Hardening (per-table counts, expected schema, settings sanity) is planned.
+- Restore success today is gated by a single `count(_collections) >= 1` check — this is a known weak point. Hardening (per-table counts, expected schema, settings sanity) is [Phase 0](../contributor/roadmap.md).
 - The meaningful operational signal is **`last_verified_backup_timestamp`**, not `last_backup_timestamp` — a created backup is not necessarily usable.
 - Backups should be stored **outside the application host** (S3 wiring exists; retention via `CronMaxKeep`).
 
@@ -60,4 +57,3 @@ Recovery procedures must be executable by an operator who did not write the orig
 | Drill | Cadence | Records |
 |---|---|---|
 | **Full restore into a clean DB** | Before first release, then quarterly | Date-stamped result record |
-| **WAL/PITR restore test** | When WAL archiving ships | Date-stamped result record |

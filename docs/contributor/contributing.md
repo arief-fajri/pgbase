@@ -1,6 +1,6 @@
 # Contributing to PGBase
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.2 (923e860)" />
+<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
 
 > [!IMPORTANT]
 > PG-BASE is a single-binary application backend for PostgreSQL. The public behavior contract is [api-contract.md](../reference/api-contract.md). Do not treat another project's docs as the source of truth.

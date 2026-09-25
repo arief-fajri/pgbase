@@ -27,9 +27,9 @@ Full framework details:
 Answer these **before writing any code**:
 
 1. What system property are we changing?
-2. What desired outcome (PLATFORM §2) should change?
+2. What desired outcome ([platform-design.md](docs/contributor/methodology/platform-design.md) §2) should change?
 3. What invariant must remain true?
-4. Which guard rails (GUARDRAILS.md, G-*) apply?
+4. Which guard rails ([guardrails.md](docs/contributor/methodology/guardrails.md), G-*) apply?
 5. How will we observe the behavior?
 6. How will we test it?
 7. What failure modes are relevant?

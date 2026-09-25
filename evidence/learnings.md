@@ -4,6 +4,13 @@
 > appends here so knowledge accumulates between AI sessions and training runs.
 > Format per entry: date · area · what happened · what changed in the system model/docs.
 
+## 2026-09-25 — Docs: sprint IDs retired, roadmap is the only schedule
+
+- **Event:** Live docs still cited Sprint 0b, numbered tasks, and PERF/Theme/PGB codes after the roadmap moved to phases.
+- **What changed:** Citations now name a phase item, or the promise was deleted. OpenTelemetry, PITR/WAL as a PG-BASE feature, default Grafana/Alertmanager rules, and an in-process `CREATE INDEX CONCURRENTLY` path are in "what we will not build", not a backlog. Phase 0 gained the PostgreSQL 16/17 matrix (inside versioning). Phase 1 gained the endpoint reference. Phase 4 gained JSONB filter indexes, `_logs` retention, and audit `DEFAULT` partition pruning.
+- **Lesson:** A gap that does not match positioning must be deleted, not relabeled "not scheduled". A historical learning line that still names a dead sprint reads as current status.
+- **Follow-up:** Open technical debt is now a phase item, not "not a roadmap item". Phase 0 gained production-path hygiene (W-06), secret scanning (G-SEC-01), diagnostic metrics, and reliability tests. Phase 4 outbox and load harness absorbed realtime metrics and concurrency tests. DocMeta `verified` moved from v0.5.2 to v0.5.4 (`9af5929`). Line anchors that drifted after the v0.5.3 import-order fixes (`core/base.go`, realtime listener, TrustedProxy) were re-pointed; a range check is not a semantic check.
+
 ## 2026-09-12 — Method 20209: System-thinking framework adoption
 
 - Replaced the single framework document with the system doc set: PLATFORM / GUARDRAILS /
@@ -12,8 +19,9 @@
 - Added the AI decision-authority layer (G-AI-01…08): Level A / B1 (24 h window) / B2
   (explicit confirm) — AI autonomy is bounded by the same guard rails as human contributors.
 - Inaugurated `evidence/` with L0–L3 verification policy and experiment/DRR templates.
-- Roadmap Sprint 0b is **held** until the methodology gate (experiments A–E executed once
-  with L2–L3 verification) and the doc restructure land (E1–E8).
+- The pre-phase methodology gate held further roadmap work until experiments A–E
+  were executed once with L2–L3 verification and the doc restructure landed (E1–E8).
+  Sprint identifiers were retired on 2026-09-25; the roadmap is phase-based.
 
 ## 2026-09-17 — Guard rail: GHCR `:latest` gated on quality + publish event
 

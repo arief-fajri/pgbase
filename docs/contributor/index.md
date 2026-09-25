@@ -1,6 +1,6 @@
 # Development
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.2" />
+<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
 
 Welcome to the PG-BASE development section. This area is for contributors, maintainers, and developers who want to understand or extend the platform itself.
 

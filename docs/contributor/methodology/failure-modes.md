@@ -1,6 +1,6 @@
 # Failure Analysis
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.2" />
+<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
 
 > Codified failure scenarios and the system's expected behavior, plus the **A–E failure classification** that gates every debugging session.
 >
@@ -31,15 +31,15 @@ These are real, observable gaps. Each carries a classification (A–E) so the fi
 
 | ID | Weakness | Location | Class | Impact | Status |
 |---|---|---|---|---|---|
-| W-01 | Realtime outbox delete published pre-commit → failed delete still notifies peers | `apis/realtime.go:485` | **B — design failure** | peers notified of state that never happened | roadmap Task 32 |
-| W-02 | Outbox delivery is at-most-once; no replay across instance restarts | `apis/realtime_outbox_listener.go:61-70` | **B — design failure** | events lost during downtime | Task 33 |
-| W-03 | Cron guard fails open on lock-acquisition error → job runs unguarded on every instance | `core/cron_guard.go:45-67` | **C — missing guard rail** | duplicated jobs under DB errors | Task 38 |
-| W-04 | Cross-instance cache invalidation is fsnotify-file-based, not DB-backed → stale settings/schemas | `core/notify_watcher.go` | **B — design failure** | security-relevant staleness | Task 34 |
-| W-05 | Local file storage breaks multi-instance topologies | `core/base.go:701-715` | **B — design failure** | 404s on files stored on another instance | Task 39 |
-| W-06 | Test env fallbacks (`PGTEST_PASSWORD`/`PGTEST_SSLMODE`) reachable in production code | `core/realtime_outbox.go:282-289` | **A — implementation failure** | test config leaks into prod paths | fix + P0 |
-| W-07 | Audit read-trail drops under burst (500-slot buffer) — deliberate, undocumented | `core/audit_writer.go:54-61` | **E — incorrect acceptance criteria** | silent data loss under load | document + Task 45 |
-| W-08 | Restore success gating too weak (`count(_collections) >= 1` passes partial restores) | `core/backup_pg_import.go:78-84` | **E — incorrect acceptance criteria** | partial restore treated as success | Task 45 |
-| W-09 | Audit `DEFAULT` partition never pruned → retained forever | `core/audit_hooks.go:494-539` | **D — missing observability / C** | unbounded growth | PERF-I05 |
+| W-01 | Realtime outbox delete published pre-commit → failed delete still notifies peers | `apis/realtime.go:485` | **B — design failure** | peers notified of state that never happened | [Phase 4](../roadmap.md) / realtime outbox — publish after commit |
+| W-02 | Outbox delivery is at-most-once; no replay across instance restarts | `apis/realtime_outbox_listener.go:61-70` | **B — design failure** | events lost during downtime | [Phase 4](../roadmap.md) / realtime outbox — replay on restart |
+| W-03 | Cron guard fails open on lock-acquisition error → job runs unguarded on every instance | `core/cron_guard.go:45-67` | **C — missing guard rail** | duplicated jobs under DB errors | [Phase 4](../roadmap.md) / load harness |
+| W-04 | Cross-instance cache invalidation is fsnotify-file-based, not DB-backed → stale settings/schemas | `core/notify_watcher.go` | **B — design failure** | security-relevant staleness | [Phase 4](../roadmap.md) / cache invalidation |
+| W-05 | Local file storage breaks multi-instance topologies | `core/base.go:737-754` | **B — design failure** | 404s on files stored on another instance | [Phase 4](../roadmap.md) / file storage |
+| W-06 | Test env fallbacks (`PGTEST_PASSWORD`/`PGTEST_SSLMODE`) reachable in production code | `core/realtime_outbox.go:282-289` | **A — implementation failure** | test config leaks into prod paths | [Phase 0](../roadmap.md) / production-path hygiene |
+| W-07 | Audit read-trail drops under burst (500-slot buffer) — deliberate, warning-logged | `core/audit_writer.go:54-61` | **E — incorrect acceptance criteria** | silent data loss under load | closed — acceptance defined in [audit-design.md](../../architecture/audit-design.md) |
+| W-08 | Restore success gating too weak (`count(_collections) >= 1` passes partial restores) | `core/backup_pg_import.go:78-84` | **E — incorrect acceptance criteria** | partial restore treated as success | [Phase 0](../roadmap.md) / restore verification |
+| W-09 | Audit `DEFAULT` partition never pruned → retained forever | `core/audit_hooks.go:494-539` | **D — missing observability / C** | unbounded growth | [Phase 4](../roadmap.md) / audit DEFAULT retention |
 | W-10 | Cold boot on an empty DB failed: `RunAllMigrations` spawned the aux transaction (advisory-locked) and the data transaction on **different pool connections**; their interleaved catalog DDL (`CREATE EXTENSION pgcrypto` vs `CREATE TABLE _logs`) contended past the 30 s lock_timeout → `pgcrypto extension error`. Reproduced 3/3 with **default pool settings** on a fresh DB (2026-09-12, gate E5 harness). Fresh installs (`docker-compose.prod.yml`, quickstart) were **non-deterministic** | **Fixed (2026-09-12)** — `core/migrations_runner.go:runMigrationTx` now runs the whole migration set in a **single transaction/connection** (`RunInSingleTx`, `core/db_tx.go`); regression test `core/coldboot_migration_test.go` (Bootstrap + RunAllMigrations on a truly empty DB = 0.5 s, was 30 s lock timeout); CLI `migrate up` on empty DB verified; evidence record `evidence/experiments/EXPERIMENT-D-20260912-155751.md` (blocked → bounded failure → recover, deterministic fingerprint) | **B/C — design + missing guard rail** | fixed | guard rail **G-DB-10** added (migration DDL applies on a single connection) |
 
 ## 3. Failure classification (A–E)
@@ -68,4 +68,4 @@ Observability must be proven through controlled failure, not assumed. The five e
 | **D** | Migration fails → restart → verify state | reproducible DB state; recovery procedure works | **PASS** — record `evidence/experiments/EXPERIMENT-D-20260912-155751.md` (blocked migrate fails cleanly in ~30 s; recovered + fresh fingerprints identical; 15 internal tables) |
 | **E** | Backup → destroy → restore → verify | valid schema + data + auth after restore | **PASS** — record `evidence/experiments/EXPERIMENT-E-20260912-160628.md` (backup→destroy→restore round-trip; _collections/data/superuser intact) |
 
-Gate: **before roadmap Phase 0 (Sprint 0b) unblocks, experiments A–E must be executed once** with L2–L3 verification, verdicts recorded, and this table's `Verdict` column filled in.
+Experiments A–E have been executed once (all PASS, L3). Records live in `evidence/experiments/`. Remaining trust work is [Phase 0](../roadmap.md).

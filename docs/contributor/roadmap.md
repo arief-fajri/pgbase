@@ -1,6 +1,6 @@
 # PG-BASE — Product Roadmap
 
-<DocMeta audience="All" status="living document" verified="v0.5.2 (923e860)" />
+<DocMeta audience="All" status="living document" verified="v0.5.4" />
 
 > Canonical product roadmap. Last review: 2026-09-25 (positioning rewrite).
 >
@@ -97,12 +97,16 @@ Build these in order. Do not skip ahead to a cloud or a feature-parity list.
 - A managed cloud, billing, orgs, or quotas before self-hosted use shows demand.
 - Kubernetes, Helm, or a multi-service deploy as the default. The promise is one binary plus one PostgreSQL.
 - Feature parity with Supabase or Appwrite.
+- OpenTelemetry or a tracing product. Prometheus `/metrics` is the operational signal.
+- PITR or WAL archiving. Point-in-time recovery stays a PostgreSQL tool, not a PG-BASE feature.
+- Default Grafana dashboards or Alertmanager rules. Operators bring their own Prometheus.
+- An in-process `CREATE INDEX CONCURRENTLY` path. Large indexes are built with `psql`.
 
 ---
 
 ## 4. What already exists
 
-Verified against the tree at v0.5.2. This is inventory, not a promise that every row is finished.
+Verified against the tree at v0.5.4. This is inventory, not a promise that every row is finished.
 
 | Capability | State | Anchor |
 |---|---|---|
@@ -122,7 +126,6 @@ Verified against the tree at v0.5.2. This is inventory, not a promise that every
 | MCP server | Not started | Phase 3 |
 | Distributed rate limiter | Not started — limit is per instance | Phase 4 |
 | Readiness distinct from liveness | Not started — `/api/health` does not ping the database | Phase 0 leftover |
-| OpenTelemetry | Not started | later, not a phase driver |
 
 System model: [Platform Design](./methodology/platform-design.md), [Guardrails](./methodology/guardrails.md), [Observability](./methodology/observability.md), [Checklists](./methodology/checklists.md). Known weaknesses stay in [Failure Analysis](./methodology/failure-modes.md).
 
@@ -143,7 +146,11 @@ Still P0, because "we have a backup" is not "we trust a restore":
 | Restore verification | Partial | Post-restore counts, expected schema, settings sanity. A partial restore fails loudly. |
 | Restore drills | Not started | A recorded drill that feeds `last_verified_backup` |
 | Readiness | Partial | `/api/ready` checks the database. Liveness is not readiness. |
-| Versioning and upgrade policy | Not started | How PG-BASE versions break, and how to roll back an app or PostgreSQL upgrade |
+| Versioning and upgrade policy | Not started | How PG-BASE versions break, how to roll back an app or PostgreSQL upgrade, and a PostgreSQL 16/17 CI matrix so that claim is observed |
+| Production-path hygiene | Not started | W-06: remove the `PGTEST_*` fallback from `core/realtime_outbox.go` production paths, with a regression test. Hard rule 5 holds |
+| Secret scanning | Not started | A CI job that fails the build on committed secrets (G-SEC-01), alongside govulncheck and npm audit |
+| Diagnostic metrics | Not started | Error ratio (`pgbase_http_requests_total`), DB event counters (query/lock timeout, reconnect, rollback) for G-DB-03/04 and G-REL-01, and backup attempt/success/duration/size. `last_verified_backup` stays with restore drills |
+| Reliability tests | Not started | Query-timeout, connect-timeout, and graceful-shutdown tests — Evaluation Checklists §1–2 gaps |
 
 **Exit:** an operator can install, back up, restore, and tell whether the process is ready — with the gaps above closed.
 
@@ -157,6 +164,7 @@ Highest priority. This is the acquisition engine, not the product identity.
 | Verification report | Not started | Pre/post counts, relations, auth, files |
 | Compatibility suite | Not started | Auth, CRUD, filter, sort, expand, relations, realtime, files, rules, JS/Dart SDKs — tested against our contract |
 | Playbook | Not started | What application code must change, and how to recover a failed import |
+| Endpoint reference | Not started | A published route map. Until then the in-dashboard API preview is the syntax reference |
 
 Public status stays honest on [Migrate](../migrate.md). Do not document the CLI as shipped until it is.
 
@@ -193,13 +201,16 @@ Single instance first. Scale out when you need it. The target is not "more scala
 
 | Item | State | Target |
 |---|---|---|
-| Realtime outbox | Opt-in | Publish after commit, replay on restart, then consider default-on |
+| Realtime outbox | Opt-in | Publish after commit, replay on restart, then consider default-on. Metrics: active subscriptions, outbox lag, broadcast latency (I15) |
 | Distributed rate limiter | Not started | N instances share one limit |
 | Cache invalidation | Partial | DB `LISTEN` instead of a filesystem sentinel. Cross-host staleness is security-relevant |
 | File storage | Partial | S3 required for more than one instance. Warn if local storage sees multiple heartbeats |
 | PgBouncer | Documented | Keep the transaction-mode notes accurate |
 | Replicas | Not started | Read-replica guidance after the single-primary path is boring |
-| Load harness | Not started | Enough to show the topology survives restart without duplicated jobs |
+| Load harness | Not started | Topology survives restart without duplicated jobs, including the cron guard that fails open on a lock-acquisition error (W-03), plus concurrency tests (Evaluation Checklists §1) |
+| JSONB filter indexes | Not started | `GIN` / `jsonb_path_ops` for multi-value filters. Those filters full-scan today |
+| Request-log retention | Not started | `_logs` cleanup must not rely on bulk `DELETE`. Range partition, or an equivalent PostgreSQL-native retention path |
+| Audit DEFAULT retention | Not started | The `DEFAULT` partition is pruned. Named partitions already drop (W-09) |
 
 **Exit:** `LB → N instances → PostgreSQL` is a tested, documented pattern. Local disk and per-instance limits are called out, not implied away.
 

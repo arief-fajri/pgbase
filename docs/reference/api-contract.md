@@ -1,8 +1,8 @@
 # API Contract
 
-<DocMeta audience="App Builder" status="stable" verified="v0.5.2 (923e860)" />
+<DocMeta audience="App Builder" status="stable" verified="v0.5.4" />
 
-This page is the behavior contract for PG-BASE. Build against it and the [API overview](./api-overview.md). A complete per-endpoint reference is not published here yet — that is a [roadmap](../contributor/roadmap.md) item. The in-dashboard API preview is the live syntax reference.
+This page is the behavior contract for PG-BASE. Build against it and the [API overview](./api-overview.md). A complete per-endpoint reference is not published here yet — that is [Phase 1](../contributor/roadmap.md). The in-dashboard API preview is the live syntax reference.
 
 PocketBase JS and Dart SDKs work against this API today. That is a convenience, not the source of truth. If this page and an SDK example disagree, this page wins.
 
@@ -50,7 +50,7 @@ Primary keys are random, non-monotonic TEXT (`gen_random_bytes` fallback). Inser
 - MFA is enforced per `MFA.Enabled + Rule` (`apis/record_helpers.go:76-90`) and advertised in `auth-methods` (`apis/record_auth_methods.go:99-114`).
 - Refresh (`apis/record_auth_refresh.go:25-31`): a new token is issued **only** when the claim `TokenClaimRefreshable` is true. Impersonate tokens reuse the presented token (conditional renewal, not rotation).
 - Impersonate is superuser-only (`apis/record_auth_impersonate.go`). Duration is capped by `PB_IMPERSONATE_MAX_TOKEN_DURATION` (seconds, default 30 days).
-- `TrustedProxy` (`core/settings_model.go:633-658`): set it only when **all** inbound traffic passes through the trusted proxy. `RealIP()` trusts `X-Forwarded-For` verbatim. A directly reachable app port lets anyone spoof it and bypass rate limits and `SuperuserIPs` (`core/event_request.go:40-44`).
+- `TrustedProxy` (`core/settings_model.go:655-665`): set it only when **all** inbound traffic passes through the trusted proxy. `RealIP()` trusts `X-Forwarded-For` verbatim. A directly reachable app port lets anyone spoof it and bypass rate limits and `SuperuserIPs` (`core/event_request.go:40-44`).
 
 ## 8. Files: SSRF guard, caps, `nosniff`
 
@@ -58,4 +58,4 @@ Primary keys are random, non-monotonic TEXT (`gen_random_bytes` fallback). Inser
 
 ## 9. Intentionally not in this contract yet
 
-Do not assume these. They are `roadmap-open`: multi-instance rate limiting (today the limit is per instance), `_logs` partitioning, GIN JSONB indexes, OpenTelemetry tracing, PITR/WAL guidance, a dedicated PocketBase migration CLI, and a published SDK × PostgreSQL support matrix. See the [roadmap](../contributor/roadmap.md).
+Do not assume these. They are on the [roadmap](../contributor/roadmap.md): multi-instance rate limiting (today the limit is per instance; Phase 4), `_logs` retention that does not bloat on cleanup (Phase 4), GIN indexes for multi-value JSONB filters (Phase 4), a dedicated PocketBase migration CLI (Phase 1), a published endpoint reference (Phase 1), and a PostgreSQL 16/17 compatibility matrix (Phase 0).
