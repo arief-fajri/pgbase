@@ -461,3 +461,41 @@
   `audit_pg17.log`, `audit_race.log` (session temp); walkthrough outputs
   inline above; verdict = zero category-(c) gaps → Phase 0 exit stands.
   v1.0.0 criteria recorded as DRR-0004.
+
+## 2026-09-26 — W-14: the matrix's first run found a mixed-client restore bug
+
+- **What happened (class A):** `pg-matrix (17)` went red on both runs of PR #12 with
+  `pg_restore: error: unsupported version (1.16) in file header` at the pre-restore TOC
+  gate. Root cause: the gate's `pg_restore --list` was the only pg-binary invocation
+  without `cmd.Env = ... conn.envList()`. On Ubuntu the PATH binaries are
+  `postgresql-common` `pg_wrapper` symlinks whose **client-version** choice depends on
+  that env (`pg_wrapper(1)`: PGHOST set → default/newest client; no env → local cluster
+  by port/only-cluster rules): export resolved 17.11 (writes format 1.16), the env-less
+  `--list` resolved the runner's default 16.15 cluster (refuses 1.16). W-08 failed safe
+  — the archive was never restored — but on such a host pgbase's own backup would have
+  been unrestorable by pgbase.
+- **Fix (env parity):** `pgRestoreListTables` takes the connection env and sets
+  `cmd.Env` exactly like export (`backup_pg_export.go`) and the destructive restore
+  (`backup_pg_import.go`) — same env in, same client out, on every host. Regression
+  `core/backup_pg_env_test.go::TestPGRestoreListTablesPassesConnectionEnv` records the
+  shim invocation env and asserts all six `PG*` values (negative check: parent-env-only
+  fails on all 6). CI hardening: the `pg-matrix` install step pins
+  `/usr/lib/postgresql/<pg>/bin` in front of `$GITHUB_PATH` and exits 1 on a missing
+  dir or major mismatch.
+- **Lesson (print ≠ assert):** the install step echoed `pg_dump --version` but never
+  gated it — a version line without an exit code is decoration; it printed the winning
+  16.15 and the suite still ran with a split-brain client pair. Assert the property you
+  depend on (major == matrix.pg), fail fast, and pin the resolution so it cannot drift.
+- **Lesson (env is part of binary resolution):** when PATH entries are wrapper
+  dispatchers, connection env selects which *binary* runs, not only where it connects.
+  Every invocation of a version-sensitive client must carry the same env or mixed-client
+  hosts get split-brain (export 17 / list 16). Parity is the invariant; the third
+  call site was the leak.
+- **Lesson (local blind spot):** a single-client host (18.3 everywhere) structurally
+  cannot reproduce wrapper drift — two runs of the full suite stayed green locally while
+  CI was deterministically red. The matrix's value on run #1 was not engine coverage but
+  *client-mix* coverage: the only place this bug class was observable.
+- **Evidence:** CI `pg-matrix (17)` red ×2 (deterministic) then green after the fix on
+  PR #12; targeted test PASS with env, FAIL (6 missing vars) without; full suites on
+  both local legs + race + lint; W-14 row in
+  `docs/contributor/methodology/failure-modes.md`; DRR-0003 Outcome updated.

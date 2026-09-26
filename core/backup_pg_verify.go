@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -35,8 +36,19 @@ type pgRestoreToc struct {
 // or truncated dump fails here, BEFORE the destructive pg_restore wipes the
 // current database) and it derives the expected object set that
 // verifyRestoredDatabase checks afterwards.
-func pgRestoreListTables(ctx context.Context, bin, dumpPath string) (pgRestoreToc, error) {
+//
+// env is the connection environment (pgConn.envList) and is mandatory (W-14):
+// export and the destructive restore both run with it, and on Debian/Ubuntu
+// hosts the PATH binaries are pg_wrapper symlinks whose client-VERSION choice
+// depends on that environment (pg_wrapper(1): PGHOST set → the default/newest
+// client; no env → a local cluster is selected by port/only-cluster rules). An
+// env-less `--list` can therefore read the TOC through a different client
+// major than the one that wrote the archive — observed in CI pg-matrix (17)
+// as pg_restore 16.15 rejecting a 17.11 archive ("unsupported version (1.16)
+// in file header"). Same env in, same client out.
+func pgRestoreListTables(ctx context.Context, bin, dumpPath string, env []string) (pgRestoreToc, error) {
 	cmd := exec.CommandContext(ctx, bin, "--list", dumpPath)
+	cmd.Env = append(os.Environ(), env...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

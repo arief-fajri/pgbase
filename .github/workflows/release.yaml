@@ -250,6 +250,15 @@ jobs:
       # pg_dump refuses to dump a newer server than its own client major, and
       # the backup round-trip test needs a client >= the running server — so
       # this leg must install the client that matches its engine major.
+      #
+      # W-14: the PATH entries on Ubuntu hosts are postgresql-common's
+      # pg_wrapper symlinks, whose client-version choice depends on the
+      # connection environment and local cluster state (observed on this
+      # runner: a `pg_restore --list` resolving the default 16.x cluster while
+      # the export resolved the newest 17.x client). Pin the exact client
+      # directory in front of PATH so every pg binary invocation in the suite
+      # resolves the same major, and fail fast — exit code, not just an echoed
+      # version — if the pin is missing or reports the wrong major.
       - name: Install PostgreSQL ${{ matrix.pg }} client (pg_dump / pg_restore)
         run: |
           set -euo pipefail
@@ -264,8 +273,30 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y postgresql-client-${{ matrix.pg }}
           fi
-          pg_dump --version
-          pg_restore --version
+          CLIENT_BIN="/usr/lib/postgresql/${{ matrix.pg }}/bin"
+          if [ ! -x "$CLIENT_BIN/pg_dump" ] || [ ! -x "$CLIENT_BIN/pg_restore" ]; then
+            echo "::error::postgresql-client-${{ matrix.pg }} did not provide $CLIENT_BIN/pg_dump and pg_restore"
+            exit 1
+          fi
+          echo "$CLIENT_BIN" >> "$GITHUB_PATH"
+          V_DUMP=$("$CLIENT_BIN/pg_dump" --version)
+          V_RESTORE=$("$CLIENT_BIN/pg_restore" --version)
+          echo "$V_DUMP"
+          echo "$V_RESTORE"
+          case "$V_DUMP" in
+            *" ${{ matrix.pg }}."*) ;;
+            *)
+              echo "::error::pg_dump major mismatch: '$V_DUMP' (expected ${{ matrix.pg }}.x)"
+              exit 1
+              ;;
+          esac
+          case "$V_RESTORE" in
+            *" ${{ matrix.pg }}."*) ;;
+            *)
+              echo "::error::pg_restore major mismatch: '$V_RESTORE' (expected ${{ matrix.pg }}.x)"
+              exit 1
+              ;;
+          esac
 
       - name: Run tests
         # same plain pass as the goreleaser job (database-per-test isolation,

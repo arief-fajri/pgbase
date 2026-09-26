@@ -27,6 +27,11 @@ compatibility matrix with the versioning/upgrade policy.
 - **Restore verification gate (W-08)**: archive-derived TOC gate —
   pre-restore archive validation, stderr classification, table/index
   completeness, and settings/auth sanity checks.
+- **Restore TOC gate client env (W-14)**: the pre-restore `pg_restore
+  --list` gate now runs with the same connection environment as the export
+  and the destructive restore, so pg_wrapper hosts (Debian/Ubuntu) resolve
+  one client major for the whole backup round trip; the CI matrix pins its
+  client directory behind a fail-fast major-version assert.
 
 ### Tests
 

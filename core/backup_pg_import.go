@@ -51,7 +51,9 @@ func (app *BaseApp) ImportFromPGDump(ctx context.Context, extractedDir string) e
 	// destructive pg_restore wipes the current database — a corrupt or
 	// truncated dump is rejected while the live data is still intact, and the
 	// parsed object set becomes the post-restore completeness expectation.
-	toc, err := pgRestoreListTables(ctx, bin, dumpPath)
+	// The connection env goes with it (W-14) so the --list invocation resolves
+	// the same pg_restore client as the export and the restore below.
+	toc, err := pgRestoreListTables(ctx, bin, dumpPath, conn.envList())
 	if err != nil {
 		return fmt.Errorf("invalid backup archive: %w", err)
 	}
