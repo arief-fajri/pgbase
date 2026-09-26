@@ -100,6 +100,8 @@ A release is not ready merely because unit tests pass. The release gate combines
 ```text
 [ ] Unit tests pass                                              (go test ./...)
 [ ] Integration tests pass                                       (DB-backed suite + -race)
+[ ] No recovered panics in the suite output                      (go test ./... -v | grep RECOVERED | grep -v test_recover — empty;
+                                                                 only the deliberate tools/routine recover drill may panic)
 [ ] PostgreSQL compatibility tests pass                          (PG 16/17 matrix — Phase 0 / versioning)
 [ ] API compatibility tests pass                                 (Phase 1 / compatibility suite)
 [ ] Realtime tests pass                                          (realtime + outbox suites)

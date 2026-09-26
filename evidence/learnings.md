@@ -305,3 +305,30 @@
 - Level B1 (apply after 24 h of silence) is retired. Former B1 and B2 cases are one
   Level B: explicit human confirm. Silence is not approval.
 - Level A is unchanged. Historical DRRs keep their original labels.
+
+## 2026-09-26 — W-12: recovered panics hide behind passing test output
+
+- **Finding:** `instanceHeartbeatGuard.init` reused the previous goroutine's `done`
+  channel on re-bootstrap without the terminate chain (`Bootstrap → ResetBootstrapState →
+  Bootstrap`, where ResetBootstrapState never runs cleanup) → double `close(done)` panic
+  (recovered by `FireAndForget`) at terminate + the previous goroutine leaked, ticking
+  forever against a reset app. Latent since the guard shipped; surfaced only because an
+  unrelated core test failed and spilled `-v` output. Classification **A**
+  (implementation) — the design (one heartbeat goroutine per live bootstrap) never
+  changed. Fixed with a `running` state machine: `stopCh`/`done` are non-nil exactly
+  while a goroutine is live.
+- **Lesson 1 (observability):** `go test` hides the output of PASSING packages — a
+  recovered panic can live for months behind a green suite. Checking "is anything being
+  recovered?" requires an explicit `-v` run; enforcement is now the checklists §6 release
+  gate: `go test ./... -v | grep RECOVERED | grep -v test_recover` is empty (the only
+  sanctioned hit is the deliberate `tools/routine` recover drill).
+- **Lesson 2 (one root, two edges):** the constructor pre-created `stopCh`/`done`, so the
+  same "channel exists without a live goroutine" root also made
+  terminate-without-ever-bootstrap block forever on `<-done`. One state machine kills
+  both edges; two special cases would have left the second behind.
+- **Regression:** `core/instance_heartbeat_test.go`
+  (`TestInstanceHeartbeatGuardBootstrapChurn`, deterministic both ways: reused channel →
+  `secondDone == firstDone` → fail; leaked goroutine → `<-firstDone` timeout → fail;
+  terminate → `running=false`, channels nil). Reproduction evidence:
+  `go test ./core/ -run TestBootstrapStateConcurrentAccess -count=1 -v` — 4×
+  `RECOVERED FROM PANIC: close of closed channel` before, 0 after.
