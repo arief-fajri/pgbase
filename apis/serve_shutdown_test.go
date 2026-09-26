@@ -146,9 +146,11 @@ func waitHTTPReady(t *testing.T, url string, procCh <-chan error, timeout time.D
 // database pools — no backend connection survives.
 //
 // It also doubles as the W-13 regression: the first-run installer runs as a
-// FireAndForget goroutine and is deliberately delayed so its record-create
-// chain resumes after the pools are reset — it must degrade with an explicit
-// error instead of nil-dereferencing its db builder (recovered panic).
+// FireAndForget goroutine and is held inside the record-create hook until
+// the test releases it after terminate has reset the pools — the create
+// chain then deterministically resumes against the reset handles and must
+// degrade with an explicit error instead of nil-dereferencing its db
+// builder (recovered panic).
 func TestServeOnTerminateReleasesDBResources(t *testing.T) {
 	maint, dbName := newServeMaintenanceDB(t)
 
@@ -165,12 +167,21 @@ func TestServeOnTerminateReleasesDBResources(t *testing.T) {
 	}
 	defer func() { _ = app.ResetBootstrapState() }()
 
-	// hold the installer's superuser create inside the record-create hook so
-	// that it always resumes AFTER terminate has reset the db handles (the
-	// original W-13 interleaving, made deterministic)
-	const installerRaceDelay = 4 * time.Second
+	// hold the installer's superuser create inside the record-create hook and
+	// release it only AFTER terminate has reset the db handles: the create
+	// then always resumes against the reset pools — the original W-13
+	// interleaving with no timing window. A sleep-based hold raced CI load:
+	// a late-scheduled installer goroutine hit the swallowed CountRecords
+	// error in needInstallerSuperuser (silent nil return — no warn, no
+	// signal) and the wait below timed out (W-15).
+	var createEnteredOnce, createReleaseOnce sync.Once
+	createHookEntered := make(chan struct{})
+	createHookRelease := make(chan struct{})
+	t.Cleanup(func() { createReleaseOnce.Do(func() { close(createHookRelease) }) })
+
 	app.OnRecordCreate().BindFunc(func(e *core.RecordEvent) error {
-		time.Sleep(installerRaceDelay)
+		createEnteredOnce.Do(func() { close(createHookEntered) })
+		<-createHookRelease
 		return e.Next()
 	})
 
@@ -230,6 +241,15 @@ func TestServeOnTerminateReleasesDBResources(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
+	// the installer must reach the create hook while the pools are still
+	// alive: loadInstaller exits silently (no warn, no signal) when its
+	// CountRecords runs after the reset, so gate terminate on hook entry
+	select {
+	case <-createHookEntered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the installer goroutine never entered the record-create hook (did loadInstaller bail before Save?)")
+	}
+
 	// mirror pgbase.Execute: OnTerminate + a one-off ResetBootstrapState
 	event := new(core.TerminateEvent)
 	event.App = app
@@ -263,6 +283,11 @@ func TestServeOnTerminateReleasesDBResources(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+
+	// pools are reset — release the held create: the installer resumes
+	// against the reset pools (the W-13 interleaving) and must degrade with
+	// an explicit error instead of a recovered panic
+	createReleaseOnce.Do(func() { close(createHookRelease) })
 
 	// the installer goroutine was held inside the record-create hook and
 	// resumes against the reset pools - wait for it to degrade cleanly

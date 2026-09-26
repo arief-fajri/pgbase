@@ -40,6 +40,12 @@ compatibility matrix with the versioning/upgrade policy.
   an `errNotBootstrapped` sentinel across six DB-reset entry points plus a
   positive control; recovered-panic gate green (only the sanctioned
   `test_recover` drill panics).
+- **Deterministic installer shutdown gate (W-15)**:
+  `TestServeOnTerminateReleasesDBResources` now handshakes with the
+  record-create hook — entry observed while the pools are alive, release
+  only after they reset — instead of a 4 s sleep window. Removes the CI
+  `race` flake that failed PR #12 and guarantees the W-13 interleaving on
+  every run.
 
 ### CI & docs
 

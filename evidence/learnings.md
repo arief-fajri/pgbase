@@ -499,3 +499,45 @@
   PR #12; targeted test PASS with env, FAIL (6 missing vars) without; full suites on
   both local legs + race + lint; W-14 row in
   `docs/contributor/methodology/failure-modes.md`; DRR-0003 Outcome updated.
+
+## 2026-09-26 — W-15/W-16: CI `race` went red — one acceptance gap, one inherited data race
+
+- **What ran:** after the W-14 fix (`aad8c31`) turned both `pg-matrix` legs green, the
+  `race` job failed on `TestServeOnTerminateReleasesDBResources` ("the installer goroutine
+  did not finish within 15s", empty std log, no "Failed to initialize installer" warn).
+  Classified before touching code: the system behaved as designed (guarded degradation,
+  no panic) — the test's terminal-state contract was incomplete (**E**). Fixed
+  deterministically (**W-15**): the record-create hook now blocks on an explicit
+  `createHookRelease` channel; the test observes hook entry while pools are alive, runs
+  the terminate chain, and releases only after backends drop to zero — the installer
+  always resumes against reset pools, so the W-13 interleaving happens on every run
+  instead of probabilistically, and the silent bail path
+  (`needInstallerSuperuser` swallowing `CountRecords` errors → nil return, no warn, no
+  signal) becomes structurally unreachable from the test's perspective.
+- **Lesson (gate on events, not clocks):** a `time.Sleep` race window in a test is an
+  acceptance criterion with a hidden timing dependency — it passes until the schedule
+  changes (CI load, `-race`, package parallelism). An explicit handshake (entered /
+  released channels) removes the flake class AND strengthens coverage: the dangerous
+  interleaving is now guaranteed, not likely.
+- **Lesson (silent terminal states are untestable):** a code path that returns success
+  while swallowing an error (`apis/installer.go:68`) produces no observable signal for
+  any harness. Tests must gate on paths the system is guaranteed to traverse while its
+  preconditions still hold (hook entry before terminate), not on paths that may be
+  skipped without a trace.
+- **Separately, the local race runs surfaced W-16:** a pre-existing data race (all five
+  sites blame to `af0d9e1`, the initial fork) — batch after-funcs `MarkAsNew` write vs
+  response `MarshalJSON` read on the same record (`apis/batch.go:193` →
+  `core/db_tx.go:169` → `core/db.go:400` vs `apis/record_crud.go:377`). One race report
+  cascaded into 8 `race detected during execution of test` failures — **count the race
+  reports, not the failing tests**: there was exactly one root cause. It never tripped
+  CI (amd64 timing) and is not part of this PR's scope (Level B product fix) — recorded
+  as W-16 with a maintainer scope decision pending.
+- **Lesson (green CI ≠ race-free):** latent races hide until timing shifts; re-shifting
+  the test schedule (the W-15 restructure) was enough to expose an inherited race twice
+  in two local full-package runs. Run the race suite locally after ANY test-timing
+  change, and treat cascading `testing.go:1617` failures as one signal.
+- **Evidence:** CI run #59 race job log (paste, PR #12); local logs
+  `apis_full2.log` (session temp) with the full race report and both stacks; target
+  test `-race -count=5` green post-fix; full `apis` race package green on re-run before
+  the W-16 trip was understood; W-15/W-16 rows in
+  `docs/contributor/methodology/failure-modes.md`.
