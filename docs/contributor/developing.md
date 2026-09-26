@@ -575,6 +575,9 @@ Backups are also created/restored from the dashboard, the `/api/backups` endpoin
 docker compose -f tests/docker-compose.test.yml up -d --wait
 #   - listens on host port 5433 (so it never clashes with the dev DB on 5432)
 #   - runs tests/init-test-db.sql on first boot (enables pgcrypto)
+#   - engine defaults to postgres:16-alpine; override to reproduce the
+#     PG16/17 CI matrix leg locally (see Upgrades & Versioning §4):
+#     TEST_POSTGRES_IMAGE=postgres:17-alpine docker compose -f tests/docker-compose.test.yml up -d --wait
 
 # Option B: Postgres.app
 # Make sure pgbase_test + role "test" exist (see Section 2, Option B step 4).

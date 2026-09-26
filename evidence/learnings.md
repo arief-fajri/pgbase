@@ -394,3 +394,31 @@
   `core/db.go:81`; pre-fix serve test → `RECOVERED FROM PANIC` with the exact incident
   stack (`onRecordSaveExecute → FindAllCollections → modelQuery`); post-fix both green,
   full suite 0 FAIL / 35 ok, §6 gate = 1 (sanctioned `test_recover` only).
+
+## 2026-09-26 — PR-8: the "supported on PG 16/17" claim is now observed, not asserted
+
+- **Shipped:** `release.yaml` gained a `pg-matrix` job (`strategy.matrix.pg: [16, 17]`,
+  `fail-fast: false`) running the full plain suite per engine major, and
+  `tests/docker-compose.test.yml` made its image overridable
+  (`${TEST_POSTGRES_IMAGE:-postgres:16-alpine}`) — the default, so `make test` and local
+  development are byte-for-byte unchanged. The policy side landed in
+  `docs/deployment/upgrades.md`: pre-1.0 stance (the API contract is the compatibility
+  surface), forward-only migrations (rollback = restore the pre-upgrade verified backup
+  with the old binary), operator-owned PostgreSQL upgrades, supported set = 16 and 17
+  observed by CI. `docker` job `needs` now includes `pg-matrix`, so an image cannot
+  publish before both engine legs are green.
+- **Lesson (default-first overrides):** the compatibility claim stayed honest by
+  parameterizing the *default* rather than adding a second path — the compose default IS
+  the 16 leg, and 17 is an override of it. A claim that only exists in a special path
+  rots; a claim that lives in the default + an override matrix is exercised by every PR.
+- **Lesson (workflow arithmetic):** the existing client-install step's
+  `if ! apt-get update && apt-get install` never reaches the install when update
+  succeeds (short-circuit), which is masked on runners that preinstall a matching
+  client. The matrix leg writes it correctly (try install, fall back to the PGDG repo)
+  and installs the client major matching its engine, because `pg_dump` refuses a server
+  newer than itself — client ≥ server is a hard property of the round-trip test.
+- **Evidence:** local leg 17 (`postgres (PostgreSQL) 17.11`): 0 FAIL / 35 ok / gate = 1
+  (sanctioned `test_recover` only) / `TestPGDumpExportImportRoundTrip` PASS (not
+  skipped — pg_dump 18.3 ≥ 17); local leg 16 (default restored): same 0 FAIL / 35 ok /
+  gate = 1 / round-trip PASS; `docs-check` + `docs:build` green; lint 0 issues.
+  Phase 0 roadmap exit declared met (two §6 release rows ticked).

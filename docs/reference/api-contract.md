@@ -62,4 +62,4 @@ Primary keys are random, non-monotonic TEXT (`gen_random_bytes` fallback). Inser
 
 ## 10. Intentionally not in this contract yet
 
-Do not assume these. They are on the [roadmap](../contributor/roadmap.md): multi-instance rate limiting (today the limit is per instance; Phase 4), `_logs` retention that does not bloat on cleanup (Phase 4), GIN indexes for multi-value JSONB filters (Phase 4), a dedicated PocketBase migration CLI (Phase 1), a published endpoint reference (Phase 1), and a PostgreSQL 16/17 compatibility matrix (Phase 0).
+Do not assume these. They are on the [roadmap](../contributor/roadmap.md): multi-instance rate limiting (today the limit is per instance; Phase 4), `_logs` retention that does not bloat on cleanup (Phase 4), GIN indexes for multi-value JSONB filters (Phase 4), a dedicated PocketBase migration CLI (Phase 1), and a published endpoint reference (Phase 1).

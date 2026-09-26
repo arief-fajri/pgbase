@@ -98,6 +98,8 @@ Migrate manually if you prefer (equivalent to what `serve` does on start):
 ./pgbase migrate
 ```
 
+Upgrades (binary or PostgreSQL major), the versioning policy, and rollback are covered in [Upgrades & Versioning](./upgrades.md).
+
 ---
 
 ## 4. Running the server

@@ -42,6 +42,7 @@ export default withMermaid(defineConfig({
                     { text: "Single-Host Setup", link: "/deployment/single-host" },
                     { text: "Production Runbook", link: "/deployment/production" },
                     { text: "Disaster Recovery", link: "/deployment/disaster-recovery" },
+                    { text: "Upgrades & Versioning", link: "/deployment/upgrades" },
                 ],
             },
             {
@@ -79,6 +80,7 @@ export default withMermaid(defineConfig({
                     { text: "Single-Host Setup", link: "/deployment/single-host" },
                     { text: "Production Runbook", link: "/deployment/production" },
                     { text: "Disaster Recovery", link: "/deployment/disaster-recovery" },
+                    { text: "Upgrades & Versioning", link: "/deployment/upgrades" },
                 ],
             },
             {

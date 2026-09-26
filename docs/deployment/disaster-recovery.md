@@ -4,7 +4,7 @@
 
 Backup, restore, and recovery for PG-BASE.
 
-> Enabling/ops context: [Production Runbook §7](./production.md#7-backup--restore).
+> Enabling/ops context: [Production Runbook §7](./production.md#7-backup--restore). An app or PostgreSQL upgrade that needs to be undone restores from here — see [Upgrades & Versioning §2](./upgrades.md#2-upgrading-the-app).
 
 ## 1. Backup formats
 

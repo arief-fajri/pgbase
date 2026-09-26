@@ -102,7 +102,8 @@ A release is not ready merely because unit tests pass. The release gate combines
 [ ] Integration tests pass                                       (DB-backed suite + -race)
 [ ] No recovered panics in the suite output                      (go test ./... -v | grep RECOVERED | grep -v test_recover — empty;
                                                                  only the deliberate tools/routine recover drill may panic)
-[ ] PostgreSQL compatibility tests pass                          (PG 16/17 matrix — Phase 0 / versioning)
+[x] PostgreSQL compatibility tests pass                          (release.yaml pg-matrix: full suite × postgres:16/17-alpine;
+                                                                 observed claim in deployment/upgrades.md §4)
 [ ] API compatibility tests pass                                 (Phase 1 / compatibility suite)
 [ ] Realtime tests pass                                          (realtime + outbox suites)
 [ ] Security checks pass                                         (govulncheck, npm audit, secret scan — security-scan.yaml)
@@ -112,7 +113,8 @@ A release is not ready merely because unit tests pass. The release gate combines
 [ ] Observability exists for affected subsystem                   ([observability.md](./observability.md) §5 pairing)
 [ ] Documentation updated                                        (docs build + lychee green)
 [ ] API contract updated if caller-visible behavior changed      (api-contract.md)
-[ ] Rollback/recovery procedure exists                            (upgrade runbook)
+[x] Rollback/recovery procedure exists                            (deployment/upgrades.md — restore-based app rollback,
+                                                                 operator-owned PostgreSQL upgrade)
 ```
 
 ## 7. Definition of Done (per non-trivial change)
