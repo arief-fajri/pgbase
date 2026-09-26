@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // pgRestoreBinary returns the pg_restore executable path (honoring PB_PG_RESTORE_BIN).
@@ -101,6 +102,16 @@ func (app *BaseApp) ImportFromPGDump(ctx context.Context, extractedDir string) e
 
 	if err := app.importBackupStorage(ctx, extractedDir); err != nil {
 		return fmt.Errorf("failed to import the storage files: %w", err)
+	}
+
+	// G-REL-04: this restore passed the verification gate — persist the
+	// verified-restore timestamp (best-effort: observability metadata must
+	// not flip a successful restore into a failure).
+	if err := app.markBackupVerified(ctx, time.Now()); err != nil {
+		app.Logger().Warn(
+			"[PG restore] Failed to record the verified-restore timestamp",
+			slog.String("error", err.Error()),
+		)
 	}
 
 	app.Logger().Info(

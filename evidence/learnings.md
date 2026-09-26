@@ -4,6 +4,24 @@
 > appends here so knowledge accumulates between AI sessions and training runs.
 > Format per entry: date · area · what happened · what changed in the system model/docs.
 
+## 2026-09-26 — Phase 0 restore drills shipped: last_verified_backup loop (PR-6)
+
+- **Event:** G-REL-04 closed end to end: a restore that passes the verification gate persists an
+  RFC3339 UTC timestamp to `_params` (`last_verified_backup`), the boot reloads it into the in-memory
+  mirror, and `/metrics` exposes `pgbase_backup_last_verified_timestamp_seconds` (gauge,
+  **0 = never verified** — always emitted so `time() - metric > cadence` alerts even when no drill
+  ever ran). The drill (`EXPERIMENT-E.sh`) proves the full loop: restore → row → boot → gauge.
+- **Lesson 1 (drill accounting):** the verified restore writes a NEW `_params` row after `pg_restore`,
+  so the drill's PRE/POST `_params` row-count equality broke by exactly one. Fixed by excluding the
+  metadata row from the counts — a drill that feeds a signal must account for the signal's own writes.
+- **Lesson 2 (drift repaid):** `disaster-recovery.md` §4 still described the restore gate as
+  "count(_collections) >= 1 — known weak point" — stale since PR-4 (two PRs of drift). Caught only
+  because PR-6 touched that doc anyway. Each PR must close the docs rows it affects in the same
+  commit; the PR-4 lesson repeated.
+- **Design kept honest:** the timestamp is written best-effort (a failed write warns but does not flip
+  a successful restore into a failure — observability metadata must not own the restore verdict);
+  rejected restores never write; an unparseable persisted value degrades to 0, never a boot error.
+
 ## 2026-09-26 — Phase 0 diagnostic metrics shipped (PR-5)
 
 - **Event:** The G-REL-01 gap (timeout and rollback counters) closed: `pgbase_db_query_timeout_total` /

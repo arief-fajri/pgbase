@@ -90,7 +90,7 @@ Where possible, every row above is an automated test of external behavior agains
 [ ] Restore preserves required files/configuration                (storage + settings)
 [ ] Restore procedure is documented                               ([disaster-recovery.md](../../deployment/disaster-recovery.md))
 [ ] Restore procedure has been executed successfully              (experiment E — gate)
-[ ] Last verified backup is observable                            (last_verified_backup metric — gap)
+[x] Last verified backup is observable                            (pgbase_backup_last_verified_timestamp_seconds ✅ — _params row + boot load; drill feeds it)
 ```
 
 ## 6. Release checklist

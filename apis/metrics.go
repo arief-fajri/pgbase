@@ -332,11 +332,12 @@ type dbEventsCollector struct {
 	lockTimeout  *prometheus.Desc
 	txRollback   *prometheus.Desc
 
-	backupAttempts  *prometheus.Desc
-	backupSuccesses *prometheus.Desc
-	backupFailures  *prometheus.Desc
-	backupDuration  *prometheus.Desc
-	backupLastSize  *prometheus.Desc
+	backupAttempts     *prometheus.Desc
+	backupSuccesses    *prometheus.Desc
+	backupFailures     *prometheus.Desc
+	backupDuration     *prometheus.Desc
+	backupLastSize     *prometheus.Desc
+	backupLastVerified *prometheus.Desc
 }
 
 func newDBEventsCollector(provider dbEventsProvider) *dbEventsCollector {
@@ -367,6 +368,10 @@ func newDBEventsCollector(provider dbEventsProvider) *dbEventsCollector {
 		backupFailures:  backupDesc("failure_total", "Failed backup creations."),
 		backupDuration:  backupDesc("duration_seconds", "Total time spent in completed backups (sum; average = this / attempts_total)."),
 		backupLastSize:  backupDesc("last_size_bytes", "Size of the last successfully created backup archive."),
+		backupLastVerified: backupDesc(
+			"last_verified_timestamp_seconds",
+			"Unix timestamp of the last restore that passed the verification gate (G-REL-04: a backup is valid only once a restore has been verified). 0 = never verified — alert on time() - this > your drill cadence.",
+		),
 	}
 }
 
@@ -379,6 +384,7 @@ func (c *dbEventsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.backupFailures
 	ch <- c.backupDuration
 	ch <- c.backupLastSize
+	ch <- c.backupLastVerified
 }
 
 func (c *dbEventsCollector) Collect(ch chan<- prometheus.Metric) {
@@ -396,6 +402,7 @@ func (c *dbEventsCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.backupFailures, prometheus.CounterValue, float64(s.BackupFailures))
 	ch <- prometheus.MustNewConstMetric(c.backupDuration, prometheus.CounterValue, s.BackupDuration.Seconds())
 	ch <- prometheus.MustNewConstMetric(c.backupLastSize, prometheus.GaugeValue, float64(s.BackupLastSize))
+	ch <- prometheus.MustNewConstMetric(c.backupLastVerified, prometheus.GaugeValue, float64(s.BackupLastVerified))
 }
 
 // realtimeCollector reports live realtime (SSE) subscription metrics at scrape

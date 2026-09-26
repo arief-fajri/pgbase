@@ -134,8 +134,9 @@ G-REL-03  Transient PostgreSQL recovery must not require manual process restart 
           documented.
           Enforcement: code — pgx reconnect on pool recycle (ConnMaxLifetime 30m); PgBouncer notes ✅
 G-REL-04  Backup is not considered valid until restoration has been verified.
-          Enforcement: process — restore drill (Phase 0) + last_verified_backup signal
-          (gap — metric to add) ⚠️
+          Enforcement: code + process + metric — the restore gate (`core/backup_pg_verify.go`) writes the
+          verified-restore timestamp to `_params` (last_verified_backup); `pgbase_backup_last_verified_timestamp_seconds`
+          (0 = never verified); drill `evidence/experiments/EXPERIMENT-E.sh` ✅
 G-REL-05  Recovery procedures must be executable by an operator who did not write the original feature.
           Enforcement: process + docs — docs/deployment/disaster-recovery.md; drill per gate ⚠️
 G-REL-06  Data corruption must be treated as a release-blocking failure.
@@ -212,7 +213,6 @@ These guardrails are defined but their enforcement is `(gap)`; they are tracked 
 | Guard rail | Missing enforcement | Linked roadmap item |
 |---|---|---|
 | G-API-01/04/05 | compatibility test suite | Phase 1 / compatibility suite |
-| G-REL-04 | restore drill + `last_verified_backup` metric | Phase 0 / restore drills |
 | G-UPG-04 | upgrade runbook | Phase 0 / versioning |
 | G-UPG-05 | PG 16/17 CI matrix | Phase 0 / versioning |
 | G-UPG-06 | versioning & upgrade policy | Phase 0 / versioning |

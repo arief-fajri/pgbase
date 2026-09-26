@@ -488,6 +488,11 @@ func (app *BaseApp) Bootstrap() error {
 			return err
 		}
 
+		// load the persisted verified-restore timestamp (G-REL-04 mirror for
+		// pgbase_backup_last_verified_timestamp_seconds; best-effort — an
+		// absent/unparseable row means "never verified", never a boot error)
+		app.loadBackupLastVerified()
+
 		// try to cleanup the pb_data temp directory (if any)
 		_ = os.RemoveAll(filepath.Join(app.DataDir(), LocalTempDirName))
 

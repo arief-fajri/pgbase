@@ -70,7 +70,7 @@ backup attempt count · success/failure · duration · size
 last successful backup · last successful restore verification
 ```
 
-Existing: `pgbase_backup_attempts_total`, `pgbase_backup_success_total`, `pgbase_backup_failure_total`, `pgbase_backup_duration_seconds` (sum; average = / attempts), `pgbase_backup_last_size_bytes` (gauge, last successful archive). **Remaining gap: `last_verified_backup`** — a created backup is not necessarily a usable backup; the timestamp lands with [Phase 0](../roadmap.md) restore drills (G-REL-04). See the [disaster-recovery checklist](../../deployment/disaster-recovery.md).
+Existing: `pgbase_backup_attempts_total`, `pgbase_backup_success_total`, `pgbase_backup_failure_total`, `pgbase_backup_duration_seconds` (sum; average = / attempts), `pgbase_backup_last_size_bytes` (gauge, last successful archive), `pgbase_backup_last_verified_timestamp_seconds` (gauge; unix timestamp of the last restore that passed the verification gate — G-REL-04; **0 = never verified**, alert on `time() - this > your drill cadence`). The timestamp is persisted to `_params` (`last_verified_backup`, RFC3339 UTC) by the restore path and reloaded at boot; the drill that feeds it is `evidence/experiments/EXPERIMENT-E.sh`. See the [disaster-recovery checklist](../../deployment/disaster-recovery.md).
 
 ## 5. Guard-rail → metric correlation
 
@@ -81,7 +81,7 @@ The metrics above exist to prove guard rails. Map (existence = observable):
 | G-DB-08 pool exhaustion observable | `pgbase_db_wait_count_total`, `wait_duration` | ✅ |
 | G-REL-01 no call blocks forever | `pgbase_db_query_timeout_total`, `pgbase_db_tx_rollback_total` | ✅ |
 | I15 realtime bounded/observable | `pgbase_realtime_dropped_messages` | ✅ |
-| G-REL-04 backup valid only if restored | `last_verified_backup_timestamp` | ❌ gap — Phase 0 restore drills |
+| G-REL-04 backup valid only if restored | `pgbase_backup_last_verified_timestamp_seconds` | ✅ |
 | G-API-02/03 status/schema stable | HTTP error-ratio + version label | ⚠️ partial |
 
 A subsystem that gains a new guard rail must also gain the metric that makes the rail observable — that pairing is part of the implementation loop.

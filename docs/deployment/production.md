@@ -189,6 +189,7 @@ curl http://127.0.0.1:9090/metrics    # Prometheus text format
 | `pgbase_backup_attempts_total` / `_success_total` / `_failure_total` | counter | — | backup lifecycle |
 | `pgbase_backup_duration_seconds` | counter | — | total time spent backing up (avg = / attempts) |
 | `pgbase_backup_last_size_bytes` | gauge | — | last successful backup archive size |
+| `pgbase_backup_last_verified_timestamp_seconds` | gauge | — | unix timestamp of the last restore that passed the verification gate (**0 = never verified** — alert on `time() - this > your drill cadence`) |
 | `pgbase_http_requests_total` | counter | `method`, `route`, `status` | total requests — error ratio: `rate(...{status=~"5.."}) / rate(...)` |
 | `pgbase_realtime_connected_clients` | gauge | — | connected SSE clients |
 | `pgbase_realtime_dropped_messages` | gauge | — | dropped on full client buffers |

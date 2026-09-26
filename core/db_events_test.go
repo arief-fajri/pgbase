@@ -101,6 +101,16 @@ func TestQueryTimeoutHookClassifiesDeadline(t *testing.T) {
 func newDBEventsTestApp(t *testing.T) *BaseApp {
 	t.Helper()
 
+	app, _ := newDBEventsTestAppDB(t)
+	return app
+}
+
+// newDBEventsTestAppDB is newDBEventsTestApp but also returns the dedicated
+// database name, so tests can boot a SECOND app on the same database (e.g.
+// the bootstrap-load test below).
+func newDBEventsTestAppDB(t *testing.T) (*BaseApp, string) {
+	t.Helper()
+
 	dbName := fmt.Sprintf("pb_dbevents_%d_%d", os.Getpid(), time.Now().UnixNano())
 
 	maint, err := DefaultDBConnect(ResolveDBConfig(DBConfig{
@@ -145,7 +155,7 @@ func newDBEventsTestApp(t *testing.T) *BaseApp {
 	}
 	t.Cleanup(func() { app.ResetBootstrapState() })
 
-	return app
+	return app, dbName
 }
 
 // TestTxRollbackCounters verifies the G-REL-01 rollback counter: a failed
@@ -240,5 +250,75 @@ func TestBackupCounters(t *testing.T) {
 	got = app.DBEventStats()
 	if got.BackupAttempts != 3 || got.BackupFailures != 1 || got.BackupSuccesses != 2 {
 		t.Fatalf("expected 3 attempts / 2 successes / 1 failure, got %+v", got)
+	}
+}
+
+// newDBEventsPeerApp boots a SECOND app on an existing dedicated database
+// (fresh pb_data) — the restore-path reality: the old process is gone, a new
+// boot must load the persisted verified-restore timestamp.
+func newDBEventsPeerApp(t *testing.T, dbName string) *BaseApp {
+	t.Helper()
+
+	dataDir, err := os.MkdirTemp("", "pb_dbevents_peer_")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dataDir) })
+
+	peer := NewBaseApp(BaseAppConfig{
+		DataDir:       dataDir,
+		EncryptionEnv: "pb_dbevents_test_env",
+		DBConnect: func(c DBConfig) (*dbx.DB, error) {
+			c.DBName = dbName
+			return DefaultDBConnect(c)
+		},
+	})
+	if err := peer.Bootstrap(); err != nil {
+		t.Fatalf("peer Bootstrap: %v", err)
+	}
+	t.Cleanup(func() { peer.ResetBootstrapState() })
+
+	return peer
+}
+
+// TestBootstrapLoadsLastVerifiedBackup verifies the G-REL-04 mirror survives
+// restarts: a new boot on a database with a last_verified_backup row loads it
+// into the in-memory mirror (exposed as
+// pgbase_backup_last_verified_timestamp_seconds), an absent row stays 0, and
+// an unparseable value degrades to 0 instead of failing the boot.
+func TestBootstrapLoadsLastVerifiedBackup(t *testing.T) {
+	app, dbName := newDBEventsTestAppDB(t)
+
+	// fresh boot: never verified
+	if got := app.DBEventStats().BackupLastVerified; got != 0 {
+		t.Fatalf("fresh app must have no verified timestamp, got %d", got)
+	}
+
+	// persist a known timestamp exactly as the restore path does
+	ts := time.Date(2026, 9, 26, 1, 30, 0, 0, time.UTC)
+	if _, err := app.NonconcurrentDB().NewQuery(
+		`INSERT INTO "_params" ("id", "value") VALUES ({:id}, {:value})
+		 ON CONFLICT ("id") DO UPDATE SET "value" = {:value}`,
+	).
+		Bind(dbx.Params{"id": lastVerifiedBackupParamsKey, "value": ts.Format(time.RFC3339)}).
+		Execute(); err != nil {
+		t.Fatalf("seed last_verified_backup row: %v", err)
+	}
+
+	// a new boot on the same database loads the row into its mirror
+	if got := newDBEventsPeerApp(t, dbName).DBEventStats().BackupLastVerified; got != ts.Unix() {
+		t.Fatalf("peer boot mirror = %d, want %d", got, ts.Unix())
+	}
+
+	// an unparseable value degrades to "never verified", never fails the boot
+	if _, err := app.NonconcurrentDB().NewQuery(
+		`UPDATE "_params" SET "value" = 'not-a-timestamp' WHERE "id" = {:id}`,
+	).
+		Bind(dbx.Params{"id": lastVerifiedBackupParamsKey}).
+		Execute(); err != nil {
+		t.Fatalf("corrupt last_verified_backup row: %v", err)
+	}
+	if got := newDBEventsPeerApp(t, dbName).DBEventStats().BackupLastVerified; got != 0 {
+		t.Fatalf("unparseable value must degrade to 0, got %d", got)
 	}
 }

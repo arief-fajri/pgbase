@@ -138,13 +138,12 @@ Each item still needs the 10-step definition of done in its PR. See [Checklists 
 
 ### Phase 0 — Trust
 
-Most of this is done: security policy, secret scanning, reproducible releases, native backups, metrics, production docs, one-command install, production-path hygiene (W-06), readiness (`/api/ready`), restore verification (W-08), diagnostic metrics.
+Most of this is done: security policy, secret scanning, reproducible releases, native backups, metrics, production docs, one-command install, production-path hygiene (W-06), readiness (`/api/ready`), restore verification (W-08), diagnostic metrics, restore drills (`last_verified_backup`).
 
 Still P0, because "we have a backup" is not "we trust a restore":
 
 | Item | State | Target |
 |---|---|---|
-| Restore drills | Not started | A recorded drill that feeds `last_verified_backup` |
 | Versioning and upgrade policy | Not started | How PG-BASE versions break, how to roll back an app or PostgreSQL upgrade, and a PostgreSQL 16/17 CI matrix so that claim is observed |
 | Reliability tests | Not started | Query-timeout, connect-timeout, and graceful-shutdown tests — Evaluation Checklists §1–2 gaps |
 

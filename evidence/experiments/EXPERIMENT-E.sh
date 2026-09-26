@@ -28,7 +28,8 @@ APP_ENV="PB_POSTGRES_SSLMODE=$PGSSLMODE PB_POSTGRES_DBNAME=$DB PB_POSTGRES_HOST=
 
 env $APP_ENV "$PGBASE" serve --http=127.0.0.1:8096 --dir "$WORK/data" >"$LOG_DIR/EXPERIMENT-E-app-pre.log" 2>&1 &
 APP_PID=$!
-wait_http "http://127.0.0.1:8096/api/health" 200 || { exp_log "FAIL: app never ready"; exit 1; }
+# readiness (not liveness): the boot wait must confirm the DB is reachable
+wait_http "http://127.0.0.1:8096/api/ready" 200 || { exp_log "FAIL: app never ready"; exit 1; }
 exp_log "OK: app ready"
 
 env $APP_ENV "$PGBASE" superuser upsert admin@example.com testpass123 --dir "$WORK/data" >>"$LOG_FILE" 2>&1
@@ -38,7 +39,10 @@ env $APP_ENV "$PGBASE" superuser upsert admin@example.com testpass123 --dir "$WO
 run_sql "$DB" -c "INSERT INTO _params (id, value) VALUES ('exp_e_probe', '42');" >>"$LOG_FILE" 2>&1
 
 PRE_COLLECTIONS="$(run_sql "$DB" -t -A -c "SELECT count(*) FROM _collections;")"
-PRE_PARAMS="$(run_sql "$DB" -t -A -c "SELECT count(*) FROM _params;")"
+# count _params EXCLUDING the last_verified_backup row: the verified restore
+# itself writes that row AFTER pg_restore, so a plain count would differ by
+# one between PRE and POST
+PRE_PARAMS="$(run_sql "$DB" -t -A -c "SELECT count(*) FROM _params WHERE id <> 'last_verified_backup';")"
 PRE_SUPERUSERS="$(run_sql "$DB" -t -A -c "SELECT count(*) FROM _superusers;")"
 PRE_HASH_LEN="$(run_sql "$DB" -t -A -c "SELECT length(coalesce(password,'')) FROM _superusers LIMIT 1;")"
 exp_log "pre-backup: _collections=$PRE_COLLECTIONS _params=$PRE_PARAMS superusers=$PRE_SUPERUSERS hash_len=$PRE_HASH_LEN"
@@ -61,17 +65,40 @@ RESTORE_RC=$?
 exp_log "restore rc=$RESTORE_RC"
 
 POST_COLLECTIONS="$(run_sql "$DB" -t -A -c "SELECT count(*) FROM _collections;" 2>/dev/null)"
-POST_PARAMS="$(run_sql "$DB" -t -A -c "SELECT count(*) FROM _params;" 2>/dev/null)"
+POST_PARAMS="$(run_sql "$DB" -t -A -c "SELECT count(*) FROM _params WHERE id <> 'last_verified_backup';" 2>/dev/null)"
 POST_PROBE="$(run_sql "$DB" -t -A -c "SELECT count(*) FROM _params WHERE id='exp_e_probe' AND value='42';" 2>/dev/null)"
 POST_SUPERUSERS="$(run_sql "$DB" -t -A -c "SELECT count(*) FROM _superusers;" 2>/dev/null)"
 POST_HASH_LEN="$(run_sql "$DB" -t -A -c "SELECT length(coalesce(password,'')) FROM _superusers LIMIT 1;" 2>/dev/null)"
 exp_log "post-restore: _collections=$POST_COLLECTIONS _params=$POST_PARAMS probe=$POST_PROBE superusers=$POST_SUPERUSERS hash_len=$POST_HASH_LEN"
 
+# --- G-REL-04: verified restore feeds last_verified_backup -----------------
+# The verified restore must (a) persist the RFC3339 timestamp to _params and
+# (b) expose it as pgbase_backup_last_verified_timestamp_seconds after a boot
+# (the full loop: restore -> _params row -> boot load -> gauge).
+POST_LASTVERIFIED="$(run_sql "$DB" -t -A -c "SELECT value FROM _params WHERE id='last_verified_backup';" 2>/dev/null)"
+exp_log "post-restore last_verified_backup=$POST_LASTVERIFIED"
+
+METRICS_PORT=8097
+env $APP_ENV PB_METRICS_ADDR=127.0.0.1:$METRICS_PORT "$PGBASE" serve --http=127.0.0.1:8096 --dir "$WORK/data" >"$LOG_DIR/EXPERIMENT-E-app-post.log" 2>&1 &
+APP_PID=$!
+wait_http "http://127.0.0.1:8096/api/ready" 200 || { exp_log "FAIL: app never ready after restore"; exit 1; }
+
+POST_LASTVERIFIED_METRIC="$(curl -sS --max-time 5 "http://127.0.0.1:$METRICS_PORT/metrics" 2>/dev/null | awk '$1 == "pgbase_backup_last_verified_timestamp_seconds" {print $2}')"
+exp_log "post-restore metric last_verified_timestamp_seconds=$POST_LASTVERIFIED_METRIC"
+
+kill "$APP_PID" 2>/dev/null
+wait "$APP_PID" 2>/dev/null
+APP_PID=""
+
+METRIC_OK=no
+[ -n "$POST_LASTVERIFIED_METRIC" ] && METRIC_OK=$(awk -v v="$POST_LASTVERIFIED_METRIC" 'BEGIN { print (v+0 > 0) ? "yes" : "no" }')
+
 VERDICT="FAIL"
 if [ "$BACKUP_OK" = yes ] && [ "$RESTORE_RC" -eq 0 ] \
    && [ "$POST_COLLECTIONS" = "$PRE_COLLECTIONS" ] && [ "$POST_COLLECTIONS" -gt 0 ] \
    && [ "$POST_PARAMS" = "$PRE_PARAMS" ] && [ "$POST_PROBE" = 1 ] \
-   && [ "$POST_SUPERUSERS" -ge 1 ] && [ "$POST_HASH_LEN" -gt 20 ]
+   && [ "$POST_SUPERUSERS" -ge 1 ] && [ "$POST_HASH_LEN" -gt 20 ] \
+   && [ -n "$POST_LASTVERIFIED" ] && [ "$METRIC_OK" = yes ]
 then
     VERDICT="PASS"
 fi

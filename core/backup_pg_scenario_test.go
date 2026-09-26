@@ -5,7 +5,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tests"
@@ -160,6 +162,100 @@ func TestPGDumpExportImportRoundTrip(t *testing.T) {
 	}
 	if got := app.Settings().Meta.AppName; got != snapshotAppName {
 		t.Fatalf("restore: expected AppName %q, got %q", snapshotAppName, got)
+	}
+}
+
+// TestImportFromPGDumpRecordsVerifiedTimestamp verifies the G-REL-04 signal:
+// only a restore that passes the verification gate records the
+// last_verified_backup timestamp — a rejected (corrupt) restore leaves both
+// the _params row and the in-memory mirror untouched, a verified restore
+// writes a parseable, recent RFC3339 timestamp.
+func TestImportFromPGDumpRecordsVerifiedTimestamp(t *testing.T) {
+	requireNativePGTools(t)
+
+	ctx := context.Background()
+
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatalf("NewTestApp: %v", err)
+	}
+	defer app.Cleanup()
+
+	countLastVerified := func() int {
+		var n int
+		if err := app.DB().NewQuery(
+			`SELECT count(*) FROM "_params" WHERE id = 'last_verified_backup'`,
+		).Row(&n); err != nil {
+			t.Fatalf("count last_verified_backup rows: %v", err)
+		}
+		return n
+	}
+
+	// fresh app: never verified — no row, mirror zero
+	if got := app.DBEventStats().BackupLastVerified; got != 0 {
+		t.Fatalf("fresh app must have no verified timestamp, got %d", got)
+	}
+	if n := countLastVerified(); n != 0 {
+		t.Fatalf("fresh app must have no last_verified_backup row, got %d", n)
+	}
+
+	dumpDir := t.TempDir()
+	dumpPath := filepath.Join(dumpDir, pgBackupDumpNameForTest)
+
+	// a rejected restore must not record: corrupt the archive header
+	if err := app.ExportToPGDump(ctx, dumpPath); err != nil {
+		t.Fatalf("ExportToPGDump: %v", err)
+	}
+	data, err := os.ReadFile(dumpPath)
+	if err != nil {
+		t.Fatalf("read dump: %v", err)
+	}
+	for i := 0; i < 64 && i < len(data); i++ {
+		data[i] = 0x00
+	}
+	if err := os.WriteFile(dumpPath, data, 0o644); err != nil {
+		t.Fatalf("write corrupted dump: %v", err)
+	}
+	if err := app.ImportFromPGDump(ctx, dumpDir); err == nil {
+		t.Fatal("expected the corrupt archive to be rejected")
+	}
+	if got := app.DBEventStats().BackupLastVerified; got != 0 {
+		t.Fatalf("a rejected restore must not record a timestamp, got %d", got)
+	}
+	if n := countLastVerified(); n != 0 {
+		t.Fatalf("a rejected restore must not write the _params row, got %d rows", n)
+	}
+
+	// a verified restore records: re-export a clean archive and import it.
+	// The persisted format is second-precision RFC3339, so the window bounds
+	// are compared at second granularity (a sub-second restoreStart would
+	// false-fail against the truncated timestamp).
+	restoreStart := time.Now().UTC().Truncate(time.Second)
+	if err := app.ExportToPGDump(ctx, dumpPath); err != nil {
+		t.Fatalf("ExportToPGDump (clean re-export): %v", err)
+	}
+	if err := app.ImportFromPGDump(ctx, dumpDir); err != nil {
+		t.Fatalf("ImportFromPGDump: %v", err)
+	}
+
+	var raw string
+	if err := app.DB().NewQuery(
+		`SELECT "value" FROM "_params" WHERE "id" = 'last_verified_backup'`,
+	).Row(&raw); err != nil {
+		t.Fatalf("read last_verified_backup row: %v", err)
+	}
+	ts, err := time.Parse(time.RFC3339, strings.TrimSpace(raw))
+	if err != nil {
+		t.Fatalf("last_verified_backup is not RFC3339: %q (%v)", raw, err)
+	}
+	if ts.Before(restoreStart) || ts.After(time.Now().UTC().Add(time.Second)) {
+		t.Fatalf(
+			"last_verified_backup %v is not within the restore window [%v, %v]",
+			ts, restoreStart, time.Now().UTC().Add(time.Second),
+		)
+	}
+	if got := app.DBEventStats().BackupLastVerified; got != ts.Unix() {
+		t.Fatalf("mirror = %d, want the persisted timestamp %d", got, ts.Unix())
 	}
 }
 

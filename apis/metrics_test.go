@@ -262,17 +262,18 @@ func TestDBStatsCollector(t *testing.T) {
 // eight series with the right values, types and db labels.
 func TestDBEventsCollector(t *testing.T) {
 	provider := stubDBEventsProvider{stats: core.DBEventStats{
-		DataQueryTimeouts: 3,
-		AuxQueryTimeouts:  1,
-		DataLockTimeouts:  2,
-		AuxLockTimeouts:   0,
-		DataTxRollbacks:   4,
-		AuxTxRollbacks:    0,
-		BackupAttempts:    5,
-		BackupSuccesses:   4,
-		BackupFailures:    1,
-		BackupDuration:    90 * time.Second,
-		BackupLastSize:    2048,
+		DataQueryTimeouts:  3,
+		AuxQueryTimeouts:   1,
+		DataLockTimeouts:   2,
+		AuxLockTimeouts:    0,
+		DataTxRollbacks:    4,
+		AuxTxRollbacks:     0,
+		BackupAttempts:     5,
+		BackupSuccesses:    4,
+		BackupFailures:     1,
+		BackupDuration:     90 * time.Second,
+		BackupLastSize:     2048,
+		BackupLastVerified: 1790000000,
 	}}
 
 	reg := prometheus.NewRegistry()
@@ -303,6 +304,11 @@ func TestDBEventsCollector(t *testing.T) {
 	// the last backup size is a gauge, not a counter
 	if got := gaugeSeriesValue(t, reg, "pgbase_backup_last_size_bytes", nil); got != 2048 {
 		t.Errorf("pgbase_backup_last_size_bytes = %v, want 2048", got)
+	}
+
+	// the verified-restore timestamp is a gauge too (0 = never verified)
+	if got := gaugeSeriesValue(t, reg, "pgbase_backup_last_verified_timestamp_seconds", nil); got != 1790000000 {
+		t.Errorf("pgbase_backup_last_verified_timestamp_seconds = %v, want 1790000000", got)
 	}
 }
 
