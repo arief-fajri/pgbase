@@ -106,6 +106,12 @@ type BaseApp struct {
 	auxDB       dbx.Builder
 	dbConfig    DBConfig // resolved connection config captured at init time for outbox listener
 
+	// dbEvents is the diagnostic event counter state (query/lock timeouts,
+	// transaction rollbacks, backup stats) scraped by the /metrics collector.
+	// It is a pointer on purpose: BaseApp is shallow-copied for transaction
+	// apps (createTxApp), and the copies must share the same counters.
+	dbEvents *dbEventsState
+
 	// instanceHeartbeatGuard tracks multi-instance presence (R-1b) once wired.
 	instanceHeartbeatGuard *instanceHeartbeatGuard
 
@@ -235,6 +241,7 @@ func NewBaseApp(config BaseAppConfig) *BaseApp {
 		subscriptionsBroker: subscriptions.NewBroker(),
 		config:              &config,
 		bootstrapMu:         &sync.RWMutex{},
+		dbEvents:            &dbEventsState{},
 
 		// stable per-process identity for the cross-instance realtime outbox
 		realtimeOutboxOrigin: "@" + security.PseudorandomString(10),
@@ -597,6 +604,17 @@ func (app *BaseApp) AuxNonconcurrentDB() dbx.Builder {
 	app.bootstrapMu.RLock()
 	defer app.bootstrapMu.RUnlock()
 	return app.auxDB
+}
+
+// DBEventStats returns a point-in-time snapshot of the diagnostic event
+// counters (query/lock timeouts, transaction rollbacks, backup stats) —
+// scraped by the /metrics collector (see core/db_events.go).
+func (app *BaseApp) DBEventStats() DBEventStats {
+	app.bootstrapMu.RLock()
+	dbEvents := app.dbEvents
+	app.bootstrapMu.RUnlock()
+
+	return dbEvents.snapshot()
 }
 
 // DataDir returns the app data directory path.

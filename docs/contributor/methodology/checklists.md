@@ -81,7 +81,7 @@ Where possible, every row above is an automated test of external behavior agains
 
 ```text
 [x] Backup can be created                                         (pg_dump path)
-[ ] Backup failure is observable                                  (error surfaced; metrics gap)
+[x] Backup failure is observable                                  (error surfaced; backup failure metrics ✅)
 [ ] Backup can be stored outside the application host             (S3 wiring implemented)
 [ ] Backup can be restored                                        (pg_restore path)
 [ ] Restore produces a valid schema                               (experiment E — L3 cross-check)

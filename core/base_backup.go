@@ -83,7 +83,16 @@ func (app *BaseApp) CreateBackup(ctx context.Context, name string) error {
 		lostFoundDirName,
 	}
 
-	return app.OnBackupCreate().Trigger(event, func(e *BackupEvent) error {
+	// diagnostic lifecycle counters (see core/db_events.go): one attempt per
+	// started backup, one outcome (success/failure + duration) per completion,
+	// and the byte size of the last successful archive. The size is captured
+	// inside the trigger (the temp archive is removed afterwards) and recorded
+	// only when the whole backup completed.
+	backupStart := time.Now()
+	backupSize := int64(0)
+	app.recordBackupAttempt()
+
+	triggerErr := app.OnBackupCreate().Trigger(event, func(e *BackupEvent) error {
 		// generate a default name if missing
 		if e.Name == "" {
 			e.Name = generateBackupName(e.App, "pb_backup_")
@@ -161,6 +170,12 @@ func (app *BaseApp) CreateBackup(ctx context.Context, name string) error {
 		}
 		defer os.Remove(tempPath)
 
+		// capture the completed archive size while it still exists (the
+		// deferred os.Remove tears it down before the trigger returns)
+		if fi, statErr := os.Stat(tempPath); statErr == nil {
+			backupSize = fi.Size()
+		}
+
 		// persist the backup in the backups filesystem
 		// ---
 		fsys, err := e.App.NewBackupsFilesystem()
@@ -184,6 +199,13 @@ func (app *BaseApp) CreateBackup(ctx context.Context, name string) error {
 
 		return nil
 	})
+
+	if triggerErr == nil && backupSize > 0 {
+		app.recordBackupSize(backupSize)
+	}
+	app.recordBackupOutcome(triggerErr, time.Since(backupStart))
+
+	return triggerErr
 }
 
 // RestoreBackup restores the backup with the specified name and restarts

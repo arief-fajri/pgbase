@@ -44,7 +44,7 @@ func (app *BaseApp) RecordQuery(collectionModelOrIdentifier any) *dbx.SelectQuer
 	}
 
 	return query.WithBuildHook(func(q *dbx.Query) {
-		q.WithExecHook(queryTimeoutHook(app.config.QueryTimeout)).
+		q.WithExecHook(queryTimeoutHook(app, app.config.QueryTimeout)).
 			WithOneHook(func(q *dbx.Query, a any, op func(b any) error) error {
 				if a == nil {
 					return op(a)

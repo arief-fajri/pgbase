@@ -16,13 +16,14 @@ For major API surfaces, observe:
 
 Dimensions: endpoint (matched route template), method, status code, application version. **Avoid uncontrolled high-cardinality labels** (raw user IDs, arbitrary URLs).
 
-Current state: a request **duration histogram** exists (`pgbase_http_request_duration_seconds`). Per-status **error counters and an error ratio** are a gap ([Phase 0](../roadmap.md) diagnostic metrics — add `pgbase_http_requests_total{code=4xx|5xx}` or derive from the histogram). Deployed alert: `p99` rise (see `deploy/prometheus.rules.yml`).
+Current state: a request **duration histogram** (`pgbase_http_request_duration_seconds`) and a per-status **request counter** (`pgbase_http_requests_total`, same `method`/`route`/`status` labels) exist. Error ratio: `sum(rate(pgbase_http_requests_total{status=~"5.."}[5m])) / sum(rate(pgbase_http_requests_total[5m]))` (or derive it from the histogram count series). Deployed alert: `p99` rise (see `deploy/prometheus.rules.yml`).
 
 ## 2. PostgreSQL / pool metrics
 
 ```text
 DB connections: open · in use · idle · maximum · wait count · wait duration
-DB behavior:    query timeout · lock timeout · connection failure · transaction rollback   ← gap
+DB behavior:    query timeout · lock timeout · transaction rollback   ← counters below
+DB behavior:    connection failure / reconnect                        ← not exposed by database/sql (Phase 4 note below)
 ```
 
 Existing (`db` label = `data` | `aux`):
@@ -35,8 +36,11 @@ Existing (`db` label = `data` | `aux`):
 | `pgbase_db_max_open_connections` | gauge | pool ceiling (0 = unlimited) |
 | `pgbase_db_wait_count_total` | counter | acquisitions that had to wait — **pool saturation signal** |
 | `pgbase_db_wait_duration_seconds_total` | counter | time blocked waiting on the pool |
+| `pgbase_db_query_timeout_total` | counter | queries aborted by a timeout (client deadline or server `statement_timeout` 57014) — classified on the record/model paths |
+| `pgbase_db_lock_timeout_total` | counter | statements aborted by the server `lock_timeout` (55P03) — classified on the record/model paths |
+| `pgbase_db_tx_rollback_total` | counter | top-level transactions that rolled back (nested reuse the outer one) |
 
-Gaps ([Phase 0](../roadmap.md) diagnostic metrics): query-timeout events, lock-timeout events, connection-failure/reconnect events, transaction-rollback events (bounded-operation counters for G-DB-03/04 and G-REL-01).
+Remaining gap ([Phase 4](../roadmap.md)): reconnect events are NOT counted — the `database/sql` layer does not expose them (pool dynamics are visible via `wait_count`/`open_connections`); the outbox LISTEN reconnect belongs to realtime observability. Raw builder queries (outside the record/model paths) are not classified.
 
 **Diagnostic chain** (use when latency or errors appear):
 
@@ -66,7 +70,7 @@ backup attempt count · success/failure · duration · size
 last successful backup · last successful restore verification
 ```
 
-The most useful operational signal is **`last_verified_backup_timestamp`** — a created backup is not necessarily a usable backup. **Gap: no backup metrics are exported today**; add collectors in `apis/metrics.go` for the set above. `last_verified_backup` is [Phase 0](../roadmap.md) restore drills; attempt/success/duration/size are Phase 0 diagnostic metrics. See the [disaster-recovery checklist](../../deployment/disaster-recovery.md).
+Existing: `pgbase_backup_attempts_total`, `pgbase_backup_success_total`, `pgbase_backup_failure_total`, `pgbase_backup_duration_seconds` (sum; average = / attempts), `pgbase_backup_last_size_bytes` (gauge, last successful archive). **Remaining gap: `last_verified_backup`** — a created backup is not necessarily a usable backup; the timestamp lands with [Phase 0](../roadmap.md) restore drills (G-REL-04). See the [disaster-recovery checklist](../../deployment/disaster-recovery.md).
 
 ## 5. Guard-rail → metric correlation
 
@@ -75,7 +79,7 @@ The metrics above exist to prove guard rails. Map (existence = observable):
 | Guard rail | Proving metric | Status |
 |---|---|---|
 | G-DB-08 pool exhaustion observable | `pgbase_db_wait_count_total`, `wait_duration` | ✅ |
-| G-REL-01 no call blocks forever | query timeout + statement timeout counters (see §2 gaps) | ⚠️ gap — Phase 0 diagnostic metrics |
+| G-REL-01 no call blocks forever | `pgbase_db_query_timeout_total`, `pgbase_db_tx_rollback_total` | ✅ |
 | I15 realtime bounded/observable | `pgbase_realtime_dropped_messages` | ✅ |
 | G-REL-04 backup valid only if restored | `last_verified_backup_timestamp` | ❌ gap — Phase 0 restore drills |
 | G-API-02/03 status/schema stable | HTTP error-ratio + version label | ⚠️ partial |

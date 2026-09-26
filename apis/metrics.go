@@ -95,11 +95,12 @@ func validateMetricsAddr(addr string) error {
 type appMetrics struct {
 	registry     *prometheus.Registry
 	httpDuration *prometheus.HistogramVec
+	httpRequests *prometheus.CounterVec
 }
 
 // newAppMetrics builds the registry with the free Go runtime + process
-// collectors, the DB pool and realtime scrape-time collectors, and the HTTP
-// request histogram.
+// collectors, the DB pool, diagnostic-events and realtime scrape-time
+// collectors, the HTTP request histogram and the HTTP request counter.
 func newAppMetrics(app core.App) *appMetrics {
 	reg := prometheus.NewRegistry()
 
@@ -115,10 +116,22 @@ func newAppMetrics(app core.App) *appMetrics {
 	}, []string{"method", "route", "status"})
 	reg.MustRegister(httpDuration)
 
+	// total request counter with the same labels as the histogram — the
+	// direct rate/error-ratio signal (rate(..._requests_total{status=~"5.."}),
+	// errors / total) without deriving from the histogram count series
+	httpRequests := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: metricsNamespace,
+		Subsystem: "http",
+		Name:      "requests_total",
+		Help:      "Total handled HTTP requests, labeled by route pattern, method and status (error ratio: 5xx / total).",
+	}, []string{"method", "route", "status"})
+	reg.MustRegister(httpRequests)
+
 	reg.MustRegister(newDBStatsCollector(app))
+	reg.MustRegister(newDBEventsCollector(app))
 	reg.MustRegister(newRealtimeCollector(app))
 
-	return &appMetrics{registry: reg, httpDuration: httpDuration}
+	return &appMetrics{registry: reg, httpDuration: httpDuration, httpRequests: httpRequests}
 }
 
 // metricsMiddleware instruments every request with a duration observation
@@ -147,6 +160,10 @@ func metricsMiddleware(m *appMetrics) *hook.Handler[*core.RequestEvent] {
 			m.httpDuration.
 				WithLabelValues(e.Request.Method, routeLabel(e.Request.Pattern), strconv.Itoa(status)).
 				Observe(elapsed)
+
+			m.httpRequests.
+				WithLabelValues(e.Request.Method, routeLabel(e.Request.Pattern), strconv.Itoa(status)).
+				Inc()
 
 			return err
 		},
@@ -296,6 +313,89 @@ func sqlDBFromBuilder(b dbx.Builder) *sql.DB {
 		return d.DB()
 	}
 	return nil
+}
+
+// dbEventsProvider is the narrow slice of core.App the diagnostic events
+// collector needs.
+type dbEventsProvider interface {
+	DBEventStats() core.DBEventStats
+}
+
+// dbEventsCollector reports the diagnostic event counters (query/lock
+// timeouts, transaction rollbacks) and backup lifecycle stats at scrape time.
+// It is the observability pairing for G-DB-03/04 (bounded execution and lock
+// waits must be observable) and G-REL-01 (timeout and rollback counters).
+type dbEventsCollector struct {
+	provider dbEventsProvider
+
+	queryTimeout *prometheus.Desc
+	lockTimeout  *prometheus.Desc
+	txRollback   *prometheus.Desc
+
+	backupAttempts  *prometheus.Desc
+	backupSuccesses *prometheus.Desc
+	backupFailures  *prometheus.Desc
+	backupDuration  *prometheus.Desc
+	backupLastSize  *prometheus.Desc
+}
+
+func newDBEventsCollector(provider dbEventsProvider) *dbEventsCollector {
+	dbLabels := []string{"db"}
+	dbDesc := func(name, help string) *prometheus.Desc {
+		return prometheus.NewDesc(prometheus.BuildFQName(metricsNamespace, "db", name), help, dbLabels, nil)
+	}
+	backupDesc := func(name, help string) *prometheus.Desc {
+		return prometheus.NewDesc(prometheus.BuildFQName(metricsNamespace, "backup", name), help, nil, nil)
+	}
+
+	return &dbEventsCollector{
+		provider: provider,
+		queryTimeout: dbDesc(
+			"query_timeout_total",
+			"Queries aborted by a timeout — client-side deadline (queryTimeoutHook/withWriteDeadline) or server statement_timeout (SQLSTATE 57014). Classified on the instrumented record/model paths; raw builder queries are not counted.",
+		),
+		lockTimeout: dbDesc(
+			"lock_timeout_total",
+			"Statements aborted by the server lock_timeout (SQLSTATE 55P03). Classified on the instrumented record/model paths; raw builder queries are not counted.",
+		),
+		txRollback: dbDesc(
+			"tx_rollback_total",
+			"Top-level transactions that rolled back (the transaction callback failed). Nested transactions reuse the outer one and are not counted.",
+		),
+		backupAttempts:  backupDesc("attempts_total", "Started backup creations."),
+		backupSuccesses: backupDesc("success_total", "Successfully completed backup creations."),
+		backupFailures:  backupDesc("failure_total", "Failed backup creations."),
+		backupDuration:  backupDesc("duration_seconds", "Total time spent in completed backups (sum; average = this / attempts_total)."),
+		backupLastSize:  backupDesc("last_size_bytes", "Size of the last successfully created backup archive."),
+	}
+}
+
+func (c *dbEventsCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.queryTimeout
+	ch <- c.lockTimeout
+	ch <- c.txRollback
+	ch <- c.backupAttempts
+	ch <- c.backupSuccesses
+	ch <- c.backupFailures
+	ch <- c.backupDuration
+	ch <- c.backupLastSize
+}
+
+func (c *dbEventsCollector) Collect(ch chan<- prometheus.Metric) {
+	s := c.provider.DBEventStats()
+
+	ch <- prometheus.MustNewConstMetric(c.queryTimeout, prometheus.CounterValue, float64(s.DataQueryTimeouts), "data")
+	ch <- prometheus.MustNewConstMetric(c.queryTimeout, prometheus.CounterValue, float64(s.AuxQueryTimeouts), "aux")
+	ch <- prometheus.MustNewConstMetric(c.lockTimeout, prometheus.CounterValue, float64(s.DataLockTimeouts), "data")
+	ch <- prometheus.MustNewConstMetric(c.lockTimeout, prometheus.CounterValue, float64(s.AuxLockTimeouts), "aux")
+	ch <- prometheus.MustNewConstMetric(c.txRollback, prometheus.CounterValue, float64(s.DataTxRollbacks), "data")
+	ch <- prometheus.MustNewConstMetric(c.txRollback, prometheus.CounterValue, float64(s.AuxTxRollbacks), "aux")
+
+	ch <- prometheus.MustNewConstMetric(c.backupAttempts, prometheus.CounterValue, float64(s.BackupAttempts))
+	ch <- prometheus.MustNewConstMetric(c.backupSuccesses, prometheus.CounterValue, float64(s.BackupSuccesses))
+	ch <- prometheus.MustNewConstMetric(c.backupFailures, prometheus.CounterValue, float64(s.BackupFailures))
+	ch <- prometheus.MustNewConstMetric(c.backupDuration, prometheus.CounterValue, s.BackupDuration.Seconds())
+	ch <- prometheus.MustNewConstMetric(c.backupLastSize, prometheus.GaugeValue, float64(s.BackupLastSize))
 }
 
 // realtimeCollector reports live realtime (SSE) subscription metrics at scrape

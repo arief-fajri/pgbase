@@ -10,7 +10,12 @@ import (
 	"github.com/pocketbase/dbx"
 )
 
-func queryTimeoutHook(timeout time.Duration) dbx.ExecHookFunc {
+// queryTimeoutHook bounds a query with a client-side timeout (when the query
+// carries no context yet) and classifies the resulting error into the
+// diagnostic counters (see recordDBQueryError): a deadline-exceeded error
+// counts as a query timeout. It is installed on the record query path
+// (RecordQuery — the data side).
+func queryTimeoutHook(app *BaseApp, timeout time.Duration) dbx.ExecHookFunc {
 	return func(q *dbx.Query, op func() error) error {
 		if q.Context() == nil {
 			cancelCtx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -26,6 +31,7 @@ func queryTimeoutHook(timeout time.Duration) dbx.ExecHookFunc {
 
 		execErr := op()
 		if execErr != nil && !errors.Is(execErr, sql.ErrNoRows) {
+			app.recordDBQueryError(execErr, false)
 			execErr = fmt.Errorf("%w; failed query: %s", execErr, q.SQL())
 		}
 

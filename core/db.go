@@ -140,6 +140,8 @@ func (app *BaseApp) delete(ctx context.Context, model Model, isForAuxDB bool) er
 		})
 	})
 	if deleteErr != nil {
+		// diagnostic classification of the bounded write (G-DB-03/04 pairing)
+		app.recordDBQueryError(deleteErr, isForAuxDB)
 		errEvent := &ModelErrorEvent{ModelEvent: *event, Error: deleteErr}
 		errEvent.App = app // replace with the initial app in case it was changed by the hook
 		hookErr := app.OnModelAfterDeleteError().Trigger(errEvent)
@@ -334,6 +336,8 @@ func (app *BaseApp) create(ctx context.Context, model Model, withValidations boo
 	if saveErr != nil {
 		event.Model.MarkAsNew() // reset "new" state
 
+		// diagnostic classification of the bounded write (G-DB-03/04 pairing)
+		app.recordDBQueryError(saveErr, isForAuxDB)
 		errEvent := &ModelErrorEvent{ModelEvent: *event, Error: saveErr}
 		errEvent.App = app // replace with the initial app in case it was changed by the hook
 		hookErr := app.OnModelAfterCreateError().Trigger(errEvent)
@@ -424,6 +428,8 @@ func (app *BaseApp) update(ctx context.Context, model Model, withValidations boo
 		})
 	})
 	if saveErr != nil {
+		// diagnostic classification of the bounded write (G-DB-03/04 pairing)
+		app.recordDBQueryError(saveErr, isForAuxDB)
 		errEvent := &ModelErrorEvent{ModelEvent: *event, Error: saveErr}
 		errEvent.App = app // replace with the initial app in case it was changed by the hook
 		hookErr := app.OnModelAfterUpdateError().Trigger(errEvent)

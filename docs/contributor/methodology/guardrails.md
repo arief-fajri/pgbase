@@ -211,7 +211,6 @@ These guardrails are defined but their enforcement is `(gap)`; they are tracked 
 
 | Guard rail | Missing enforcement | Linked roadmap item |
 |---|---|---|
-| G-REL-01 | timeout and rollback counters | Phase 0 / diagnostic metrics |
 | G-API-01/04/05 | compatibility test suite | Phase 1 / compatibility suite |
 | G-REL-04 | restore drill + `last_verified_backup` metric | Phase 0 / restore drills |
 | G-UPG-04 | upgrade runbook | Phase 0 / versioning |

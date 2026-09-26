@@ -199,6 +199,12 @@ type App interface {
 	// In a transaction the ConcurrentDB() and NonconcurrentDB() refer to the same *dbx.TX instance.
 	NonconcurrentDB() dbx.Builder
 
+	// DBEventStats returns a point-in-time snapshot of the diagnostic DB
+	// event counters (query/lock timeouts, transaction rollbacks) and the
+	// backup lifecycle stats, scraped by the /metrics collector
+	// (G-DB-03/04, G-REL-01 observability pairing).
+	DBEventStats() DBEventStats
+
 	// AuxDB returns the app auxiliary.db builder instance.
 	//
 	// It automatically routes the SELECT queries to the underlying

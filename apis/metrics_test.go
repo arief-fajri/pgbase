@@ -92,8 +92,15 @@ func TestMetricsMiddlewareObservesRoutePattern(t *testing.T) {
 		Help:      "test",
 		Buckets:   prometheus.DefBuckets,
 	}, []string{"method", "route", "status"})
+	reqs := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: metricsNamespace,
+		Subsystem: "http",
+		Name:      "requests_total",
+		Help:      "test",
+	}, []string{"method", "route", "status"})
 	reg.MustRegister(hist)
-	m := &appMetrics{registry: reg, httpDuration: hist}
+	reg.MustRegister(reqs)
+	m := &appMetrics{registry: reg, httpDuration: hist, httpRequests: reqs}
 
 	r := router.NewRouter(func(w http.ResponseWriter, req *http.Request) (*core.RequestEvent, router.EventCleanupFunc) {
 		e := new(core.RequestEvent)
@@ -128,6 +135,17 @@ func TestMetricsMiddlewareObservesRoutePattern(t *testing.T) {
 	})
 	if count != 2 {
 		t.Fatalf("expected 2 observations collapsed onto the templated route, got %d", count)
+	}
+
+	// the request counter must track the same collapsed series (rate signal
+	// for the error ratio: pgbase_http_requests_total{status=~"5.."} / total)
+	total := counterValue(t, reg, "pgbase_http_requests_total", map[string]string{
+		"method": "GET",
+		"route":  "/api/test/{id}",
+		"status": "200",
+	})
+	if total != 2 {
+		t.Fatalf("expected 2 counted requests, got %v", total)
 	}
 }
 
@@ -240,6 +258,63 @@ func TestDBStatsCollector(t *testing.T) {
 
 // TestRealtimeCollector verifies the connected-clients gauge and the
 // dropped-messages sum reflect live broker state.
+// TestDBEventsCollector verifies the diagnostic events collector renders all
+// eight series with the right values, types and db labels.
+func TestDBEventsCollector(t *testing.T) {
+	provider := stubDBEventsProvider{stats: core.DBEventStats{
+		DataQueryTimeouts: 3,
+		AuxQueryTimeouts:  1,
+		DataLockTimeouts:  2,
+		AuxLockTimeouts:   0,
+		DataTxRollbacks:   4,
+		AuxTxRollbacks:    0,
+		BackupAttempts:    5,
+		BackupSuccesses:   4,
+		BackupFailures:    1,
+		BackupDuration:    90 * time.Second,
+		BackupLastSize:    2048,
+	}}
+
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(newDBEventsCollector(provider))
+
+	type expect struct {
+		name   string
+		labels map[string]string
+		value  float64
+	}
+	for _, e := range []expect{
+		{"pgbase_db_query_timeout_total", map[string]string{"db": "data"}, 3},
+		{"pgbase_db_query_timeout_total", map[string]string{"db": "aux"}, 1},
+		{"pgbase_db_lock_timeout_total", map[string]string{"db": "data"}, 2},
+		{"pgbase_db_lock_timeout_total", map[string]string{"db": "aux"}, 0},
+		{"pgbase_db_tx_rollback_total", map[string]string{"db": "data"}, 4},
+		{"pgbase_db_tx_rollback_total", map[string]string{"db": "aux"}, 0},
+		{"pgbase_backup_attempts_total", nil, 5},
+		{"pgbase_backup_success_total", nil, 4},
+		{"pgbase_backup_failure_total", nil, 1},
+		{"pgbase_backup_duration_seconds", nil, 90},
+	} {
+		if got := counterValue(t, reg, e.name, e.labels); got != e.value {
+			t.Errorf("%s%v = %v, want %v", e.name, e.labels, got, e.value)
+		}
+	}
+
+	// the last backup size is a gauge, not a counter
+	if got := gaugeSeriesValue(t, reg, "pgbase_backup_last_size_bytes", nil); got != 2048 {
+		t.Errorf("pgbase_backup_last_size_bytes = %v, want 2048", got)
+	}
+}
+
+// stubDBEventsProvider is a fixed-stats dbEventsProvider for collector tests.
+type stubDBEventsProvider struct {
+	stats core.DBEventStats
+}
+
+func (p stubDBEventsProvider) DBEventStats() core.DBEventStats {
+	return p.stats
+}
+
 func TestRealtimeCollector(t *testing.T) {
 	broker := subscriptions.NewBroker()
 	c := newRealtimeCollector(stubRealtimeProvider{broker: broker})
@@ -308,6 +383,49 @@ func histogramSampleCount(t *testing.T, g prometheus.Gatherer, name string, labe
 		for _, metric := range mf.GetMetric() {
 			if labelsMatch(metric.GetLabel(), labels) {
 				return metric.GetHistogram().GetSampleCount()
+			}
+		}
+	}
+	return 0
+}
+
+// counterValue returns the value of the counter series with the given name
+// and labels (0 if absent).
+func counterValue(t *testing.T, g prometheus.Gatherer, name string, labels map[string]string) float64 {
+	t.Helper()
+	return metricValue(t, g, name, labels, func(m *dto.Metric) float64 {
+		return m.GetCounter().GetValue()
+	})
+}
+
+// gaugeSeriesValue returns the value of the gauge series with the given name
+// and labels (0 if absent), gathered from a registry.
+func gaugeSeriesValue(t *testing.T, g prometheus.Gatherer, name string, labels map[string]string) float64 {
+	t.Helper()
+	return metricValue(t, g, name, labels, func(m *dto.Metric) float64 {
+		return m.GetGauge().GetValue()
+	})
+}
+
+func metricValue(
+	t *testing.T,
+	g prometheus.Gatherer,
+	name string,
+	labels map[string]string,
+	get func(*dto.Metric) float64,
+) float64 {
+	t.Helper()
+	mfs, err := g.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	for _, mf := range mfs {
+		if mf.GetName() != name {
+			continue
+		}
+		for _, metric := range mf.GetMetric() {
+			if labelsMatch(metric.GetLabel(), labels) {
+				return get(metric)
 			}
 		}
 	}

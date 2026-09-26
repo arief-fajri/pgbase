@@ -34,6 +34,11 @@ func (app *BaseApp) runInTransaction(db dbx.Builder, fn func(txApp App) error, i
 			return fn(txApp)
 		})
 
+		if txErr != nil {
+			// the transaction rolled back — diagnostic counter (G-REL-01)
+			app.recordTxRollback(isForAuxDB)
+		}
+
 		// execute all after event calls on transaction complete
 		if txApp != nil && txApp.txInfo != nil {
 			afterFuncErr := txApp.txInfo.runAfterFuncs(txErr)
@@ -66,6 +71,11 @@ func (app *BaseApp) RunInSingleTx(fn func(txApp App) error) error {
 		txApp = app.createTxAppSingleDB(tx)
 		return fn(txApp)
 	})
+
+	if txErr != nil {
+		// the migration transaction rolled back — diagnostic counter (G-REL-01)
+		app.recordTxRollback(false)
+	}
 
 	// execute all after event calls on transaction complete
 	if txApp != nil && txApp.txInfo != nil {

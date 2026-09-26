@@ -19,7 +19,7 @@
 | Lock contention | Lock wait is bounded | `lock_timeout 30s`; experiment C |
 | Migration fails | Startup/upgrade does not silently continue in invalid state | advisory-xact-lock + transactional Up(); experiment D |
 | Realtime disconnects | Client reconnects without corrupting primary data | SSE idle timeout 5 min, client reconnect; EPHEMERAL only |
-| Backup fails | Failure is visible; backup not treated as valid | backup API error + metrics (add `last_verified_backup`) |
+| Backup fails | Failure is visible; backup not treated as valid | backup API error + `pgbase_backup_failure_total` (`last_verified_backup`: Phase 0 restore drills) |
 | Restore fails | Recovery reports failure clearly | restore error path — archive-derived verification gate (`core/backup_pg_verify.go`, W-08 closed) |
 | App crashes | DB remains consistent | transactional writes, WAL |
 | Process restarts | Existing data remains usable | data in PG, not in-memory; settings reload from DB |

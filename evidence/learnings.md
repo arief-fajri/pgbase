@@ -4,6 +4,29 @@
 > appends here so knowledge accumulates between AI sessions and training runs.
 > Format per entry: date · area · what happened · what changed in the system model/docs.
 
+## 2026-09-26 — Phase 0 diagnostic metrics shipped (PR-5)
+
+- **Event:** The G-REL-01 gap (timeout and rollback counters) closed: `pgbase_db_query_timeout_total` /
+  `pgbase_db_lock_timeout_total` / `pgbase_db_tx_rollback_total` (label `db`), backup lifecycle counters
+  (`pgbase_backup_attempts/success/failure_total`, `_duration_seconds`, `_last_size_bytes`), and
+  `pgbase_http_requests_total{method,route,status}` next to the existing histogram.
+- **Lesson 1 (honest boundaries):** "reconnect" from the roadmap target text is NOT countable at the
+  `database/sql` layer — the driver exposes no reconnect events, and counting them would mean pgx tracer
+  surgery on the production connect path. Skipped honestly: pool dynamics are already visible via
+  `pgbase_db_wait_count_total`/`open_connections`; the outbox LISTEN reconnect belongs to Phase 4 realtime
+  observability. The roadmap row text was edited rather than shipping a half-honest counter.
+- **Lesson 2 (shallow-clone traps):** diagnostic counters MUST live behind a pointer field on BaseApp —
+  `createTxApp` shallow-clones the app (`clone := *app`), so value-type counters would give every
+  transaction clone its own invisible counters (same trap as bootstrapMu, documented there).
+- **Lesson 3 (classification choke points):** error classification lives where the bound is applied:
+  `queryTimeoutHook` (record reads, data) + the three model write-execute boundaries in `db.go` + the
+  transaction boundaries in `db_tx.go`. Server-side events classify by SQLSTATE (`57014` statement
+  timeout, `55P03` lock timeout — the `pgconn.PgError` pattern already existed in `validators/db.go`);
+  40P01 deadlocks are deliberately uncounted (outside the guard-rail pairing). Raw builder queries are
+  not classified — documented in the metric Help, not silently implied.
+- **Follow-up:** PR-6 (restore drills + `last_verified_backup`) now has the backup-metrics groundwork;
+  the metric lands there with G-REL-04.
+
 ## 2026-09-26 — W-08 closed: restore gate is now archive-derived (PR-4)
 
 - **Event:** The old restore success gate was `count(_collections) >= 1` — a restore that dropped

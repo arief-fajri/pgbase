@@ -14,6 +14,24 @@ groups:
         annotations:
           summary: "pgbase DB pool is saturated (client waits detected)"
 
+      # Transactions rolling back at a sustained rate (app-level failures)
+      - alert: PgbaseTxRollbacks
+        expr: sum(rate(pgbase_db_tx_rollback_total[5m])) by (db) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "pgbase transactions are rolling back at a sustained rate (db={{ $labels.db }})"
+
+      # Queries or lock waits hitting the timeout policy
+      - alert: PgbaseQueryTimeouts
+        expr: sum(rate(pgbase_db_query_timeout_total[5m])) by (db) > 0 or sum(rate(pgbase_db_lock_timeout_total[5m])) by (db) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "pgbase queries are hitting the timeout policy (db={{ $labels.db }})"
+
       # Rough availability signal: no successful /api responses for 5 minutes
       - alert: PgbaseApiUnreachable
         expr: sum(rate(pgbase_http_request_duration_seconds_count{status=~"2..|3.."}[5m])) == 0
