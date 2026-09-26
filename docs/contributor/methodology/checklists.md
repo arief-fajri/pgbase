@@ -10,14 +10,14 @@
 
 ```text
 [x] Application starts against a fresh PostgreSQL database        (test suite bootstrap)
-[ ] Migrations complete successfully                             (fresh + existing; experiment D)
+[x] Migrations complete successfully                             (fresh + existing; experiment D)
 [x] Application restarts successfully                            (bootstrap path)
 [x] CRUD operations work                                         (api/record tests)
 [ ] Transactions are atomic                                      (rollback tests — expand to W-01 class)
 [x] Failed writes do not partially persist                       (SAVEPOINT audit guard test)
 [ ] Concurrent writes behave correctly                           (concurrency tests — Phase 4 / load harness)
 [x] Database constraints are enforced                            (functional unique identity indexes)
-[ ] Shutdown releases database resources                         (graceful shutdown test — Phase 0 / reliability tests)
+[x] Shutdown releases database resources                          (serve_shutdown_test: terminate chain + SIGTERM exit 0)
 [x] Startup failure is explicit and diagnosable                  (error propagation in Bootstrap)
 ```
 
@@ -26,14 +26,14 @@
 ```text
 [x] Fresh database works                                          (per-test CREATE DATABASE harness)
 [x] Existing database works                                       (upgrade/migration reuse)
-[ ] Migration state is reproducible                               (experiment D; reproducible boot)
-[ ] Migrations fail safely                                        (experiment D)
+[x] Migration state is reproducible                               (experiment D; reproducible boot)
+[x] Migrations fail safely                                        (experiment D)
 [x] Transaction rollback works                                    (db_tx tests)
-[ ] Query timeout works                                           (timeout test — Phase 0 / reliability tests)
-[ ] Lock timeout works                                            (experiment C / timeout tests)
-[ ] Connection acquisition timeout works                          (connect_timeout tests — Phase 0 / reliability tests)
-[ ] Pool saturation is bounded                                    (experiment B)
-[ ] Pool saturation is observable                                 (wait metrics + alert) ✅ live
+[x] Query timeout works                                           (db_timeout_test: client QueryTimeout bound + G-REL-01 counter)
+[x] Lock timeout works                                            (experiment C + db_timeout_test: 55P03 bounded lock wait)
+[x] Connection acquisition timeout works                           (db_connect_test: refused fast + connect_timeout bounded)
+[x] Pool saturation is bounded                                    (experiment B)
+[x] Pool saturation is observable                                 (wait metrics + alert) ✅ live
 [x] PostgreSQL restart is recoverable                             (experiment A)
 [ ] Network interruption is recoverable                           (experiment A extended)
 [x] TLS configuration works in production mode                    (sslmode warning + prod compose)
@@ -63,7 +63,7 @@ Where possible, every row above is an automated test of external behavior agains
 ## 4. Security (reference: G-SEC-01…08)
 
 ```text
-[ ] No secrets committed                                         (gitignore; CI secret scan — Phase 0 / secret scanning)
+[x] No secrets committed                                         (gitignore; CI secret scan ✅ — gitleaks full history, security-scan.yaml)
 [ ] Production secrets supplied securely                         (env/secret store; --encryptionEnv) ✅
 [ ] TLS enabled/configured                                       (sslmode require/verify-full; HSTS) ✅
 [ ] Database not unintentionally public                          (prod compose internal-only network) ✅
@@ -81,16 +81,16 @@ Where possible, every row above is an automated test of external behavior agains
 
 ```text
 [x] Backup can be created                                         (pg_dump path)
-[ ] Backup failure is observable                                  (error surfaced; metrics gap)
-[ ] Backup can be stored outside the application host             (S3 wiring implemented)
-[ ] Backup can be restored                                        (pg_restore path)
-[ ] Restore produces a valid schema                               (experiment E — L3 cross-check)
-[ ] Restore preserves application data                            (experiment E)
-[ ] Restore preserves authentication data                         (experiment E)
+[x] Backup failure is observable                                  (error surfaced; backup failure metrics ✅)
+[x] Backup can be stored outside the application host             (S3 wiring implemented)
+[x] Backup can be restored                                        (pg_restore path)
+[x] Restore produces a valid schema                               (experiment E — L3 cross-check)
+[x] Restore preserves application data                            (experiment E)
+[x] Restore preserves authentication data                         (experiment E)
 [ ] Restore preserves required files/configuration                (storage + settings)
-[ ] Restore procedure is documented                               ([disaster-recovery.md](../../deployment/disaster-recovery.md))
-[ ] Restore procedure has been executed successfully              (experiment E — gate)
-[ ] Last verified backup is observable                            (last_verified_backup metric — gap)
+[x] Restore procedure is documented                               ([disaster-recovery.md](../../deployment/disaster-recovery.md))
+[x] Restore procedure has been executed successfully              (experiment E — gate)
+[x] Last verified backup is observable                            (pgbase_backup_last_verified_timestamp_seconds ✅ — _params row + boot load; drill feeds it)
 ```
 
 ## 6. Release checklist
@@ -100,17 +100,21 @@ A release is not ready merely because unit tests pass. The release gate combines
 ```text
 [ ] Unit tests pass                                              (go test ./...)
 [ ] Integration tests pass                                       (DB-backed suite + -race)
-[ ] PostgreSQL compatibility tests pass                          (PG 16/17 matrix — Phase 0 / versioning)
+[ ] No recovered panics in the suite output                      (go test ./... -v | grep RECOVERED | grep -v test_recover — empty;
+                                                                 only the deliberate tools/routine recover drill may panic)
+[x] PostgreSQL compatibility tests pass                          (release.yaml pg-matrix: full suite × postgres:16/17-alpine;
+                                                                 observed claim in deployment/upgrades.md §4)
 [ ] API compatibility tests pass                                 (Phase 1 / compatibility suite)
 [ ] Realtime tests pass                                          (realtime + outbox suites)
-[ ] Security checks pass                                         (govulncheck, npm audit, secret scan — Phase 0)
+[ ] Security checks pass                                         (govulncheck, npm audit, secret scan — security-scan.yaml)
 [ ] Migration tests pass                                         (experiment D + migration tests)
 [ ] Backup/restore verification passes                            (experiment E + last_verified)
 [ ] Failure experiments for affected subsystem pass               (A–E per affected area)
 [ ] Observability exists for affected subsystem                   ([observability.md](./observability.md) §5 pairing)
 [ ] Documentation updated                                        (docs build + lychee green)
 [ ] API contract updated if caller-visible behavior changed      (api-contract.md)
-[ ] Rollback/recovery procedure exists                            (upgrade runbook)
+[x] Rollback/recovery procedure exists                            (deployment/upgrades.md — restore-based app rollback,
+                                                                 operator-owned PostgreSQL upgrade)
 ```
 
 ## 7. Definition of Done (per non-trivial change)

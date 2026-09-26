@@ -46,8 +46,11 @@ type instanceHeartbeatGuard struct {
 
 	mu        sync.Mutex
 	lastMulti bool
-	stopCh    chan struct{}
-	done      chan struct{} // closed when the background goroutine exits
+	// running reports whether a heartbeat goroutine is live; stopCh and done
+	// are non-nil exactly while running (all three are mu-guarded).
+	running bool
+	stopCh  chan struct{}
+	done    chan struct{} // closed when the background goroutine exits
 }
 
 func newInstanceHeartbeatGuard(app *BaseApp) *instanceHeartbeatGuard {
@@ -55,8 +58,6 @@ func newInstanceHeartbeatGuard(app *BaseApp) *instanceHeartbeatGuard {
 		app:        app,
 		instanceID: "@" + security.PseudorandomString(10),
 		interval:   defaultInstanceHeartbeatInterval,
-		stopCh:     make(chan struct{}),
-		done:       make(chan struct{}),
 	}
 }
 
@@ -95,16 +96,31 @@ func (guard *instanceHeartbeatGuard) init(e *BootstrapEvent) error {
 	}
 
 	guard.mu.Lock()
-	// allow re-bootstrap (the previous stopCh was closed by cleanup)
-	if guard.stopCh == nil {
-		guard.stopCh = make(chan struct{})
+	// Re-bootstrap WITHOUT the terminate chain is legal: Bootstrap() resets
+	// the previous state itself (it never runs cleanup), so churn such as
+	// Bootstrap -> ResetBootstrapState -> Bootstrap leaves the previous
+	// goroutine running. Stop and drain it before starting a fresh one —
+	// otherwise both goroutines would share a single done channel and the
+	// second close(done) would panic ("close of closed channel", W-12).
+	// NB! init runs on the bootstrap owner goroutine (Bootstrap() itself is
+	// not concurrency-safe), so this stop-and-swap needs no extra guarding.
+	var oldDone chan struct{}
+	if guard.running {
+		close(guard.stopCh)
+		oldDone = guard.done
 	}
-	if guard.done == nil {
-		guard.done = make(chan struct{})
-	}
-	stopCh := guard.stopCh
-	done := guard.done
+	stopCh := make(chan struct{})
+	done := make(chan struct{})
+	guard.stopCh = stopCh
+	guard.done = done
+	guard.running = true
 	guard.mu.Unlock()
+
+	// wait for the previous goroutine to exit outside the lock (its runCycle
+	// may be mid DB write); each goroutine only ever closes its own done.
+	if oldDone != nil {
+		<-oldDone
+	}
 
 	// write an initial presence so peers see us promptly, then tick
 	if err := guard.writeHeartbeat(); err != nil {
@@ -132,16 +148,21 @@ func (guard *instanceHeartbeatGuard) init(e *BootstrapEvent) error {
 
 func (guard *instanceHeartbeatGuard) cleanup(e *TerminateEvent) error {
 	guard.mu.Lock()
-	if guard.stopCh != nil {
+	var done chan struct{}
+	if guard.running {
 		close(guard.stopCh)
+		done = guard.done
 		guard.stopCh = nil
+		guard.done = nil
+		guard.running = false
 	}
-	done := guard.done
-	guard.done = nil
 	guard.mu.Unlock()
 
 	// Wait for the background goroutine to exit before continuing the
 	// terminate chain, so DB connections can be safely closed afterwards.
+	// (running=false — e.g. an app terminated without ever bootstrapping —
+	// has nothing to wait for: the constructor no longer pre-creates the
+	// channels, so this cannot block on a goroutine that never existed.)
 	if done != nil {
 		<-done
 	}

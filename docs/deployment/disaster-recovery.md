@@ -4,7 +4,7 @@
 
 Backup, restore, and recovery for PG-BASE.
 
-> Enabling/ops context: [Production Runbook §7](./production.md#7-backup--restore).
+> Enabling/ops context: [Production Runbook §7](./production.md#7-backup--restore). An app or PostgreSQL upgrade that needs to be undone restores from here — see [Upgrades & Versioning §2](./upgrades.md#2-upgrading-the-app).
 
 ## 1. Backup formats
 
@@ -48,8 +48,8 @@ Recovery procedures must be executable by an operator who did not write the orig
 ## 4. Verification discipline
 
 - A backup is **not valid** until a restore has been verified.
-- Restore success today is gated by a single `count(_collections) >= 1` check — this is a known weak point. Hardening (per-table counts, expected schema, settings sanity) is [Phase 0](../contributor/roadmap.md).
-- The meaningful operational signal is **`last_verified_backup_timestamp`**, not `last_backup_timestamp` — a created backup is not necessarily usable.
+- Restore success is gated by the **archive-derived verification** (`pg_restore --list` TOC + stderr classification + table/index completeness + settings/auth sanity, `core/backup_pg_verify.go`) — a corrupt archive is rejected before the destructive restore; a partial restore fails loudly.
+- The meaningful operational signal is **`pgbase_backup_last_verified_timestamp_seconds`**, not `last_backup_timestamp` — a created backup is not necessarily usable. It is written by the verified restore to `_params` (`last_verified_backup`), survives restarts, and is `0` = never verified: alert on `time() - this > your drill cadence`.
 - Backups should be stored **outside the application host** (S3 wiring exists; retention via `CronMaxKeep`).
 
 ## 5. DR drill schedule

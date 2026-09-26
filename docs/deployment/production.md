@@ -98,6 +98,8 @@ Migrate manually if you prefer (equivalent to what `serve` does on start):
 ./pgbase migrate
 ```
 
+Upgrades (binary or PostgreSQL major), the versioning policy, and rollback are covered in [Upgrades & Versioning](./upgrades.md).
+
 ---
 
 ## 4. Running the server
@@ -182,7 +184,15 @@ curl http://127.0.0.1:9090/metrics    # Prometheus text format
 | `pgbase_db_idle_connections` | gauge | `db` | idle connections |
 | `pgbase_db_max_open_connections` | gauge | `db` | pool ceiling (0 = unlimited) |
 | `pgbase_db_wait_count_total` | counter | `db` | connections waited for |
-| `pgbase_db_wait_duration_seconds_total` | counter | `db` | time blocked on the pool |
+| `pgbase_db_wait_duration_seconds_total` | counter | `db` | time blocked waiting on the pool |
+| `pgbase_db_query_timeout_total` | counter | `db` | queries aborted by a timeout (client deadline or server `statement_timeout`) |
+| `pgbase_db_lock_timeout_total` | counter | `db` | statements aborted by the server `lock_timeout` |
+| `pgbase_db_tx_rollback_total` | counter | `db` | top-level transactions that rolled back |
+| `pgbase_backup_attempts_total` / `_success_total` / `_failure_total` | counter | — | backup lifecycle |
+| `pgbase_backup_duration_seconds` | counter | — | total time spent backing up (avg = / attempts) |
+| `pgbase_backup_last_size_bytes` | gauge | — | last successful backup archive size |
+| `pgbase_backup_last_verified_timestamp_seconds` | gauge | — | unix timestamp of the last restore that passed the verification gate (**0 = never verified** — alert on `time() - this > your drill cadence`) |
+| `pgbase_http_requests_total` | counter | `method`, `route`, `status` | total requests — error ratio: `rate(...{status=~"5.."}) / rate(...)` |
 | `pgbase_realtime_connected_clients` | gauge | — | connected SSE clients |
 | `pgbase_realtime_dropped_messages` | gauge | — | dropped on full client buffers |
 
@@ -190,6 +200,8 @@ curl http://127.0.0.1:9090/metrics    # Prometheus text format
 
 - **loopback**: `127.0.0.1:9090` (host) — Prometheus on the same machine
 - **internal-only**: bind a private interface, or publish the container port on `127.0.0.1` only, or protect with a reverse-proxy `basic_auth`, mTLS, or firewall. Non-loopback binds require `PB_METRICS_EXPOSE=true`.
+
+**Liveness vs readiness:** `GET /api/health` answers `200` while the process serves (liveness — it never touches the database, so a load balancer does not kill a healthy process during a DB outage). `GET /api/ready` answers `503` until the data pool can execute a query and the core schema is readable (readiness). Wire load balancers, Kubernetes probes, and the Compose healthcheck to `/api/ready` (the shipped `docker-compose.prod.yml` already does); use `/api/health` only to decide whether the process itself is alive.
 
 ### 8.1 Scraping — examples
 

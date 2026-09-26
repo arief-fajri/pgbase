@@ -195,6 +195,114 @@ jobs:
         # instrumentation overhead.
         run: go test -race ./... -count=1 -p 4 -timeout=2400s
 
+  # PostgreSQL engine compatibility matrix (Phase 0 / versioning, DRR-0003):
+  # runs the full suite against every supported engine major (16 and 17) so
+  # the "PostgreSQL 16/17" claim in docs/deployment/upgrades.md is observed in
+  # CI, not asserted. The plain `goreleaser` and `race` jobs stay on the
+  # default postgres:16-alpine leg — race coverage is about the Go code, not
+  # about engine coverage, so running it per engine major would only double
+  # the wall clock for no extra signal.
+  pg-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      # both legs must report, even when one fails — the matrix IS the
+      # compatibility evidence, so a red leg should never cancel the other
+      # one before it produces a result
+      fail-fast: false
+      matrix:
+        pg: [16, 17]
+    env:
+      # compose image override (tests/docker-compose.test.yml); only the
+      # engine major differs from the other jobs — same test database,
+      # same suite, same isolation harness
+      TEST_POSTGRES_IMAGE: postgres:${{ matrix.pg }}-alpine
+      PGTEST_HOST: localhost
+      PGTEST_PORT: 5433
+      PGTEST_USER: test
+      PGTEST_PASSWORD: test
+      PGTEST_DBNAME: pgbase_test
+      # Raw core.NewBaseApp tests use the production DBConnect path
+      # (PB_POSTGRES_*), not the PGTEST_* harness — point them at the same
+      # test Postgres (same rationale as in the goreleaser job above).
+      PB_POSTGRES_HOST: localhost
+      PB_POSTGRES_PORT: 5433
+      PB_POSTGRES_USER: test
+      PB_POSTGRES_PASSWORD: test
+      PB_POSTGRES_DBNAME: pgbase_test
+    steps:
+      - name: Checkout
+        # pinned by full SHA (CFG-07); was actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Go
+        # pinned by full SHA (CFG-07); was actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: '>=1.26.5'
+
+      # The committed ui/dist is embedded by the tests, so no Node/UI build is
+      # needed here (only the goreleaser job rebuilds the dashboard).
+
+      - name: Start Postgres ${{ matrix.pg }}
+        run: docker compose -f tests/docker-compose.test.yml up -d --wait
+
+      # pg_dump refuses to dump a newer server than its own client major, and
+      # the backup round-trip test needs a client >= the running server — so
+      # this leg must install the client that matches its engine major.
+      #
+      # W-14: the PATH entries on Ubuntu hosts are postgresql-common's
+      # pg_wrapper symlinks, whose client-version choice depends on the
+      # connection environment and local cluster state (observed on this
+      # runner: a `pg_restore --list` resolving the default 16.x cluster while
+      # the export resolved the newest 17.x client). Pin the exact client
+      # directory in front of PATH so every pg binary invocation in the suite
+      # resolves the same major, and fail fast — exit code, not just an echoed
+      # version — if the pin is missing or reports the wrong major.
+      - name: Install PostgreSQL ${{ matrix.pg }} client (pg_dump / pg_restore)
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          if ! sudo apt-get install -y postgresql-client-${{ matrix.pg }}; then
+            # fall back to the official PGDG apt repo if the base image does
+            # not ship this client major in its default repositories
+            curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+              | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+            echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+              | sudo tee /etc/apt/sources.list.d/pgdg.list
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client-${{ matrix.pg }}
+          fi
+          CLIENT_BIN="/usr/lib/postgresql/${{ matrix.pg }}/bin"
+          if [ ! -x "$CLIENT_BIN/pg_dump" ] || [ ! -x "$CLIENT_BIN/pg_restore" ]; then
+            echo "::error::postgresql-client-${{ matrix.pg }} did not provide $CLIENT_BIN/pg_dump and pg_restore"
+            exit 1
+          fi
+          echo "$CLIENT_BIN" >> "$GITHUB_PATH"
+          V_DUMP=$("$CLIENT_BIN/pg_dump" --version)
+          V_RESTORE=$("$CLIENT_BIN/pg_restore" --version)
+          echo "$V_DUMP"
+          echo "$V_RESTORE"
+          case "$V_DUMP" in
+            *" ${{ matrix.pg }}."*) ;;
+            *)
+              echo "::error::pg_dump major mismatch: '$V_DUMP' (expected ${{ matrix.pg }}.x)"
+              exit 1
+              ;;
+          esac
+          case "$V_RESTORE" in
+            *" ${{ matrix.pg }}."*) ;;
+            *)
+              echo "::error::pg_restore major mismatch: '$V_RESTORE' (expected ${{ matrix.pg }}.x)"
+              exit 1
+              ;;
+          esac
+
+      - name: Run tests
+        # same plain pass as the goreleaser job (database-per-test isolation,
+        # -p 4 package parallelism, extended timeout margin)
+        run: go test ./... -count=1 -p 4 -timeout=1200s
+
   # Lint pass — same command as `make lint`, blocking.
   # The version is pinned to the release the tree was verified clean against;
   # bump it deliberately after running the new version locally first.
@@ -243,7 +351,8 @@ jobs:
   # Danger Zone → Change visibility → Public (packages created via
   # GITHUB_TOKEN start private, which would break the curl | sh quickstart).
   docker:
-    needs: [goreleaser, race, lint]
+    # all quality gates, including both engine legs of the pg-matrix
+    needs: [goreleaser, race, lint, pg-matrix]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

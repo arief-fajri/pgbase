@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // pgRestoreBinary returns the pg_restore executable path (honoring PB_PG_RESTORE_BIN).
@@ -46,13 +47,24 @@ func (app *BaseApp) ImportFromPGDump(ctx context.Context, extractedDir string) e
 
 	app.Logger().Info("[PG restore] Restoring native PostgreSQL dump", slog.String("database", conn.DBName))
 
+	// pre-restore archive validation (W-08): parse the archive TOC BEFORE the
+	// destructive pg_restore wipes the current database — a corrupt or
+	// truncated dump is rejected while the live data is still intact, and the
+	// parsed object set becomes the post-restore completeness expectation.
+	// The connection env goes with it (W-14) so the --list invocation resolves
+	// the same pg_restore client as the export and the restore below.
+	toc, err := pgRestoreListTables(ctx, bin, dumpPath, conn.envList())
+	if err != nil {
+		return fmt.Errorf("invalid backup archive: %w", err)
+	}
+
 	// --clean --if-exists drops existing objects before recreating them;
 	// --no-owner/--no-privileges avoid role mismatches.
 	//
 	// NB: we intentionally do NOT pass --exit-on-error. A full-database restore
-	// emits benign noise (e.g. "DROP EXTENSION pgcrypto" / "already exists")
-	// that sets a non-zero exit code; success is gated by the post-restore
-	// sanity check below, not by the process exit code.
+	// emits benign noise (see pgRestoreBenignStderrError) that sets a non-zero
+	// exit code; success is gated by the stderr classification below plus the
+	// post-restore verification, not by the process exit code.
 	args := []string{
 		"--clean", "--if-exists", "--no-owner", "--no-privileges",
 		"-d", conn.DBName, dumpPath,
@@ -66,28 +78,49 @@ func (app *BaseApp) ImportFromPGDump(ctx context.Context, extractedDir string) e
 
 	runErr := cmd.Run()
 	stderrTail := strings.TrimSpace(stderr.String())
+
+	// real errors first (W-08): any pg_restore error that is not a known
+	// benign conflict is fatal — a partial restore must fail loudly.
+	if fatal := pgRestoreFatalStderrErrors(stderrTail); len(fatal) > 0 {
+		return fmt.Errorf("pg_restore failed with real errors:\n%s", strings.Join(fatal, "\n"))
+	}
+
 	if runErr != nil && stderrTail != "" {
+		// only benign noise is left (fatal lines returned above); keep going —
+		// the post-restore verification below decides success
 		app.Logger().Warn(
-			"[PG restore] pg_restore reported errors (continuing; verifying result)",
+			"[PG restore] pg_restore reported benign errors (continuing; verifying result)",
 			slog.String("error", runErr.Error()),
 			slog.String("stderr", stderrTail),
 		)
 	}
 
-	// real success gate: the restored database must contain collections
-	var collectionsCount int
-	if err := app.ConcurrentDB().NewQuery(`SELECT count(*) FROM "_collections"`).Row(&collectionsCount); err != nil {
-		return fmt.Errorf("pg_restore verification failed (could not read _collections): %w; pg_restore stderr: %s", err, stderrTail)
-	}
-	if collectionsCount == 0 {
-		return fmt.Errorf("pg_restore produced an empty database (no collections); pg_restore stderr: %s", stderrTail)
+	// real success gate (W-08): the restored database must match the archive —
+	// every TOC table readable, every TOC index present (post-data completion
+	// marker), plus the semantic invariants of a bootable database.
+	if err := app.verifyRestoredDatabase(ctx, toc); err != nil {
+		return fmt.Errorf("pg_restore verification failed: %w; pg_restore stderr: %s", err, stderrTail)
 	}
 
 	if err := app.importBackupStorage(ctx, extractedDir); err != nil {
 		return fmt.Errorf("failed to import the storage files: %w", err)
 	}
 
-	app.Logger().Info("[PG restore] Restore completed successfully", slog.Int("collections", collectionsCount))
+	// G-REL-04: this restore passed the verification gate — persist the
+	// verified-restore timestamp (best-effort: observability metadata must
+	// not flip a successful restore into a failure).
+	if err := app.markBackupVerified(ctx, time.Now()); err != nil {
+		app.Logger().Warn(
+			"[PG restore] Failed to record the verified-restore timestamp",
+			slog.String("error", err.Error()),
+		)
+	}
+
+	app.Logger().Info(
+		"[PG restore] Restore completed successfully",
+		slog.Int("tables", len(toc.Tables)),
+		slog.Int("indexes", len(toc.Indexes)),
+	)
 
 	return nil
 }

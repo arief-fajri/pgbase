@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -240,9 +239,31 @@ func (app *BaseApp) RealtimeOutboxTailCursor() (time.Time, string, error) {
 // OpenRealtimeOutboxListener opens a dedicated pgx-native connection for
 // LISTENing on the realtime outbox channel. It needs a native connection
 // (not database/sql) for WaitForNotification. The connection targets the same
-// database the app is connected to, deriving host/port/user from the live
-// connection and falling back to the stored config for password/sslmode.
+// database the app is connected to, with the parameters derived by
+// realtimeOutboxListenerConfig.
 func (app *BaseApp) OpenRealtimeOutboxListener(connectCtx context.Context) (*pgx.Conn, error) {
+	cfg, err := app.realtimeOutboxListenerConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return pgx.Connect(connectCtx, buildDSN(cfg))
+}
+
+// realtimeOutboxListenerConfig assembles the DBConfig for the outbox listener:
+// it starts from the config captured at init time and overrides the identity
+// fields from the live connection so a custom DBConnect closure (test harness)
+// is honoured for user and dbname.
+//
+// Host/port always come from the stored config (resolved from the PB_POSTGRES_*
+// env at init time), the same source of truth as the backup path (pgConnInfo).
+// They are deliberately NOT read from the live connection: inet_server_addr()/
+// inet_server_port() report the server-side view of the connection, which is not
+// a dialable client-side address in NAT/port-mapped topologies (Docker Desktop,
+// managed PG, pgbouncer) — see DRR-0001 / W-11. The test-harness env prefix is
+// deliberately never consulted here: production code must not depend on test
+// configuration (hard rule 5 / G-DB-05).
+func (app *BaseApp) realtimeOutboxListenerConfig() (DBConfig, error) {
 	app.bootstrapMu.RLock()
 	bootstrapped := app.dataDB != nil
 	// Start from the config captured at init time.
@@ -250,48 +271,19 @@ func (app *BaseApp) OpenRealtimeOutboxListener(connectCtx context.Context) (*pgx
 	app.bootstrapMu.RUnlock()
 
 	if !bootstrapped {
-		return nil, fmt.Errorf("database not initialized")
+		return DBConfig{}, fmt.Errorf("database not initialized")
 	}
 
-	// Override from the live connection so a custom DBConnect closure
-	// (test harness) is honoured for host, port, user, and dbname.
 	var currentDB, currentUser string
 	if err := app.NonconcurrentDB().NewQuery(
 		`SELECT current_database(), current_user`,
 	).Row(&currentDB, &currentUser); err != nil {
-		return nil, fmt.Errorf("failed to read current database/user: %w", err)
+		return DBConfig{}, fmt.Errorf("failed to read current database/user: %w", err)
 	}
 	cfg.DBName = currentDB
 	cfg.User = currentUser
 
-	var serverHost string
-	var serverPort int
-	if err := app.NonconcurrentDB().NewQuery(
-		`SELECT COALESCE(inet_server_addr(), '') AS host, inet_server_port() AS port`,
-	).Row(&serverHost, &serverPort); err == nil {
-		if serverHost != "" {
-			cfg.Host = serverHost
-		}
-		if serverPort > 0 {
-			cfg.Port = serverPort
-		}
-	}
-
-	// Password/SSLMode cannot be read from the live connection; keep the
-	// values from the stored config (resolved from env vars at init time).
-	// For test environments where PB_POSTGRES_PASSWORD is unset, fall back
-	// to PGTEST_PASSWORD/PGTEST_SSLMODE so the listener authenticates
-	// correctly against the test database.
-	if cfg.Password == "" {
-		if v := os.Getenv("PGTEST_PASSWORD"); v != "" {
-			cfg.Password = v
-		}
-	}
-	if v := os.Getenv("PGTEST_SSLMODE"); v != "" {
-		cfg.SSLMode = v
-	}
-
-	return pgx.Connect(connectCtx, buildDSN(cfg))
+	return cfg, nil
 }
 
 // registerRealtimeOutboxCleanup registers a cleanup cron for the realtime

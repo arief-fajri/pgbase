@@ -34,7 +34,16 @@ func (app *BaseApp) RecordQuery(collectionModelOrIdentifier any) *dbx.SelectQuer
 		tableName = "@@__invalidCollectionModelOrIdentifier"
 	}
 
-	query := app.ConcurrentDB().Select(app.ConcurrentDB().QuoteSimpleColumnName(tableName) + ".*").From(tableName)
+	db := app.ConcurrentDB()
+
+	// W-13: not bootstrapped (or already terminated) - keep the query
+	// constructible, but fail every execution with the explicit sentinel
+	// instead of nil-dereferencing the builder
+	if db == nil {
+		return detachedSelectQuery(tableName+".*", tableName)
+	}
+
+	query := db.Select(db.QuoteSimpleColumnName(tableName) + ".*").From(tableName)
 
 	// in case of an error attach a new context and cancel it immediately with the error
 	if collectionErr != nil {
@@ -44,7 +53,7 @@ func (app *BaseApp) RecordQuery(collectionModelOrIdentifier any) *dbx.SelectQuer
 	}
 
 	return query.WithBuildHook(func(q *dbx.Query) {
-		q.WithExecHook(queryTimeoutHook(app.config.QueryTimeout)).
+		q.WithExecHook(queryTimeoutHook(app, app.config.QueryTimeout)).
 			WithOneHook(func(q *dbx.Query, a any, op func(b any) error) error {
 				if a == nil {
 					return op(a)

@@ -106,6 +106,12 @@ type BaseApp struct {
 	auxDB       dbx.Builder
 	dbConfig    DBConfig // resolved connection config captured at init time for outbox listener
 
+	// dbEvents is the diagnostic event counter state (query/lock timeouts,
+	// transaction rollbacks, backup stats) scraped by the /metrics collector.
+	// It is a pointer on purpose: BaseApp is shallow-copied for transaction
+	// apps (createTxApp), and the copies must share the same counters.
+	dbEvents *dbEventsState
+
 	// instanceHeartbeatGuard tracks multi-instance presence (R-1b) once wired.
 	instanceHeartbeatGuard *instanceHeartbeatGuard
 
@@ -235,6 +241,7 @@ func NewBaseApp(config BaseAppConfig) *BaseApp {
 		subscriptionsBroker: subscriptions.NewBroker(),
 		config:              &config,
 		bootstrapMu:         &sync.RWMutex{},
+		dbEvents:            &dbEventsState{},
 
 		// stable per-process identity for the cross-instance realtime outbox
 		realtimeOutboxOrigin: "@" + security.PseudorandomString(10),
@@ -481,6 +488,11 @@ func (app *BaseApp) Bootstrap() error {
 			return err
 		}
 
+		// load the persisted verified-restore timestamp (G-REL-04 mirror for
+		// pgbase_backup_last_verified_timestamp_seconds; best-effort — an
+		// absent/unparseable row means "never verified", never a boot error)
+		app.loadBackupLastVerified()
+
 		// try to cleanup the pb_data temp directory (if any)
 		_ = os.RemoveAll(filepath.Join(app.DataDir(), LocalTempDirName))
 
@@ -597,6 +609,17 @@ func (app *BaseApp) AuxNonconcurrentDB() dbx.Builder {
 	app.bootstrapMu.RLock()
 	defer app.bootstrapMu.RUnlock()
 	return app.auxDB
+}
+
+// DBEventStats returns a point-in-time snapshot of the diagnostic event
+// counters (query/lock timeouts, transaction rollbacks, backup stats) —
+// scraped by the /metrics collector (see core/db_events.go).
+func (app *BaseApp) DBEventStats() DBEventStats {
+	app.bootstrapMu.RLock()
+	dbEvents := app.dbEvents
+	app.bootstrapMu.RUnlock()
+
+	return dbEvents.snapshot()
 }
 
 // DataDir returns the app data directory path.
@@ -1225,8 +1248,10 @@ func (app *BaseApp) initDataDB() error {
 	// Capture the resolved connection config for the outbox listener so it
 	// reconnects to the same host/port/user/database without re-resolving
 	// from PB_POSTGRES_* env vars (which may differ from a custom DBConnect
-	// closure used by the test harness). Assigned together with the handle
-	// in one synchronized section (see bootstrapMu).
+	// closure used by the test harness). Password/SSLMode for the listener
+	// come only from this config, never from test env fallbacks (W-06).
+	// Assigned together with the handle in one synchronized section
+	// (see bootstrapMu).
 	app.bootstrapMu.Lock()
 	app.dbConfig = ResolveDBConfig(inputConfig)
 	app.dataDB = db

@@ -5,7 +5,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/arief-fajri/pgbase/core"
 	"github.com/arief-fajri/pgbase/tests"
@@ -163,6 +165,100 @@ func TestPGDumpExportImportRoundTrip(t *testing.T) {
 	}
 }
 
+// TestImportFromPGDumpRecordsVerifiedTimestamp verifies the G-REL-04 signal:
+// only a restore that passes the verification gate records the
+// last_verified_backup timestamp — a rejected (corrupt) restore leaves both
+// the _params row and the in-memory mirror untouched, a verified restore
+// writes a parseable, recent RFC3339 timestamp.
+func TestImportFromPGDumpRecordsVerifiedTimestamp(t *testing.T) {
+	requireNativePGTools(t)
+
+	ctx := context.Background()
+
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatalf("NewTestApp: %v", err)
+	}
+	defer app.Cleanup()
+
+	countLastVerified := func() int {
+		var n int
+		if err := app.DB().NewQuery(
+			`SELECT count(*) FROM "_params" WHERE id = 'last_verified_backup'`,
+		).Row(&n); err != nil {
+			t.Fatalf("count last_verified_backup rows: %v", err)
+		}
+		return n
+	}
+
+	// fresh app: never verified — no row, mirror zero
+	if got := app.DBEventStats().BackupLastVerified; got != 0 {
+		t.Fatalf("fresh app must have no verified timestamp, got %d", got)
+	}
+	if n := countLastVerified(); n != 0 {
+		t.Fatalf("fresh app must have no last_verified_backup row, got %d", n)
+	}
+
+	dumpDir := t.TempDir()
+	dumpPath := filepath.Join(dumpDir, pgBackupDumpNameForTest)
+
+	// a rejected restore must not record: corrupt the archive header
+	if err := app.ExportToPGDump(ctx, dumpPath); err != nil {
+		t.Fatalf("ExportToPGDump: %v", err)
+	}
+	data, err := os.ReadFile(dumpPath)
+	if err != nil {
+		t.Fatalf("read dump: %v", err)
+	}
+	for i := 0; i < 64 && i < len(data); i++ {
+		data[i] = 0x00
+	}
+	if err := os.WriteFile(dumpPath, data, 0o644); err != nil {
+		t.Fatalf("write corrupted dump: %v", err)
+	}
+	if err := app.ImportFromPGDump(ctx, dumpDir); err == nil {
+		t.Fatal("expected the corrupt archive to be rejected")
+	}
+	if got := app.DBEventStats().BackupLastVerified; got != 0 {
+		t.Fatalf("a rejected restore must not record a timestamp, got %d", got)
+	}
+	if n := countLastVerified(); n != 0 {
+		t.Fatalf("a rejected restore must not write the _params row, got %d rows", n)
+	}
+
+	// a verified restore records: re-export a clean archive and import it.
+	// The persisted format is second-precision RFC3339, so the window bounds
+	// are compared at second granularity (a sub-second restoreStart would
+	// false-fail against the truncated timestamp).
+	restoreStart := time.Now().UTC().Truncate(time.Second)
+	if err := app.ExportToPGDump(ctx, dumpPath); err != nil {
+		t.Fatalf("ExportToPGDump (clean re-export): %v", err)
+	}
+	if err := app.ImportFromPGDump(ctx, dumpDir); err != nil {
+		t.Fatalf("ImportFromPGDump: %v", err)
+	}
+
+	var raw string
+	if err := app.DB().NewQuery(
+		`SELECT "value" FROM "_params" WHERE "id" = 'last_verified_backup'`,
+	).Row(&raw); err != nil {
+		t.Fatalf("read last_verified_backup row: %v", err)
+	}
+	ts, err := time.Parse(time.RFC3339, strings.TrimSpace(raw))
+	if err != nil {
+		t.Fatalf("last_verified_backup is not RFC3339: %q (%v)", raw, err)
+	}
+	if ts.Before(restoreStart) || ts.After(time.Now().UTC().Add(time.Second)) {
+		t.Fatalf(
+			"last_verified_backup %v is not within the restore window [%v, %v]",
+			ts, restoreStart, time.Now().UTC().Add(time.Second),
+		)
+	}
+	if got := app.DBEventStats().BackupLastVerified; got != ts.Unix() {
+		t.Fatalf("mirror = %d, want the persisted timestamp %d", got, ts.Unix())
+	}
+}
+
 // auxCountRows returns the row count of a table on the aux connection (e.g. _logs).
 func auxCountRows(t *testing.T, app core.App, table string) int {
 	t.Helper()
@@ -172,4 +268,71 @@ func auxCountRows(t *testing.T, app core.App, table string) int {
 		t.Fatalf("aux count %q: %v", table, err)
 	}
 	return n
+}
+
+// TestImportFromPGDumpRejectsCorruptArchive is a W-08 regression test: a
+// corrupt archive must be rejected BEFORE the destructive pg_restore wipes
+// the live database (pre-restore TOC validation), not "succeed" silently
+// afterwards. The live data must still be answerable after the rejection.
+func TestImportFromPGDumpRejectsCorruptArchive(t *testing.T) {
+	requireNativePGTools(t)
+
+	ctx := context.Background()
+
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatalf("NewTestApp: %v", err)
+	}
+	defer app.Cleanup()
+
+	// seed a marker so the survival of the live database is observable
+	demo1, err := app.FindCollectionByNameOrId("demo1")
+	if err != nil {
+		t.Fatalf("find demo1: %v", err)
+	}
+	baseDemo1 := countRows(t, app, "demo1")
+
+	marker := core.NewRecord(demo1)
+	marker.Set("text", "corrupt-archive-marker")
+	if err := app.SaveNoValidate(marker); err != nil {
+		t.Fatalf("create marker record: %v", err)
+	}
+	markerId := marker.Id
+
+	// a real dump of the live database, then corrupted in place (destroy the
+	// custom-format header so pg_restore --list cannot even read the TOC)
+	dumpDir := t.TempDir()
+	dumpPath := filepath.Join(dumpDir, pgBackupDumpNameForTest)
+	if err := app.ExportToPGDump(ctx, dumpPath); err != nil {
+		t.Fatalf("ExportToPGDump: %v", err)
+	}
+	data, err := os.ReadFile(dumpPath)
+	if err != nil {
+		t.Fatalf("read dump: %v", err)
+	}
+	for i := 0; i < 64 && i < len(data); i++ {
+		data[i] = 0x00
+	}
+	if err := os.WriteFile(dumpPath, data, 0o644); err != nil {
+		t.Fatalf("write corrupted dump: %v", err)
+	}
+
+	// the corrupt archive must be rejected loudly
+	importErr := app.ImportFromPGDump(ctx, dumpDir)
+	if importErr == nil {
+		t.Fatal("expected the corrupt archive to be rejected, got success")
+	}
+
+	// ... and rejected BEFORE the destructive restore: the live database is
+	// still answerable with its data intact (the marker record survived)
+	if got := countRows(t, app, "demo1"); got != baseDemo1+1 {
+		t.Fatalf("live database was wiped by the rejected restore: demo1 count = %d, want %d", got, baseDemo1+1)
+	}
+	var gotText string
+	if err := app.DB().NewQuery(`SELECT text FROM "demo1" WHERE id = '` + markerId + `'`).Row(&gotText); err != nil {
+		t.Fatalf("read marker record after the rejected restore: %v", err)
+	}
+	if gotText != "corrupt-archive-marker" {
+		t.Fatalf("marker text mismatch: got %q", gotText)
+	}
 }

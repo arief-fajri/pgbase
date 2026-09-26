@@ -54,7 +54,8 @@ G-DB-03  Database operations must have bounded execution time.
 G-DB-04  Lock waits must be bounded.
          Enforcement: code — lock_timeout 30s (role level, PgBouncer-safe) ✅
 G-DB-05  Database credentials must come from protected configuration.
-         Enforcement: config — PB_POSTGRES_* env / secret store; .env gitignored ✅
+         Enforcement: config — PB_POSTGRES_* env / secret store; .env gitignored; production code
+         never reads the test-harness env prefix (static scan, core/hard_rules_test.go) ✅
 G-DB-06  Production database traffic must use the intended TLS policy.
          Enforcement: code+config — sslmode=prefer default, non-loopback sslmode=disable warns;
          production requires require/verify-full ✅
@@ -100,7 +101,8 @@ G-API-05  Filtering, sorting, pagination, and validation semantics require compa
 
 ```text
 G-SEC-01  No secrets in source control.
-           Enforcement: CI (gitignore + code review) — secret scanning job is a (gap, Phase 0) ⚠️
+          Enforcement: CI — gitignore + code review + gitleaks full-history scan on every PR/push
+          (job secret-scan in .github/workflows/security-scan.yaml; rules .gitleaks.toml) ✅
 G-SEC-02  Production secrets must be supplied through protected configuration.
           Enforcement: config — env / secret store; PB_ENCRYPTION_KEY via --encryptionEnv ✅
 G-SEC-03  Metrics must not be publicly exposed unintentionally.
@@ -132,8 +134,9 @@ G-REL-03  Transient PostgreSQL recovery must not require manual process restart 
           documented.
           Enforcement: code — pgx reconnect on pool recycle (ConnMaxLifetime 30m); PgBouncer notes ✅
 G-REL-04  Backup is not considered valid until restoration has been verified.
-          Enforcement: process — restore drill (Phase 0) + last_verified_backup signal
-          (gap — metric to add) ⚠️
+          Enforcement: code + process + metric — the restore gate (`core/backup_pg_verify.go`) writes the
+          verified-restore timestamp to `_params` (last_verified_backup); `pgbase_backup_last_verified_timestamp_seconds`
+          (0 = never verified); drill `evidence/experiments/EXPERIMENT-E.sh` ✅
 G-REL-05  Recovery procedures must be executable by an operator who did not write the original feature.
           Enforcement: process + docs — docs/deployment/disaster-recovery.md; drill per gate ⚠️
 G-REL-06  Data corruption must be treated as a release-blocking failure.
@@ -209,10 +212,7 @@ These guardrails are defined but their enforcement is `(gap)`; they are tracked 
 
 | Guard rail | Missing enforcement | Linked roadmap item |
 |---|---|---|
-| G-SEC-01 | CI secret scan | Phase 0 / secret scanning |
-| G-REL-01 | timeout and rollback counters | Phase 0 / diagnostic metrics |
 | G-API-01/04/05 | compatibility test suite | Phase 1 / compatibility suite |
-| G-REL-04 | restore drill + `last_verified_backup` metric | Phase 0 / restore drills |
 | G-UPG-04 | upgrade runbook | Phase 0 / versioning |
 | G-UPG-05 | PG 16/17 CI matrix | Phase 0 / versioning |
 | G-UPG-06 | versioning & upgrade policy | Phase 0 / versioning |

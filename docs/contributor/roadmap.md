@@ -112,6 +112,7 @@ Verified against the tree at v0.5.4. This is inventory, not a promise that every
 |---|---|---|
 | PostgreSQL engine (`pgx` v5, JSONB, `timestamptz`) | Shipped | `core/db_connect.go`, `tools/dbutils/pgsql.go` |
 | Security hardening (SSRF guard, download caps, identifier quoting, pinned CI) | Shipped | `tools/security/`, `.github/workflows/` |
+| Secret scanning (gitleaks full history) | Shipped | `.gitleaks.toml`, `.github/workflows/security-scan.yaml` |
 | Audit trails (`_audits`, `_audit_reads`, partitioned) | Shipped | `core/audit_hooks.go`, `migrations/` |
 | Native `pg_dump` / `pg_restore` plus offline CLI | Shipped | `core/backup_pg_*.go`, `cmd/backup.go` |
 | Legacy SQLite archive import | Partial — no dry-run, no report, no dedicated command | `core/backup_sqlite_import.go` |
@@ -121,11 +122,12 @@ Verified against the tree at v0.5.4. This is inventory, not a promise that every
 | One-command provision and install | Shipped | `deploy/quickstart.sh`, `install.sh` |
 | Agent quick start and CLI contract | Partial — MCP not started | `docs/agents.md` |
 | Production Compose, Caddy, runbook | Shipped | `docker-compose.prod.yml`, `docs/deployment/` |
-| Restore verification | Partial | roadmap Phase 0 leftover |
+| Restore verification | Shipped | `core/backup_pg_verify.go` — archive-derived TOC gate: pre-restore archive validation, stderr classification, table/index completeness, settings/auth sanity (W-08 closed 2026-09-26) |
 | pgvector field, similarity API | Not started | Phase 2 |
 | MCP server | Not started | Phase 3 |
 | Distributed rate limiter | Not started — limit is per instance | Phase 4 |
-| Readiness distinct from liveness | Not started — `/api/health` does not ping the database | Phase 0 leftover |
+| Readiness distinct from liveness | Shipped | `apis/ready.go` (`GET /api/ready`: 200/503 on a data-pool + `_collections` probe; health stays liveness-only) |
+| Versioning and upgrade policy | Shipped | `docs/deployment/upgrades.md` — app/PostgreSQL upgrade + rollback policy; PG 16/17 claim observed by the `pg-matrix` job in `.github/workflows/release.yaml` |
 
 System model: [Platform Design](./methodology/platform-design.md), [Guardrails](./methodology/guardrails.md), [Observability](./methodology/observability.md), [Checklists](./methodology/checklists.md). Known weaknesses stay in [Failure Analysis](./methodology/failure-modes.md).
 
@@ -137,22 +139,9 @@ Each item still needs the 10-step definition of done in its PR. See [Checklists 
 
 ### Phase 0 — Trust
 
-Most of this is done: security policy, reproducible releases, native backups, metrics, production docs, one-command install.
+Complete (2026-09-26): security policy, secret scanning, reproducible releases, native backups, metrics, production docs, one-command install, production-path hygiene (W-06), readiness (`/api/ready`), restore verification (W-08), diagnostic metrics, restore drills (`last_verified_backup`), reliability tests for the §1–2 shutdown/timeout gaps, and the versioning and upgrade policy with an observed PostgreSQL 16/17 CI matrix.
 
-Still P0, because "we have a backup" is not "we trust a restore":
-
-| Item | State | Target |
-|---|---|---|
-| Restore verification | Partial | Post-restore counts, expected schema, settings sanity. A partial restore fails loudly. |
-| Restore drills | Not started | A recorded drill that feeds `last_verified_backup` |
-| Readiness | Partial | `/api/ready` checks the database. Liveness is not readiness. |
-| Versioning and upgrade policy | Not started | How PG-BASE versions break, how to roll back an app or PostgreSQL upgrade, and a PostgreSQL 16/17 CI matrix so that claim is observed |
-| Production-path hygiene | Not started | W-06: remove the `PGTEST_*` fallback from `core/realtime_outbox.go` production paths, with a regression test. Hard rule 5 holds |
-| Secret scanning | Not started | A CI job that fails the build on committed secrets (G-SEC-01), alongside govulncheck and npm audit |
-| Diagnostic metrics | Not started | Error ratio (`pgbase_http_requests_total`), DB event counters (query/lock timeout, reconnect, rollback) for G-DB-03/04 and G-REL-01, and backup attempt/success/duration/size. `last_verified_backup` stays with restore drills |
-| Reliability tests | Not started | Query-timeout, connect-timeout, and graceful-shutdown tests — Evaluation Checklists §1–2 gaps |
-
-**Exit:** an operator can install, back up, restore, and tell whether the process is ready — with the gaps above closed.
+**Exit (met):** an operator can install, back up, restore, upgrade and roll back, and tell whether the process is ready.
 
 ### Phase 1 — Migration
 
@@ -168,7 +157,7 @@ Highest priority. This is the acquisition engine, not the product identity.
 
 Public status stays honest on [Migrate](../migrate.md). Do not document the CLI as shipped until it is.
 
-**Exit:** a real PocketBase application moves to PG-BASE with minimal client changes, through a repeatable, verified process.
+**Exit:** a real PocketBase application moves to PG-BASE with minimal client changes, through a repeatable, verified process. (Tagging v1.0.0 is gated on this exit plus burn-in — criteria in `evidence/records/DRR-0004.md`.)
 
 ### Phase 2 — PostgreSQL advantage
 

@@ -69,3 +69,7 @@
 .VPHome .VPHero {
   padding-bottom: 0;
 }
+
+.VPNavScreen .container {
+  max-width: 100%;
+}

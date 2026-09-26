@@ -42,6 +42,7 @@ export default withMermaid(defineConfig({
                     { text: "Single-Host Setup", link: "/deployment/single-host" },
                     { text: "Production Runbook", link: "/deployment/production" },
                     { text: "Disaster Recovery", link: "/deployment/disaster-recovery" },
+                    { text: "Upgrades & Versioning", link: "/deployment/upgrades" },
                 ],
             },
             {
@@ -79,6 +80,7 @@ export default withMermaid(defineConfig({
                     { text: "Single-Host Setup", link: "/deployment/single-host" },
                     { text: "Production Runbook", link: "/deployment/production" },
                     { text: "Disaster Recovery", link: "/deployment/disaster-recovery" },
+                    { text: "Upgrades & Versioning", link: "/deployment/upgrades" },
                 ],
             },
             {
@@ -101,7 +103,7 @@ export default withMermaid(defineConfig({
                 text: "Development",
                 collapsed: false,
                 items: [
-                    { text: "Overview", link: "/contributor/" },
+                    { text: "Development Overview", link: "/contributor/" },
                     { text: "Development Setup", link: "/contributor/developing" },
                     { text: "Contributing Guide", link: "/contributor/contributing" },
                     { text: "Release Process", link: "/contributor/releasing" },
