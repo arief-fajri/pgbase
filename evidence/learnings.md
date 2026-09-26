@@ -422,3 +422,42 @@
   skipped — pg_dump 18.3 ≥ 17); local leg 16 (default restored): same 0 FAIL / 35 ok /
   gate = 1 / round-trip PASS; `docs-check` + `docs:build` green; lint 0 issues.
   Phase 0 roadmap exit declared met (two §6 release rows ticked).
+
+## 2026-09-26 — Phase 0 exit audit: the claim was true, the checklist was stale
+
+- **What ran (audit penuh A–D, branch `chore/phase-0-trust`):** evidence
+  triage of every Phase 0 exit capability (install / backup / restore /
+  upgrade / rollback / readiness) against commits, DRRs, and experiments
+  A–E; live gates on both engine legs (16 default + 17 override: 0 FAIL /
+  35 ok each, recovered-panic gate empty except the sanctioned drill,
+  round-trip PASS); race suite 35 ok; lint 0; docs-check + docs:build green;
+  and an operator walkthrough on a fresh `pgbase_exit_audit` database —
+  build → serve → ready 200 + health 200 → superuser auth → collection +
+  record via REST → offline `backup exit-pre-upgrade.zip` → binary-replace
+  upgrade (ready 200, migrations no-op) → rollback with the OLD binary plus
+  restore (ready 200, record `fxtgowpvcvmyuv9` intact, gauge
+  `pgbase_backup_last_verified_timestamp_seconds` > 0,
+  `_params.last_verified_backup` stamped) → full cleanup.
+- **Lesson (checklists drift from evidence):** experiments A–E had been
+  PASS since 2026-09-12/26 while 12 checklist rows (§1 migrations, §2
+  migration state/fail-safety/pool saturation, §5 restore ×6, S3 off-host)
+  still read `[ ]` — the mechanism existed, the checkbox never met it. A
+  checkbox without a mechanism is decoration; a mechanism without a tick is
+  an audit waiting to happen. Reconcile evidence records with checklists on
+  every exit audit, not only when a PR touches the subsystem.
+- **Lesson (walkthrough beats reading):** upgrades.md §2 steps executed as
+  written — even the restore CLI's own output ("Re()start the application
+  to load the restored data") matches the runbook order. Docs that are
+  never run rot into fiction; the exit audit is where docs become tests.
+  (Local builds both report `(untracked)` — expected per upgrades.md §1;
+  version stamping exists only in tag builds.)
+- **Triage residue (honest boundaries):** remaining `[ ]` rows are
+  phase-owned, not Phase 0 gaps — §1 concurrent writes + §2 network
+  interruption/PgBouncer (Phase 4), §3 compatibility (Phase 1), §5 files
+  configuration (not exercised by experiment E), §6 run-status rows (ticked
+  at release time per releasing.md §4), §4 security rows (pre-existing
+  `[ ] + ✅ live` annotation pattern, outside the exit statement).
+- **Evidence:** audit logs in `opencode/audit_pg16.log`,
+  `audit_pg17.log`, `audit_race.log` (session temp); walkthrough outputs
+  inline above; verdict = zero category-(c) gaps → Phase 0 exit stands.
+  v1.0.0 criteria recorded as DRR-0004.

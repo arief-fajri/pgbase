@@ -10,7 +10,7 @@
 
 ```text
 [x] Application starts against a fresh PostgreSQL database        (test suite bootstrap)
-[ ] Migrations complete successfully                             (fresh + existing; experiment D)
+[x] Migrations complete successfully                             (fresh + existing; experiment D)
 [x] Application restarts successfully                            (bootstrap path)
 [x] CRUD operations work                                         (api/record tests)
 [ ] Transactions are atomic                                      (rollback tests — expand to W-01 class)
@@ -26,14 +26,14 @@
 ```text
 [x] Fresh database works                                          (per-test CREATE DATABASE harness)
 [x] Existing database works                                       (upgrade/migration reuse)
-[ ] Migration state is reproducible                               (experiment D; reproducible boot)
-[ ] Migrations fail safely                                        (experiment D)
+[x] Migration state is reproducible                               (experiment D; reproducible boot)
+[x] Migrations fail safely                                        (experiment D)
 [x] Transaction rollback works                                    (db_tx tests)
 [x] Query timeout works                                           (db_timeout_test: client QueryTimeout bound + G-REL-01 counter)
 [x] Lock timeout works                                            (experiment C + db_timeout_test: 55P03 bounded lock wait)
 [x] Connection acquisition timeout works                           (db_connect_test: refused fast + connect_timeout bounded)
-[ ] Pool saturation is bounded                                    (experiment B)
-[ ] Pool saturation is observable                                 (wait metrics + alert) ✅ live
+[x] Pool saturation is bounded                                    (experiment B)
+[x] Pool saturation is observable                                 (wait metrics + alert) ✅ live
 [x] PostgreSQL restart is recoverable                             (experiment A)
 [ ] Network interruption is recoverable                           (experiment A extended)
 [x] TLS configuration works in production mode                    (sslmode warning + prod compose)
@@ -82,14 +82,14 @@ Where possible, every row above is an automated test of external behavior agains
 ```text
 [x] Backup can be created                                         (pg_dump path)
 [x] Backup failure is observable                                  (error surfaced; backup failure metrics ✅)
-[ ] Backup can be stored outside the application host             (S3 wiring implemented)
-[ ] Backup can be restored                                        (pg_restore path)
-[ ] Restore produces a valid schema                               (experiment E — L3 cross-check)
-[ ] Restore preserves application data                            (experiment E)
-[ ] Restore preserves authentication data                         (experiment E)
+[x] Backup can be stored outside the application host             (S3 wiring implemented)
+[x] Backup can be restored                                        (pg_restore path)
+[x] Restore produces a valid schema                               (experiment E — L3 cross-check)
+[x] Restore preserves application data                            (experiment E)
+[x] Restore preserves authentication data                         (experiment E)
 [ ] Restore preserves required files/configuration                (storage + settings)
-[ ] Restore procedure is documented                               ([disaster-recovery.md](../../deployment/disaster-recovery.md))
-[ ] Restore procedure has been executed successfully              (experiment E — gate)
+[x] Restore procedure is documented                               ([disaster-recovery.md](../../deployment/disaster-recovery.md))
+[x] Restore procedure has been executed successfully              (experiment E — gate)
 [x] Last verified backup is observable                            (pgbase_backup_last_verified_timestamp_seconds ✅ — _params row + boot load; drill feeds it)
 ```
 

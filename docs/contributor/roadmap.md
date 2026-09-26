@@ -157,7 +157,7 @@ Highest priority. This is the acquisition engine, not the product identity.
 
 Public status stays honest on [Migrate](../migrate.md). Do not document the CLI as shipped until it is.
 
-**Exit:** a real PocketBase application moves to PG-BASE with minimal client changes, through a repeatable, verified process.
+**Exit:** a real PocketBase application moves to PG-BASE with minimal client changes, through a repeatable, verified process. (Tagging v1.0.0 is gated on this exit plus burn-in — criteria in `evidence/records/DRR-0004.md`.)
 
 ### Phase 2 — PostgreSQL advantage
 

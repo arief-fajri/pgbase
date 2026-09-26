@@ -1,3 +1,55 @@
+## v0.6.0
+
+Phase 0 — Trust complete: readiness, diagnostic metrics, a verified-restore
+signal, the §1–2 reliability suite, and an observed PostgreSQL 16/17
+compatibility matrix with the versioning/upgrade policy.
+
+### Features
+
+- **Readiness endpoint `GET /api/ready` (DRR-0002)**: `200` only when the
+  data pool can execute a query and the `_collections` schema is readable
+  (5 s probe timeout); `503` with a static body otherwise. `GET /api/health`
+  stays liveness-only — wire load balancers to readiness, not health.
+- **Diagnostic metrics (G-REL-01)**: HTTP request counter and event counters
+  on `/metrics`.
+- **`last_verified_backup` (G-REL-04)**: a verified restore persists its
+  RFC3339 timestamp to `_params` and exposes
+  `pgbase_backup_last_verified_timestamp_seconds` after boot; restore drills
+  feed the signal.
+
+### Fixes
+
+- **Outbox listener dead config (W-11, DRR-0001)**: dropped a host/port
+  override read from a poisoned path; a hard-rule-5 scan removed a test-only
+  env fallback from the production code path.
+- **Heartbeat goroutine (W-12)**: stop-and-drain on re-bootstrap so restarts
+  do not leak listeners.
+- **Restore verification gate (W-08)**: archive-derived TOC gate —
+  pre-restore archive validation, stderr classification, table/index
+  completeness, and settings/auth sanity checks.
+
+### Tests
+
+- **Reliability suite closes checklist §1–2 shutdown/timeout gaps (PR-7 +
+  W-13)**: terminate-chain shutdown asserts; installer/boot panics fenced by
+  an `errNotBootstrapped` sentinel across six DB-reset entry points plus a
+  positive control; recovered-panic gate green (only the sanctioned
+  `test_recover` drill panics).
+
+### CI & docs
+
+- **PostgreSQL 16/17 matrix (DRR-0003)**: a `pg-matrix` job runs the full
+  suite per engine major; the test compose image is overridable via
+  `TEST_POSTGRES_IMAGE` (the default stays `postgres:16-alpine`). Docker
+  publication now waits on both legs.
+- **Versioning & upgrade policy**: new `docs/deployment/upgrades.md` —
+  pre-1.0 contract-surface stance, restore-based app rollback,
+  operator-owned PostgreSQL upgrades, and the §4 table of what CI observes.
+  Phase 0 roadmap exit declared met (exit audit, DRR-0004 records the 1.0
+  criteria).
+- Secret scanning recorded as shipped; positioning rewrite; `:latest` GHCR
+  tag gated on all quality gates.
+
 ## v0.5.4
 
 Bug fix release — resolves migration race conditions and realtime/auth shutdown races caught by the new methodology gate.
