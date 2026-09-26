@@ -145,7 +145,6 @@ Still P0, because "we have a backup" is not "we trust a restore":
 | Item | State | Target |
 |---|---|---|
 | Versioning and upgrade policy | Not started | How PG-BASE versions break, how to roll back an app or PostgreSQL upgrade, and a PostgreSQL 16/17 CI matrix so that claim is observed |
-| Reliability tests | Not started | Query-timeout, connect-timeout, and graceful-shutdown tests — Evaluation Checklists §1–2 gaps |
 
 **Exit:** an operator can install, back up, restore, and tell whether the process is ready — with the gaps above closed.
 

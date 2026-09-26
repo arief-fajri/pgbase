@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"hash/crc32"
@@ -62,6 +63,27 @@ func crc32Checksum(str string) string {
 	return strconv.FormatInt(int64(crc32.ChecksumIEEE([]byte(str))), 10)
 }
 
+// errNotBootstrapped is returned by every model/record query and write entry
+// point when the app is not bootstrapped (or has already been terminated and
+// its db handles were reset). It keeps background goroutines that outlive
+// terminate from nil-dereferencing their dbx.Builder (W-13).
+var errNotBootstrapped = errors.New("app not bootstrapped or already terminated")
+
+// detachedSelectQuery builds a SELECT against a throwaway, never-connected
+// builder whose execution is short-circuited with errNotBootstrapped through
+// a build hook. Used by the query paths when the app is not bootstrapped:
+// the query must stay constructible (callers chain conditions on it) but any
+// execution has to fail with the explicit sentinel instead of panicking on a
+// nil builder (see dbx.Query.Rows/execute - both check LastError first).
+func detachedSelectQuery(columns, tableName string) *dbx.SelectQuery {
+	return dbx.NewFromDB(&sql.DB{}, "postgres").
+		Select(columns).
+		From(tableName).
+		WithBuildHook(func(q *dbx.Query) {
+			q.LastError = errNotBootstrapped
+		})
+}
+
 // ModelQuery creates a new preconfigured select query with preset
 // SELECT, FROM and other common fields based on the provided model.
 func (app *BaseApp) ModelQuery(m Model) *dbx.SelectQuery {
@@ -76,6 +98,13 @@ func (app *BaseApp) AuxModelQuery(m Model) *dbx.SelectQuery {
 
 func (app *BaseApp) modelQuery(db dbx.Builder, m Model) *dbx.SelectQuery {
 	tableName := m.TableName()
+
+	// W-13: not bootstrapped (or already terminated) - keep the query
+	// constructible, but fail every execution with the explicit sentinel
+	// instead of nil-dereferencing the builder
+	if db == nil {
+		return detachedSelectQuery(tableName+".*", tableName)
+	}
 
 	return db.
 		Select(tableName + ".*").
@@ -124,6 +153,12 @@ func (app *BaseApp) delete(ctx context.Context, model Model, isForAuxDB bool) er
 				db = e.App.AuxNonconcurrentDB()
 			} else {
 				db = e.App.NonconcurrentDB()
+			}
+
+			// W-13: not bootstrapped (or already terminated) - fail the
+			// write explicitly instead of nil-dereferencing the builder
+			if db == nil {
+				return errNotBootstrapped
 			}
 
 			// bound the write with a client-side deadline so it cannot hang
@@ -298,6 +333,12 @@ func (app *BaseApp) create(ctx context.Context, model Model, withValidations boo
 				db = e.App.NonconcurrentDB()
 			}
 
+			// W-13: not bootstrapped (or already terminated) - fail the
+			// write explicitly instead of nil-dereferencing the builder
+			if db == nil {
+				return errNotBootstrapped
+			}
+
 			// bound the write with a client-side deadline so it cannot hang
 			// indefinitely on a silently dropped connection (see withWriteDeadline)
 			execCtx, cancel := withWriteDeadline(e.Context, app.config.QueryTimeout)
@@ -396,6 +437,12 @@ func (app *BaseApp) update(ctx context.Context, model Model, withValidations boo
 				db = e.App.AuxNonconcurrentDB()
 			} else {
 				db = e.App.NonconcurrentDB()
+			}
+
+			// W-13: not bootstrapped (or already terminated) - fail the
+			// write explicitly instead of nil-dereferencing the builder
+			if db == nil {
+				return errNotBootstrapped
 			}
 
 			// bound the write with a client-side deadline so it cannot hang

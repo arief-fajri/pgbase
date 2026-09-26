@@ -332,3 +332,65 @@
   terminate → `running=false`, channels nil). Reproduction evidence:
   `go test ./core/ -run TestBootstrapStateConcurrentAccess -count=1 -v` — 4×
   `RECOVERED FROM PANIC: close of closed channel` before, 0 after.
+## 2026-09-26 — PR-7: reliability tests close the §1–2 timeout/shutdown gaps
+
+- **Added (6 tests, no production code changed):** client QueryTimeout bound on a
+  real slow query + G-REL-01 counter (`core/db_timeout_test.go`); server
+  `lock_timeout` 55P03 bounded wait via `SET LOCAL` + `RunInTransaction`;
+`connect_timeout` fail-fast against a refused port and RFC 5737 TEST-NET-1
+  (`core/db_connect_test.go`); graceful shutdown releases every DB backend
+  — in-process terminate chain AND real SIGTERM exit code 0 on the built binary
+  (`apis/serve_shutdown_test.go`).
+- **Lesson (test seams):** dbx `execWrap` fires for `Row()` too, so the record
+  timeout hook can be exercised with a raw `Row` scan — no Record model needed;
+  `pg_sleep` belongs in the WHERE clause against a table that always has rows
+  (`_migrations`), since an empty table never evaluates the predicate.
+- **Lesson (child env):** `append(os.Environ(), KEY=v)` does NOT override in
+  subprocesses (getenv takes the first occurrence) — the helper filters the key
+  out first (`serveSubprocessEnv`).
+- **Result:** checklists §1 (shutdown) + §2 (query/lock/conn timeout) rows ticked;
+  roadmap "Reliability tests" row removed.
+
+## 2026-09-26 — The §6 gate earned its keep: W-13 on first run
+
+- The first full `go test ./... -v` with the new PR-7 shutdown test surfaced a
+  second `RECOVERED FROM PANIC` (nil-pointer in `modelQuery`): the first-run
+  installer's FireAndForget superuser create raced the terminate chain after
+  ready → shutdown. The suite was still green — exactly the invisibility class
+  W-12 documented one entry earlier.
+- Recorded as **W-13** (Open, class A provisional) in failure-modes; the PR-7
+  test disables the installer (`InstallerFunc = nil`) because the installer is
+  not the subject under test. The gate now passes with only the sanctioned
+  `tools/routine` `test_recover` hit.
+- Note: the subprocess SIGTERM test captures the child's logs into a buffer that
+  is only printed on failure — child-side recovered panics are NOT part of the
+  suite output the §6 gate greps; exit-code assertions still cover them.
+
+## 2026-09-26 — W-13 closed: guard the query family at the choke point, not the symptom
+
+- **Fixed:** every entry point of the model/record query family now fails with an
+  explicit `errNotBootstrapped` sentinel instead of nil-dereferencing its `dbx.Builder`
+  after `ResetBootstrapState` — `modelQuery` (covers `ModelQuery`/`AuxModelQuery`/
+  `CollectionQuery`/`FindAllCollections`) and `RecordQuery` keep the query constructible
+  on a detached `dbx.NewFromDB(&sql.DB{}, "postgres")` builder whose build hook sets
+  `q.LastError = errNotBootstrapped`, and the create/update/delete write inner functions
+  return the sentinel before dereferencing their builder. Classification confirmed **A**
+  (sibling paths like `writeHeartbeat` already had this guard; no installer stop mechanism
+  was needed — the guarded degradation lands in the existing `serve.go` warning).
+- **Lesson (dbx):** `LastError` set in a `WithBuildHook` short-circuits `Rows()`,
+  `One()`, `All()`, `Row()`, and `Execute()` — they all check it first — so a
+  never-connected builder can carry a precise diagnosable error without any
+  `database/sql` code ever running (the cancelled-context trick degrades to a bare
+  "context canceled", which is worse for operators).
+- **Lesson (test seams):** FireAndForget recovers via the **std** logger, not the app
+  logger — a serve-level regression can assert "no recovered panic" by swapping
+  `log.SetOutput` around the serve/terminate window (mutex-guard: the writer runs on the
+  installer goroutine). Forcing the lost race is a record-create sleep hook held past
+  terminate, so the interleaving that originally fired is now deterministic; the installer
+  func must be stubbed (not nil'd) because the real one calls `LaunchURL`, which would
+  open a browser from the test.
+- **Reproduction evidence:** pre-fix `go test ./core/ -run
+  TestQueriesOnResetAppFailExplicitly -count=1` → deterministic nil-deref panic at
+  `core/db.go:81`; pre-fix serve test → `RECOVERED FROM PANIC` with the exact incident
+  stack (`onRecordSaveExecute → FindAllCollections → modelQuery`); post-fix both green,
+  full suite 0 FAIL / 35 ok, §6 gate = 1 (sanctioned `test_recover` only).

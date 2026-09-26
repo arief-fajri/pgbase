@@ -17,7 +17,7 @@
 [x] Failed writes do not partially persist                       (SAVEPOINT audit guard test)
 [ ] Concurrent writes behave correctly                           (concurrency tests — Phase 4 / load harness)
 [x] Database constraints are enforced                            (functional unique identity indexes)
-[ ] Shutdown releases database resources                         (graceful shutdown test — Phase 0 / reliability tests)
+[x] Shutdown releases database resources                          (serve_shutdown_test: terminate chain + SIGTERM exit 0)
 [x] Startup failure is explicit and diagnosable                  (error propagation in Bootstrap)
 ```
 
@@ -29,9 +29,9 @@
 [ ] Migration state is reproducible                               (experiment D; reproducible boot)
 [ ] Migrations fail safely                                        (experiment D)
 [x] Transaction rollback works                                    (db_tx tests)
-[ ] Query timeout works                                           (timeout test — Phase 0 / reliability tests)
-[ ] Lock timeout works                                            (experiment C / timeout tests)
-[ ] Connection acquisition timeout works                          (connect_timeout tests — Phase 0 / reliability tests)
+[x] Query timeout works                                           (db_timeout_test: client QueryTimeout bound + G-REL-01 counter)
+[x] Lock timeout works                                            (experiment C + db_timeout_test: 55P03 bounded lock wait)
+[x] Connection acquisition timeout works                           (db_connect_test: refused fast + connect_timeout bounded)
 [ ] Pool saturation is bounded                                    (experiment B)
 [ ] Pool saturation is observable                                 (wait metrics + alert) ✅ live
 [x] PostgreSQL restart is recoverable                             (experiment A)
