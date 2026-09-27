@@ -1,6 +1,6 @@
 # System Overview
 
-<DocMeta audience="All" status="stable" verified="v0.5.4" />
+<DocMeta audience="All" status="stable" verified="v0.6.0" />
 
 > PG-BASE is a single-binary application backend in front of **PostgreSQL**. The database stays yours.
 
@@ -33,7 +33,7 @@ The HTTP router is a thin wrapper over Go's std `http.ServeMux` (Go 1.22) in `to
 
 - `apis.Serve` → `RunAllMigrations()` → `NewRouter()`.
 - Global middlewares: `activityLogger` → `panicRecover` → `rateLimit` → `loadAuthToken` (JWT) → `superuserIPsWhitelist` → `securityHeaders` → `BodyLimit` (32 MiB); plus CORS and gzip.
-- Route groups: CRUD `/api/collections/{coll}/records`, auth `/auth-*`, `/api/settings`, `/api/logs`, `/api/audits`, `/api/backups`, `/api/crons`, `/api/files`, `/api/batch`, `/api/realtime` (SSE), `/api/health`, `/api/sql` (superuser SQL runner), UI `/_/{path...}`, and Prometheus `/metrics` on a separate listener.
+- Route groups: CRUD `/api/collections/{coll}/records`, auth `/auth-*`, `/api/settings`, `/api/logs`, `/api/audits`, `/api/backups`, `/api/crons`, `/api/files`, `/api/batch`, `/api/realtime` (SSE), `/api/health`, `/api/ready` (readiness: data-pool + `_collections` probe), `/api/sql` (superuser SQL runner), UI `/_/{path...}`, and Prometheus `/metrics` on a separate listener.
 - Admins (`_superusers`) and regular users are **both `Record`s of auth collections** — there are no longer `/api/users` or `/api/admins` groups.
 
 ### 4. Request → DB flow

@@ -541,3 +541,90 @@
   test `-race -count=5` green post-fix; full `apis` race package green on re-run before
   the W-16 trip was understood; W-15/W-16 rows in
   `docs/contributor/methodology/failure-modes.md`.
+
+## 2026-09-27 — DRR-0005: stability-first roadmap restructure (external review adopted with corrections)
+
+- **What ran:** an external roadmap review proposed reordering the roadmap around
+  production validation. Before adoption, every claim was verified against the tree
+  (realtime outbox, SQLite import, restore verification, readiness, rate limiting,
+  cache invalidation, load tooling, SLO docs, file storage, audit, `_logs` retention,
+  shutdown, upgrade policy, PgBouncer, install scripts): the review was accurate —
+  primitives exist, the evidence layer does not (zero load benchmarks, zero numeric
+  SLOs, compatibility suite 0/12, S3 stub-tested only, audit partition cron untested,
+  no CI leg executes the installer/quickstart). Result recorded as the Production
+  Readiness Matrix (`docs/contributor/production-readiness.md`, first audit
+  2026-09-27) and applied as DRR-0005: Phase 2 = Production Validation & Evidence
+  (parallel workstream, gates v1.0.0), Phase 3 = HA & Scale (joins the v1.0.0 gate —
+  maintainer's explicit choice over the DRR-0004 stance), Phase 4 = PostgreSQL
+  Advantage, Phase 5 = Agent Interface & Ecosystem. W-01 re-triaged into Phase 1
+  (contract-freeze danger), W-09/`_logs`/GIN/W-16 into Phase 2, W-02/W-03/W-04/W-05
+  stay in Phase 3. Cross-references swept in the same change.
+- **Lesson (verify a review before adopting it):** the external review was accurate
+  because its claims were checked against code first — and the check still produced
+  corrections (`_logs` retention is DELETE-based shipped, not missing; cache
+  invalidation today is an fs-sentinel, not LISTEN; S3 is stub-tested only; the
+  audit partition cron is untested). Adopt reviews as hypotheses; the tree is the
+  arbiter.
+- **Lesson (contract-freeze ordering):** the sharpest engineering finding was
+  ordering, not features: building the Phase 1 compatibility suite while realtime
+  delete still publishes pre-commit (W-01) would codify the bug into our own
+  contract — making the later fix a breaking change. Correctness fixes that the
+  suite will freeze must land before the suite is written.
+- **Lesson (gate vs phase):** a "validation phase" invites big-bang QA at the end
+  and lets earlier phases ship ungated; a "validation gate" without a workstream
+  produces no evidence. The DRR-0005 structure is both: a gate applied at every
+  phase exit (matrix rows must be green with evidence) plus a parallel evidence
+  workstream (Phase 2) that starts during Phase 1 and does not block behind it.
+- **Evidence:** `docs/contributor/production-readiness.md` (matrix);
+  `evidence/records/DRR-0005.md` (applied, maintainer-confirmed in-session);
+  `evidence/records/DRR-0004.md` Outcome annotated; sweep = failure-modes.md
+  (W-01…W-05, W-09), observability.md, checklists.md §1/§2, api-contract.md §10,
+  collections-and-api-rules.md, roadmap.md §4–§7.
+
+## 2026-09-27 — v0.6.0 docs re-verification: 28 docs audited, 14 drifts fixed
+
+- **What ran:** full documentation audit against the v0.6.0 tree (tag `3cef240`,
+  "Phase 0 — Trust complete"). Every doc with a DocMeta line (28 files) had its
+  checkable claims verified against code/config — env defaults (`ResolveDBConfig`,
+  pool vars, timeouts), CLI flags and subcommands, route registrations, cron job
+  names, CI workflow jobs/versions, counts (21 tools pkgs, 16 system migrations,
+  33 OAuth2 providers), line anchors. All 28 DocMeta `verified` values bumped
+  v0.5.4 → v0.6.0; `docs-check` + `docs:build` green.
+- **Drifts found and fixed (14):** `agents.md` claimed `--pg-*` flags "override
+  env" and a flag-based config table with wrong defaults — the flags are declared
+  in `cmd/serve.go` but never read (dead flags; `env.md`/`developing.md`/`overview.md`
+  already documented the truth, one doc disagreed and was wrong);
+  `api-overview.md` listed `auth-logout` and `auth-mfa` routes that do not exist
+  (MFA flows through `auth-with-password`/`auth-with-otp`), a `POST
+  /api/files/{collection}/{recordId}` upload route that does not exist (uploads go
+  through record create/update multipart), and `perPage` max 300 (code: 1000,
+  default 30); `developing.md` said sslmode was `disable` and not configurable via
+  env (code: `PB_POSTGRES_SSLMODE`, default `prefer`); `contributing.md` Node 24+
+  vs developing.md's 22+; `disaster-recovery.md` stated the 10-min backup/restore
+  bound without qualifying it is the API path only (the offline CLI has no
+  deadline); `production.md` pointed alert rules at `deploy/prometheus.yml` instead
+  of `deploy/prometheus.rules.yml`; `upgrades.md` claimed "there is no tool that
+  reverses a migration" (`pgbase migrate down` exists — boot re-applies system
+  migrations, so it is not a downgrade path, which is the true statement) and
+  cited Runbook §7 for `last_verified_backup` (it is §8); `guardrails.md` carried
+  four stale `(gap)` markers (G-DATA-06, G-UPG-04/05/06) for enforcement that
+  shipped in v0.6.0 (pg-matrix CI job, upgrade runbook, versioning policy) and a
+  §9 gaps table with three closed rows; `env.md`/`backend-layers.md` had drifted
+  anchors/counts; `getting-started.md` marked USER/DBNAME as required (they have
+  defaults); `overview.md` route list omitted `/api/ready`.
+- **Lesson (a claimed route is not a route):** two of the drifts were endpoints
+  documented as existing (`auth-logout`, file upload via `POST /api/files/...`)
+  that have no route registration anywhere — doc-level invention survives because
+  nothing diffs the route table against the docs. Route lists need a
+  registration-anchored source (the Phase 1 endpoint reference is that fix).
+- **Lesson (the minority doc is not always wrong, but the majority is evidence):**
+  the `--pg-*` dead-flag claim was stated correctly in three docs and wrongly in
+  one; resolving it required reading `cmd/serve.go`'s `RunE` (variables declared,
+  never read). "Declared" is not "wired" — flag tables must cite the code path
+  that consumes the flag, not the flag registration.
+- **Evidence:** `make docs-check` clean; `npm --prefix docs run docs:build` green;
+  `rg 'verified="v0\.5\.4"' docs/` → zero matches; 28 files at `verified="v0.6.0"`;
+  route evidence `apis/record_auth.go`, `apis/file.go`, `apis/sql.go:23-24`,
+  `tools/search/provider.go:27-33` (`MaxPerPage 1000`); dead-flag evidence
+  `cmd/serve.go:17-22,78-120` (declared) vs `:41-52` (RunE consumes only
+  httpAddr/httpsAddr/allowedOrigins/args).

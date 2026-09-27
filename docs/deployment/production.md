@@ -1,6 +1,6 @@
 # Production Runbook
 
-<DocMeta audience="Operator" status="stable" verified="v0.5.4" />
+<DocMeta audience="Operator" status="stable" verified="v0.6.0" />
 
 A self-contained runbook for deploying and operating **PG-BASE** in production. It assumes you already built the binary or image (see [Build](#1-build)) and have a PostgreSQL database to point at.
 
@@ -243,7 +243,7 @@ For a Prometheus running on the host (not a container), use `deploy/prometheus.y
 
 **Cloud / external Prometheus:** bind the metrics listener on a private interface (e.g. `10.0.0.5:9090`) with `PB_METRICS_EXPOSE=true`, and restrict the security group / firewall to the Prometheus source only. Never publish it publicly.
 
-Alerting is your standard Prometheus stack — e.g. Alertmanager + webhooks. A minimal, useful rule to start with: alert when `rate(pgbase_db_wait_count_total[5m]) > 0` (pool saturation) or when `pgbase_http_request_duration_seconds` p99 rises (see `deploy/prometheus.yml`).
+Alerting is your standard Prometheus stack — e.g. Alertmanager + webhooks. A minimal, useful rule to start with: alert when `rate(pgbase_db_wait_count_total[5m]) > 0` (pool saturation) or when `pgbase_http_request_duration_seconds` p99 rises (see `deploy/prometheus.rules.yml`).
 
 See also `developing.md #3d` for implementation details and the exact env semantics.
 

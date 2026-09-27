@@ -1,6 +1,6 @@
 # Platform Design
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
+<DocMeta audience="Contributor" status="stable" verified="v0.6.0" />
 
 > Canonical system model for PG-BASE. This document defines what system we are building, what its boundaries are, and what properties must remain true. Guard rails are codified separately in [Quality Guardrails](./guardrails.md), failure behavior in [Failure Analysis](./failure-modes.md), observability in [Observability](./observability.md).
 >

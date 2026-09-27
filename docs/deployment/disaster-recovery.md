@@ -1,6 +1,6 @@
 # Disaster Recovery
 
-<DocMeta audience="Operator" status="stable" verified="v0.5.4" />
+<DocMeta audience="Operator" status="stable" verified="v0.6.0" />
 
 Backup, restore, and recovery for PG-BASE.
 
@@ -23,7 +23,7 @@ Restore auto-detects (`pgdata.dump` → native, `data.db` → legacy). Requireme
 ./pgbase restore snap.zip             # OFFLINE, no restart (restart after to load data)
 ```
 
-Also via dashboard, `/api/backups` (superuser-only), autobackup cron (`Backups.Cron`, job `__pbAutoBackup__`) with count-based retention (`Backups.CronMaxKeep`, default 3). Creation bounded ~10 min; restore ~10 min; decompression capped by `PB_BACKUP_MAX_EXTRACT_BYTES` (8 GiB default, zip-slip + `LimitReader` guarded).
+Also via dashboard, `/api/backups` (superuser-only), autobackup cron (`Backups.Cron`, job `__pbAutoBackup__`) with count-based retention (`Backups.CronMaxKeep`, default 3). Creation and restore are bounded to ~10 min **on the API path** (`backupTaskTimeout`, `apis/backup_create.go`); the offline CLI has no deadline — a large archive runs to completion or fails loudly. Decompression is capped by `PB_BACKUP_MAX_EXTRACT_BYTES` (8 GiB default, zip-slip + `LimitReader` guarded).
 
 > **Trust boundary:** restore replays the archive (`pg_restore --clean`), i.e. executes arbitrary SQL from the dump. A tampered archive = DB takeover. Guard the bucket/filesystem like DB credentials.
 
@@ -39,7 +39,7 @@ RTO is the time to restore a dump into a clean database and boot. Validate it wi
 
 1. **Stop** the app (restore is offline). Do not run alongside `serve`.
 2. **Confirm** the archive: correct name, expected format, `pgdata.dump` vs `data.db`.
-3. **Restore**: `./pgbase restore <name>` (or dashboard). Bounded to 10 min; failures report loudly.
+3. **Restore**: `./pgbase restore <name>` (or dashboard; the dashboard path is bounded to 10 min). Failures report loudly; the offline CLI runs without a deadline.
 4. **Verify**: schema present; per-table counts match the source; settings sane; auth data intact; spot-check application reads.
 5. **Restart** the app and confirm boot completes migrations cleanly.
 

@@ -1,6 +1,6 @@
 # Quality Guardrails
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
+<DocMeta audience="Contributor" status="stable" verified="v0.6.0" />
 
 > Guardrails are the constraints that prevent PG-BASE from entering unacceptable states.
 >
@@ -37,7 +37,8 @@ G-DATA-05  Migrations must be safe to execute during controlled deployment and m
             experiment D defines recovery. Test: experiment D PASS
             (`evidence/experiments/EXPERIMENT-D-20260912-155751.md`) ✅
 G-DATA-06  Application code must not rely on undefined PostgreSQL behavior.
-           Enforcement: code review + PG 16/17 matrix (Phase 0 versioning, gap) ⚠️
+            Enforcement: CI — pg-matrix job (`.github/workflows/release.yaml`): the full suite
+            runs against PostgreSQL 16 and 17 on every PR ✅
 ```
 
 ## 2. PostgreSQL (G-DB)
@@ -166,11 +167,14 @@ G-UPG-02  Dependency advisories (Go, npm) must be triaged.
 G-UPG-03  Schema changes must be versioned.
           Enforcement: code — migrations/ + _migrations history ✅
 G-UPG-04  An upgrade must have a documented rollback/recovery strategy.
-           Enforcement: process + docs — upgrade runbook (Phase 0 versioning, gap) ⚠️
+            Enforcement: process + docs — upgrade runbook (docs/deployment/upgrades.md:
+            restore-based app rollback, operator-owned PostgreSQL upgrade) ✅
 G-UPG-05  Existing data must remain readable after a supported upgrade.
-           Enforcement: test — migration round-trip tests; PG 16/17 matrix (Phase 0, gap) ⚠️
+            Enforcement: test — migration round-trip tests; CI pg-matrix (full suite ×
+            PostgreSQL 16/17, `.github/workflows/release.yaml`) ✅
 G-UPG-06  Breaking changes must be explicit.
-           Enforcement: process — versioning policy (Phase 0, gap) + Level B confirm ✅⚠️
+            Enforcement: process — versioning policy (docs/deployment/upgrades.md §1:
+            pre-1.0, the API contract is the compatibility surface) + Level B confirm ✅
 ```
 
 ## 8. AI decision authority (G-AI)
@@ -213,6 +217,3 @@ These guardrails are defined but their enforcement is `(gap)`; they are tracked 
 | Guard rail | Missing enforcement | Linked roadmap item |
 |---|---|---|
 | G-API-01/04/05 | compatibility test suite | Phase 1 / compatibility suite |
-| G-UPG-04 | upgrade runbook | Phase 0 / versioning |
-| G-UPG-05 | PG 16/17 CI matrix | Phase 0 / versioning |
-| G-UPG-06 | versioning & upgrade policy | Phase 0 / versioning |

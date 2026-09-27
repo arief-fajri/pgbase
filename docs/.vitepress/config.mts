@@ -119,6 +119,7 @@ export default withMermaid(defineConfig({
                         ],
                     },
                     { text: "Roadmap", link: "/contributor/roadmap" },
+                    { text: "Production Readiness", link: "/contributor/production-readiness" },
                 ],
             },
         ],

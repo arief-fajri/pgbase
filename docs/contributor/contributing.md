@@ -1,6 +1,6 @@
 # Contributing to PGBase
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
+<DocMeta audience="Contributor" status="stable" verified="v0.6.0" />
 
 > [!IMPORTANT]
 > PG-BASE is a single-binary application backend for PostgreSQL. The public behavior contract is [api-contract.md](../reference/api-contract.md). Do not treat another project's docs as the source of truth.
@@ -14,7 +14,7 @@ This document describes how to prepare a PR for a change in the main repository.
 ## Prerequisites
 
 - Go 1.25+ (for making changes in the Go code)
-- Node 24+ (for making changes in the Superuser UI)
+- Node 22+ (for making changes in the Superuser UI; CI runs `>=25.2.1`)
 - PostgreSQL (for running the tests, see [Development Setup](./developing.md))
 
 If you haven't already, you can fork the main repository and clone your fork so that you can work locally:

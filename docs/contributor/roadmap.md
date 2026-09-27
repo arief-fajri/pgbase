@@ -1,8 +1,8 @@
 # PG-BASE — Product Roadmap
 
-<DocMeta audience="All" status="living document" verified="v0.5.4" />
+<DocMeta audience="All" status="living document" verified="v0.6.0" />
 
-> Canonical product roadmap. Last review: 2026-09-25 (positioning rewrite).
+> Canonical product roadmap. Last review: 2026-09-27 (stability-first restructure — DRR-0005).
 >
 > North star: **make PostgreSQL feel as easy to use as PocketBase.**
 >
@@ -106,7 +106,7 @@ Build these in order. Do not skip ahead to a cloud or a feature-parity list.
 
 ## 4. What already exists
 
-Verified against the tree at v0.5.4. This is inventory, not a promise that every row is finished.
+Verified against the tree at v0.6.0. This is inventory, not a promise that every row is finished.
 
 | Capability | State | Anchor |
 |---|---|---|
@@ -123,11 +123,13 @@ Verified against the tree at v0.5.4. This is inventory, not a promise that every
 | Agent quick start and CLI contract | Partial — MCP not started | `docs/agents.md` |
 | Production Compose, Caddy, runbook | Shipped | `docker-compose.prod.yml`, `docs/deployment/` |
 | Restore verification | Shipped | `core/backup_pg_verify.go` — archive-derived TOC gate: pre-restore archive validation, stderr classification, table/index completeness, settings/auth sanity (W-08 closed 2026-09-26) |
-| pgvector field, similarity API | Not started | Phase 2 |
-| MCP server | Not started | Phase 3 |
-| Distributed rate limiter | Not started — limit is per instance | Phase 4 |
+| pgvector field, similarity API | Not started | Phase 4 |
+| MCP server | Not started | Phase 5 |
+| Distributed rate limiter | Not started — limit is per instance | Phase 3 |
 | Readiness distinct from liveness | Shipped | `apis/ready.go` (`GET /api/ready`: 200/503 on a data-pool + `_collections` probe; health stays liveness-only) |
 | Versioning and upgrade policy | Shipped | `docs/deployment/upgrades.md` — app/PostgreSQL upgrade + rollback policy; PG 16/17 claim observed by the `pg-matrix` job in `.github/workflows/release.yaml` |
+
+Live per-capability status — implementation, tests, failure behavior, risk — is the [Production Readiness Matrix](./production-readiness.md) (first audit 2026-09-27, re-audited at every phase exit).
 
 System model: [Platform Design](./methodology/platform-design.md), [Guardrails](./methodology/guardrails.md), [Observability](./methodology/observability.md), [Checklists](./methodology/checklists.md). Known weaknesses stay in [Failure Analysis](./methodology/failure-modes.md).
 
@@ -136,6 +138,8 @@ System model: [Platform Design](./methodology/platform-design.md), [Guardrails](
 ## 5. Phases
 
 Each item still needs the 10-step definition of done in its PR. See [Checklists §7](./methodology/checklists.md#7-definition-of-done-per-non-trivial-change).
+
+The moat order (§2) is the value thesis; the phases below are the order of work. Validation is both a gate — every phase exit cites [Production Readiness Matrix](./production-readiness.md) rows it closes — and a workstream: Phase 2 starts during Phase 1 and gates v1.0.0 together with the Phase 3 topology evidence (DRR-0005).
 
 ### Phase 0 — Trust
 
@@ -152,14 +156,49 @@ Highest priority. This is the acquisition engine, not the product identity.
 | Migration CLI | Partial | `pgbase migrate --from pocketbase` with dry-run, progress, and safe failure. Engine today: `core/backup_sqlite_import.go` |
 | Verification report | Not started | Pre/post counts, relations, auth, files |
 | Compatibility suite | Not started | Auth, CRUD, filter, sort, expand, relations, realtime, files, rules, JS/Dart SDKs — tested against our contract |
+| Realtime correctness contract | Not started | Close W-01 (delete published pre-commit) and write the realtime delivery semantics — at-most-once vs at-least-once, replay — into the contract **before** the compatibility suite freezes: a suite built against current behavior would codify the bugs |
 | Playbook | Not started | What application code must change, and how to recover a failed import |
 | Endpoint reference | Not started | A published route map. Until then the in-dashboard API preview is the syntax reference |
 
 Public status stays honest on [Migrate](../migrate.md). Do not document the CLI as shipped until it is.
 
-**Exit:** a real PocketBase application moves to PG-BASE with minimal client changes, through a repeatable, verified process. (Tagging v1.0.0 is gated on this exit plus burn-in — criteria in `evidence/records/DRR-0004.md`.)
+**Exit:** a real PocketBase application moves to PG-BASE with minimal client changes, through a repeatable, verified process. (Tagging v1.0.0 is gated on this exit plus Phase 2 evidence plus the Phase 3 topology — criteria in `evidence/records/DRR-0004.md`, amended by `evidence/records/DRR-0005.md`.)
 
-### Phase 2 — PostgreSQL advantage
+### Phase 2 — Production validation & evidence
+
+A parallel workstream: it starts during Phase 1 and gates v1.0.0 — it does not block behind Phase 1 feature code. The primitives exist (see the [Production Readiness Matrix](./production-readiness.md)); this phase produces the evidence that they hold.
+
+| Item | State | Target |
+|---|---|---|
+| SLO & capacity envelope | Not started | Documented targets (availability, p95/p99 latency, RTO) and measured limits (max tested RPS, concurrent clients, SSE connections, DB size, upload throughput). RPO stays operator-side — backup interval, documented and drilled, not owned (§3: no PITR) |
+| Load harness | Not started | Repeatable load + capacity benchmark; results committed as reproducible evidence |
+| Failure-injection automation | Partial — experiments A–E are one-shot manual records | Automated: PG restart, app crash, network partition, pool exhaustion, slow query, reconnect storm. Storage failure and burn-in stay harness-level |
+| Burn-in / soak | Not started | The DRR-0004 time criterion backed by a dogfooding workload — a real application the project runs itself |
+| Concurrency tests | Not started | Concurrent-writes correctness ([Checklists §1](./methodology/checklists.md)); W-16 resolved or accepted with a written decision |
+| Audit DEFAULT retention | Not started — W-09 | Prune the `DEFAULT` partition; the partition cron itself is untested — both close here |
+| Request-log retention | Partial — DELETE-based cleanup shipped (6 h cron, MaxDays gate, autovacuum tuning) | Range partition, or an equivalent PostgreSQL-native retention path, so cleanup stops bloating |
+| JSONB filter indexes | Not started | `GIN` / `jsonb_path_ops` for multi-value filters. Those filters full-scan today |
+
+**Exit:** every production claim has a number, a test scenario, and reproducible evidence — no claim without a record.
+
+### Phase 3 — HA & Scale
+
+The documented multi-instance topology is part of the v1.0.0 gate (DRR-0005). Single instance stays the default shape; this phase makes `LB → N instances → PostgreSQL` a tested, documented pattern instead of an implied one.
+
+| Item | State | Target |
+|---|---|---|
+| Multi-instance topology test | Not started | The documented topology survives failure-injection + load from the Phase 2 harness, incl. restart without duplicated jobs and a PgBouncer-tested leg |
+| Realtime outbox hardening | Opt-in — W-01 fix ordered into Phase 1 | Replay on restart (W-02), then the default-on decision. Metrics: active subscriptions, outbox lag, broadcast latency, reconnects (I15) |
+| Distributed rate limiter | Not started | N instances share one limit — or per-instance math stays the documented contract |
+| Cache invalidation | Partial | DB `LISTEN` instead of a filesystem sentinel. Cross-host staleness is security-relevant |
+| Cron guard | Open — fails open on a lock-acquisition error (W-03) | No duplicated jobs on every instance under DB errors |
+| File storage | Partial | S3 required for more than one instance. Warn if local storage sees multiple heartbeats (W-05) |
+| PgBouncer | Documented | Tested against a real pooler, not only notes |
+| Replicas | Not started | Read-replica guidance after the single-primary path is boring — guidance, not a failover manager (§3) |
+
+**Exit:** `LB → N instances → PostgreSQL` is a tested, documented pattern within the Phase 2 capacity envelope. Local disk and per-instance limits are called out, not implied away.
+
+### Phase 4 — PostgreSQL advantage
 
 | Item | State | Target |
 |---|---|---|
@@ -172,44 +211,19 @@ Public status stays honest on [Migrate](../migrate.md). Do not document the CLI 
 
 **Exit:** a developer creates a vector field, inserts rows, and queries top-K without custom SQL. The page does not call PG-BASE an AI database.
 
-### Phase 3 — Agent interface
+### Phase 5 — Agent interface & Ecosystem
 
-One-command provision and `docs/agents.md` already exist.
+One-command provision and `docs/agents.md` already exist. Starter templates are the landing zone migrated apps need.
 
 | Item | State | Target |
 |---|---|---|
 | MCP server | Not started | `pgbase mcp`. v1 is read-mostly: collections, schema, records, auth. Admin tools later |
 | CLI contract | Partial | `serve`, `migrate`, `backup`, `restore`, `superuser` idempotent where claimed, flags documented |
 | Schema from the agent | Not started | Create and alter collections from CLI or MCP without the dashboard |
+| Starter templates | Not started | Next.js, Svelte, Nuxt, Flutter, and one AI kit |
+| Webhook primitive | Not started | Small, with retries — not a workflow platform |
 
-**Exit:** an agent goes from zero to a running backend, then creates a collection and a record, with commands that do the same thing twice.
-
-### Phase 4 — Scale
-
-Single instance first. Scale out when you need it. The target is not "more scalable than a platform."
-
-| Item | State | Target |
-|---|---|---|
-| Realtime outbox | Opt-in | Publish after commit, replay on restart, then consider default-on. Metrics: active subscriptions, outbox lag, broadcast latency (I15) |
-| Distributed rate limiter | Not started | N instances share one limit |
-| Cache invalidation | Partial | DB `LISTEN` instead of a filesystem sentinel. Cross-host staleness is security-relevant |
-| File storage | Partial | S3 required for more than one instance. Warn if local storage sees multiple heartbeats |
-| PgBouncer | Documented | Keep the transaction-mode notes accurate |
-| Replicas | Not started | Read-replica guidance after the single-primary path is boring |
-| Load harness | Not started | Topology survives restart without duplicated jobs, including the cron guard that fails open on a lock-acquisition error (W-03), plus concurrency tests (Evaluation Checklists §1) |
-| JSONB filter indexes | Not started | `GIN` / `jsonb_path_ops` for multi-value filters. Those filters full-scan today |
-| Request-log retention | Not started | `_logs` cleanup must not rely on bulk `DELETE`. Range partition, or an equivalent PostgreSQL-native retention path |
-| Audit DEFAULT retention | Not started | The `DEFAULT` partition is pruned. Named partitions already drop (W-09) |
-
-**Exit:** `LB → N instances → PostgreSQL` is a tested, documented pattern. Local disk and per-instance limits are called out, not implied away.
-
-### Phase 5 — Ecosystem
-
-Only after Phases 1–3 are real.
-
-Starter templates (Next.js, Svelte, Nuxt, Flutter, and one AI kit). SDK notes that point at our contract. A small webhook primitive with retries — not a workflow platform.
-
-**Exit:** a new PostgreSQL app has a template that reaches a running PG-BASE without a platform signup.
+**Exit:** an agent goes from zero to a running backend, then creates a collection and a record, with commands that do the same thing twice; a new PostgreSQL app has a template that reaches a running PG-BASE without a platform signup.
 
 Cloud, billing, and a control plane stay out of scope until self-hosted use shows demand.
 
@@ -220,7 +234,8 @@ Cloud, billing, and a control plane stay out of scope until self-hosted use show
 - **No platform parity.** A feature request that starts with "Supabase has X" is not a reason to build X.
 - **Contract rule.** Caller-visible changes update [api-contract.md](../reference/api-contract.md) and add a regression test.
 - **Evidence rule.** Performance and scale claims ship with a reproducible result.
-- **Honesty rule.** Docs do not describe Phase 1–3 commands as available until they are.
+- **Validation gate.** Every phase exit cites [Production Readiness Matrix](./production-readiness.md) rows it closes — a phase is done when its rows are green with evidence, not when its code merges.
+- **Honesty rule.** Docs do not describe planned commands of any phase as available until they are.
 - **Failure rule.** Classify A–E in [Failure Analysis](./methodology/failure-modes.md) before changing code.
 
 ---
@@ -234,7 +249,8 @@ Cloud, billing, and a control plane stay out of scope until self-hosted use show
 | Simplicity erosion | Every extra service taxes the promise | Refuse edge functions, Kubernetes-first, and a cloud control plane |
 | Contract drift | SDKs work until they don't | Compatibility suite against our contract, not a foreign release feed |
 | Restore doubt | Backups that were never restored are not backups | Phase 0 leftover stays P0 |
-| Multi-instance inconsistency | Scale claims without tests | Phase 4 is gated on a real topology test |
+| Multi-instance inconsistency | Scale claims without tests | Phase 3 is gated on a real topology test (in the v1.0.0 gate — DRR-0005) |
+| v1.0.0 delay | HA joined the 1.0 gate (DRR-0005) | The blocker set is enumerated so the gate stays auditable; dogfooding burn-in absorbs wall-clock cost |
 
 ---
 

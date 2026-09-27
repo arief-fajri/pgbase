@@ -1,6 +1,6 @@
 # Contributing and Releasing
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
+<DocMeta audience="Contributor" status="stable" verified="v0.6.0" />
 
 Pointer page. `developing.md` is the single source of truth for commands; `contributing.md` for PR flow. This page is the checklist order.
 

@@ -1,6 +1,6 @@
 # Architecture: Backend Layers
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
+<DocMeta audience="Contributor" status="stable" verified="v0.6.0" />
 
 ## 1. Bootstrap chain
 
@@ -23,9 +23,9 @@ examples/base/main.go:20  pgbase.New()
 | CLI | `cmd/serve.go`, `cmd/superuser.go`, `cmd/backup.go`, `pgbase.go` | Flags (`--http/--https/--origins/--dir/--encryptionEnv/--dev/--queryTimeout`); note `--pg-*` flags exist but are **not wired** — connection reads `PB_POSTGRES_*` env only (`developing.md` #3) |
 | HTTP | `apis/` | Router + handlers + middleware; `Serve()` does migrations → router → CORS → HTTP/HTTPS + autocert, graceful shutdown (`apis/serve.go:63`, shutdown `apis/serve.go:189-219`) |
 | Domain | `core/` | `App` interface (`core/app.go:29`), `BaseApp` impl (`core/base.go:87`), models, queries, hooks, backups, outbox |
-| Libraries | `tools/` (22 pkgs) | `router`, `hook` (priority-sorted chain), `search` (filter/sort), `dbutils` (PG dialect/JSON/index), `auth` (30+ OAuth2 providers), `security`, `subscriptions` (realtime Broker), `filesystem` (local/S3), `archive`, `mailer`, `cron`, `store`, `types`, `template`, `tokenizer`, misc |
+| Libraries | `tools/` (21 pkgs) | `router`, `hook` (priority-sorted chain), `search` (filter/sort), `dbutils` (PG dialect/JSON/index), `auth` (30+ OAuth2 providers), `security`, `subscriptions` (realtime Broker), `filesystem` (local/S3), `archive`, `mailer`, `cron`, `store`, `types`, `template`, `tokenizer`, misc |
 | Plugins | `plugins/jsvm`, `plugins/migratecmd`, `plugins/ghupdate` | JS hooks + JS migrations (`--hooksPool/--hooksWatch`), `migrate up/down/history-sync`, HTTPS-only self-update with `checksums.txt` verify |
-| Persistence | PostgreSQL via `pgx` + `dbx` | `core/db_connect.go`, `core/db.go`, `core/db_tx.go`, `core/db_retry.go`, `migrations/` (20 system files) |
+| Persistence | PostgreSQL via `pgx` + `dbx` | `core/db_connect.go`, `core/db.go`, `core/db_tx.go`, `core/db_retry.go`, `migrations/` (16 system migrations) |
 
 `BaseApp` fields (`core/base.go:87-117,230-249`): `dataDB` + `auxDB` builders, `dbConfig`, `store`, `cron`, `subscriptionsBroker`, `logger`, `realtimeOutboxOrigin`, hook registries, `instanceHeartbeatGuard`. `IsBootstrapped()` = both pools non-nil (`core/base.go:430`).
 

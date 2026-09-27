@@ -1,6 +1,6 @@
 # Flows: Auth
 
-<DocMeta audience="All" status="stable" verified="v0.5.4" />
+<DocMeta audience="All" status="stable" verified="v0.6.0" />
 
 All auth routes are bound in `apis/record_auth.go`. Tokens are JWT (`core/record_tokens.go`); `LoadAuthToken` middleware populates `e.Auth` (`apis/middlewares.go:43`).
 

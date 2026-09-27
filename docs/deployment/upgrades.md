@@ -1,6 +1,6 @@
 # Upgrades & Versioning
 
-<DocMeta audience="Operator" status="stable" verified="v0.5.4" />
+<DocMeta audience="Operator" status="stable" verified="v0.6.0" />
 
 How PG-BASE versions break, how to upgrade (and roll back) the app, and how to upgrade PostgreSQL — plus where the supported-engine claim is observed.
 
@@ -10,13 +10,13 @@ How PG-BASE versions break, how to upgrade (and roll back) the app, and how to u
 
 - **Releases** are git tags `vX.Y.Z`, each with a `CHANGELOG.md` section. Release binaries are built by GoReleaser with the version stamped in, so `pgbase --version` prints it (a local `go build` prints `(untracked)`).
 - **Pre-1.0 policy.** v0.x carries no stability guarantee beyond the [API contract](../reference/api-contract.md). The contract is the compatibility surface: a caller-visible change ships with a contract edit and a regression test — not with tracking another project's release feed.
-- **The binary and the schema move together.** Migrations are append-only: they run in order at every boot (single transaction under a PostgreSQL advisory lock). There is no tool that reverses a migration.
+- **The binary and the schema move together.** System migrations are append-only: they run in order at every boot (single transaction under a PostgreSQL advisory lock), and boot re-applies them — a `pgbase migrate down` is **not** a supported downgrade path for the system schema. Roll back by restoring the pre-upgrade backup with the old binary (§3).
 
 ## 2. Upgrading the app
 
 An app upgrade replaces the binary (or image tag) and lets the boot-time migrations bring the schema forward.
 
-1. **Before touching anything:** take a backup and verify it — the verified timestamp is exposed as `last_verified_backup` ([Production Runbook §7](./production.md#7-backup--restore), [Disaster Recovery §4](./disaster-recovery.md#4-verification-discipline)). This backup is your rollback.
+1. **Before touching anything:** take a backup and verify it — the verified timestamp is exposed as `last_verified_backup` ([Production Runbook §8](./production.md#8-monitoring-prometheus), [Disaster Recovery §4](./disaster-recovery.md#4-verification-discipline)). This backup is your rollback.
 2. Note the current version: `pgbase --version`.
 3. **Replace the binary:** download the release tag, rebuild from source, or `docker pull ghcr.io/<owner>/pgbase:<tag>`. Prefer immutable tags; `:latest` is only moved after a human publishes the release.
 4. **Restart** `pgbase serve`. On boot the migrations runner applies what is pending; a server that is already up to date is a no-op (the advisory lock makes concurrent boots safe).

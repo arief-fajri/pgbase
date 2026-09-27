@@ -1,6 +1,6 @@
 # Collections, Records, and API Rules
 
-<DocMeta audience="App Builder" status="stable" verified="v0.5.4" />
+<DocMeta audience="App Builder" status="stable" verified="v0.6.0" />
 
 ## 1. Model
 
@@ -45,7 +45,7 @@ Expand is batched server-side (N+1 removed in v0.5.0); file fields serve via `ap
 
 ## 4. Indexes (what builders can declare)
 
-Declare indexes in the collection's `indexes` JSON; schema sync rebuilds only changed/added ones (index-diff sync, v0.5.0). Auth identity fields require the `LOWER()` partial unique form (see [API contract](./reference/api-contract.md) §2). GIN/`jsonb_path_ops` for multi-value JSONB filters is not built yet ([Phase 4](./contributor/roadmap.md)) — expect full scans today.
+Declare indexes in the collection's `indexes` JSON; schema sync rebuilds only changed/added ones (index-diff sync, v0.5.0). Auth identity fields require the `LOWER()` partial unique form (see [API contract](./reference/api-contract.md) §2). GIN/`jsonb_path_ops` for multi-value JSONB filters is not built yet ([Phase 2](./contributor/roadmap.md)) — expect full scans today.
 
 Exceptional escape hatch for huge hot tables: build out-of-band (`developing.md` #5b):
 
@@ -57,4 +57,4 @@ CREATE UNIQUE INDEX CONCURRENTLY "idx_foo" ON "my_table" (LOWER("username")) WHE
 
 ## 5. Settings that gate features
 
-`GET/PATCH /api/settings` (`apis/settings.go:13-22`): Batch on/off, RateLimits (per-instance — N instances = N× limit; a shared store is [Phase 4](./contributor/roadmap.md)), `SuperuserIPs` whitelist, `TrustedProxy`, HSTS/CSP. Mail test, S3 test, and Apple client-secret endpoints live under the same group.
+`GET/PATCH /api/settings` (`apis/settings.go:13-22`): Batch on/off, RateLimits (per-instance — N instances = N× limit; a shared store is [Phase 3](./contributor/roadmap.md)), `SuperuserIPs` whitelist, `TrustedProxy`, HSTS/CSP. Mail test, S3 test, and Apple client-secret endpoints live under the same group.

@@ -1,6 +1,6 @@
 # Getting Started
 
-<DocMeta audience="All" status="stable" verified="v0.5.4" />
+<DocMeta audience="All" status="stable" verified="v0.6.0" />
 
 Get PG-BASE running in minutes. Choose the path that fits your setup.
 
@@ -70,11 +70,11 @@ The most important ones:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `PB_POSTGRES_HOST` | Yes | PostgreSQL host |
+| `PB_POSTGRES_HOST` | No | PostgreSQL host (default `localhost`) |
 | `PB_POSTGRES_PORT` | No | Default `5432` |
-| `PB_POSTGRES_USER` | Yes | Database user |
+| `PB_POSTGRES_USER` | No | Database user (default `pgbase`) |
 | `PB_POSTGRES_PASSWORD` | Yes | Database password |
-| `PB_POSTGRES_DBNAME` | Yes | Database name |
+| `PB_POSTGRES_DBNAME` | No | Database name (default `pgbase`) |
 | `PB_POSTGRES_SSLMODE` | Recommended | `require` for production |
 | `PB_ENCRYPTION_KEY` | Mandatory | 32-char key for encrypting settings secrets |
 

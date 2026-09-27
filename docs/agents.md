@@ -1,6 +1,6 @@
 # For AI Agents
 
-<DocMeta audience="App Builder" status="stable" verified="v0.5.4" />
+<DocMeta audience="App Builder" status="stable" verified="v0.6.0" />
 
 A deployment guide for AI coding agents (Claude Code, Codex, Cursor, …) that
 need to provision a PG-BASE backend for an application. Everything here is
@@ -56,7 +56,7 @@ predictable:
 
 | Command | Idempotent | Notes |
 |---|---|---|
-| `pgbase serve` | — | long-running; `--http`, `--https`, `--origins`, `--pg-*` flags override env |
+| `pgbase serve` | — | long-running; `--http`, `--https`, `--origins` flags override env; the `--pg-*` flags are declared but **not wired** — set `PB_POSTGRES_*` env vars instead |
 | `pgbase superuser upsert EMAIL PASS` | yes | create-or-update; prefer it over `create` |
 | `pgbase superuser update/delete/otp/ips` | yes | `delete` of a missing account succeeds |
 | `pgbase backup [name]` | no | unnamed runs autogenerate a new backup; pass a name to overwrite deterministically; `--format pg\|sqlite` |
@@ -70,16 +70,16 @@ that key (the quickstart wires it to `PB_ENCRYPTION_KEY`).
 
 ## Configuration
 
-Connection settings come from env or CLI flags — never from the database:
+Connection settings come from environment variables — never from the database. The `--pg-*` serve flags are declared but **not wired** to the connection (`cmd/serve.go`); set `PB_POSTGRES_*` env vars instead ([env reference](./reference/env.md)):
 
-| Variable | Flag | Default |
-|---|---|---|
-| `PB_POSTGRES_HOST` | `--pg-host` | `localhost` |
-| `PB_POSTGRES_PORT` | `--pg-port` | `5432` |
-| `PB_POSTGRES_USER` | `--pg-user` | — |
-| `PB_POSTGRES_PASSWORD` | `--pg-password` | — |
-| `PB_POSTGRES_DBNAME` | `--pg-dbname` | — |
-| `PB_POSTGRES_SSLMODE` | `--pg-sslmode` | `prefer` |
+| Variable | Default |
+|---|---|
+| `PB_POSTGRES_HOST` | `localhost` |
+| `PB_POSTGRES_PORT` | `5432` |
+| `PB_POSTGRES_USER` | `pgbase` |
+| `PB_POSTGRES_PASSWORD` | *(empty — must be set)* |
+| `PB_POSTGRES_DBNAME` | `pgbase` |
+| `PB_POSTGRES_SSLMODE` | `prefer` |
 
 Full list (pool tuning, timeouts, backup caps, rate limits):
 [env reference](./reference/env.md).

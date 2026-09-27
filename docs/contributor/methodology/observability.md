@@ -1,6 +1,6 @@
 # Observability
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
+<DocMeta audience="Contributor" status="stable" verified="v0.6.0" />
 
 > Observability answers *what is actually happening inside the system*. The objective is not to collect every metric — it is to make important system behavior *explainable*, and to prove that guardrails hold.
 >
@@ -23,7 +23,7 @@ Current state: a request **duration histogram** (`pgbase_http_request_duration_s
 ```text
 DB connections: open · in use · idle · maximum · wait count · wait duration
 DB behavior:    query timeout · lock timeout · transaction rollback   ← counters below
-DB behavior:    connection failure / reconnect                        ← not exposed by database/sql (Phase 4 note below)
+DB behavior:    connection failure / reconnect                        ← not exposed by database/sql (reconnect counter — note below)
 ```
 
 Existing (`db` label = `data` | `aux`):
@@ -40,7 +40,7 @@ Existing (`db` label = `data` | `aux`):
 | `pgbase_db_lock_timeout_total` | counter | statements aborted by the server `lock_timeout` (55P03) — classified on the record/model paths |
 | `pgbase_db_tx_rollback_total` | counter | top-level transactions that rolled back (nested reuse the outer one) |
 
-Remaining gap ([Phase 4](../roadmap.md)): reconnect events are NOT counted — the `database/sql` layer does not expose them (pool dynamics are visible via `wait_count`/`open_connections`); the outbox LISTEN reconnect belongs to realtime observability. Raw builder queries (outside the record/model paths) are not classified.
+Remaining gap: reconnect events are NOT counted — the `database/sql` layer does not expose them (pool dynamics are visible via `wait_count`/`open_connections`); counting them is part of the [Phase 2](../roadmap.md) reconnect-storm evidence, and the outbox LISTEN reconnect counter lands with [Phase 3](../roadmap.md) outbox hardening. Raw builder queries (outside the record/model paths) are not classified.
 
 **Diagnostic chain** (use when latency or errors appear):
 
@@ -59,7 +59,7 @@ Existing:
 | `pgbase_realtime_connected_clients` | gauge | connected SSE clients |
 | `pgbase_realtime_dropped_messages` | gauge | messages dropped on full client buffers (queue 32) |
 
-Gaps ([Phase 4](../roadmap.md) realtime outbox): active subscriptions, connection/disconnection rate, broadcast latency, outbox lag, abnormal reconnect behavior. Realtime resource usage must stay bounded **or observable** (invariant I15) — today the drop counter is that bound.
+Gaps ([Phase 3](../roadmap.md) outbox hardening): active subscriptions, connection/disconnection rate, broadcast latency, outbox lag, abnormal reconnect behavior. Realtime resource usage must stay bounded **or observable** (invariant I15) — today the drop counter is that bound.
 
 ## 4. Backup and recovery metrics
 
@@ -94,8 +94,8 @@ Metrics support **diagnosis**, not merely dashboards. When a metric exists but c
 
 | Stream | Table / API | Notes |
 |---|---|---|
-| Request logs | `_logs` on **aux** DB (`core/log_model.go:9`), `GET /api/logs` + `/logs/stats` (`apis/logs.go:13,39`) | Plain table; retention `__pbLogsCleanup__ 0 */6 * * *` (`core/base.go:1611`); bulk DELETE bloat; range-partition retention is [Phase 4](../roadmap.md) |
+| Request logs | `_logs` on **aux** DB (`core/log_model.go:9`), `GET /api/logs` + `/logs/stats` (`apis/logs.go:13,39`) | Plain table; retention `__pbLogsCleanup__ 0 */6 * * *` (`core/base.go:1611`); bulk DELETE bloat; range-partition retention is [Phase 2](../roadmap.md) |
 | Data audits | `_audits` (+ `_audit_reads` metadata-only), `GET /api/audits` (+ `/{id}`, `/reads`) superuser-only (`apis/audits.go:12-34`) | Month-RANGE partitioned + DEFAULT (`migrations/1787237001_audits_init.go:25-67`); next-2-months pre-created (`core/audit_hooks.go:455-475`); retention jobs `__pbAuditsPartition/Cleanup__ 0 0 * * *`; changes/snapshot redacted |
 | Dashboard | `#/logs` (chart/list/preview) + `#/audits` (Data-changes / Read-access tabs) + `#/settings/audit` | v0.2.0 audit UI |
 
-**W-09** ([Failure Analysis](./failure-modes.md) §2): the `_audits` DEFAULT partition is never auto-pruned — partition retention assumes pre-created partitions are actively used. Watch for unbounded growth on the DEFAULT partition. Pruning it is [Phase 4](../roadmap.md).
+**W-09** ([Failure Analysis](./failure-modes.md) §2): the `_audits` DEFAULT partition is never auto-pruned — partition retention assumes pre-created partitions are actively used. Watch for unbounded growth on the DEFAULT partition. Pruning it is [Phase 2](../roadmap.md).

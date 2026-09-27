@@ -1,6 +1,6 @@
 # Evaluation Checklists
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
+<DocMeta audience="Contributor" status="stable" verified="v0.6.0" />
 
 > Checklists are evaluation gates, split by system boundary so they stay maintainable. A checklist item must be either verifiable in code, in a test run, or against evidence — a checkbox without a mechanism is decoration.
 >
@@ -15,7 +15,7 @@
 [x] CRUD operations work                                         (api/record tests)
 [ ] Transactions are atomic                                      (rollback tests — expand to W-01 class)
 [x] Failed writes do not partially persist                       (SAVEPOINT audit guard test)
-[ ] Concurrent writes behave correctly                           (concurrency tests — Phase 4 / load harness)
+[ ] Concurrent writes behave correctly                           (concurrency tests — Phase 2 / load harness)
 [x] Database constraints are enforced                            (functional unique identity indexes)
 [x] Shutdown releases database resources                          (serve_shutdown_test: terminate chain + SIGTERM exit 0)
 [x] Startup failure is explicit and diagnosable                  (error propagation in Bootstrap)
@@ -38,7 +38,7 @@
 [ ] Network interruption is recoverable                           (experiment A extended)
 [x] TLS configuration works in production mode                    (sslmode warning + prod compose)
 [ ] PgBouncer transaction pooling works if supported              (exec/simple_protocol documented;
-                                                                end-to-end notes are Phase 4 / PgBouncer)
+                                                                 end-to-end notes are Phase 3 / PgBouncer)
 ```
 
 ## 3. API contract (reference: [api-contract.md](../../reference/api-contract.md))

@@ -1,6 +1,6 @@
 # Flows: Realtime
 
-<DocMeta audience="All" status="stable (single-instance) / experimental (outbox)" verified="v0.5.4" />
+<DocMeta audience="All" status="stable (single-instance) / experimental (outbox)" verified="v0.6.0" />
 
 ## 1. Single-instance SSE (default, stable)
 

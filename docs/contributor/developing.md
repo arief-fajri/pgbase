@@ -1,6 +1,6 @@
 # PG-BASE Development Guide
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
+<DocMeta audience="Contributor" status="stable" verified="v0.6.0" />
 
 Step-by-step guide to run, test, and contribute to **PG-BASE** in a local environment.
 
@@ -184,7 +184,7 @@ The app reads its PostgreSQL connection settings from **environment variables** 
 | `PB_POSTGRES_DBNAME` | `pgbase` | `pgbase` |
 
 > [!NOTE]
-> SSL is disabled (`sslmode=disable`) by the built-in connector and is not configurable through an env variable in the default build.
+> SSL mode is configurable via `PB_POSTGRES_SSLMODE` (default `prefer`). The section 2 localhost setup works with the default; production should use `require` or `verify-full`.
 
 > [!WARNING]
 > The `serve` command also *lists* `--pg-host`, `--pg-port`, `--pg-user`, `--pg-password`, `--pg-dbname`, and `--pg-sslmode` flags, but they are **not wired to the database connection** — the app always reads the `PB_POSTGRES_*` variables above. Set those env vars instead of the flags. Also note that `go run` enables `--dev` automatically, so that flag is optional in dev.

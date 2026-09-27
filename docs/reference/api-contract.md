@@ -1,6 +1,6 @@
 # API Contract
 
-<DocMeta audience="App Builder" status="stable" verified="v0.5.4" />
+<DocMeta audience="App Builder" status="stable" verified="v0.6.0" />
 
 This page is the behavior contract for PG-BASE. Build against it and the [API overview](./api-overview.md). A complete per-endpoint reference is not published here yet — that is [Phase 1](../contributor/roadmap.md). The in-dashboard API preview is the live syntax reference.
 
@@ -62,4 +62,4 @@ Primary keys are random, non-monotonic TEXT (`gen_random_bytes` fallback). Inser
 
 ## 10. Intentionally not in this contract yet
 
-Do not assume these. They are on the [roadmap](../contributor/roadmap.md): multi-instance rate limiting (today the limit is per instance; Phase 4), `_logs` retention that does not bloat on cleanup (Phase 4), GIN indexes for multi-value JSONB filters (Phase 4), a dedicated PocketBase migration CLI (Phase 1), and a published endpoint reference (Phase 1).
+Do not assume these. They are on the [roadmap](../contributor/roadmap.md): multi-instance rate limiting (today the limit is per instance; Phase 3), `_logs` retention that does not bloat on cleanup (Phase 2), GIN indexes for multi-value JSONB filters (Phase 2), a dedicated PocketBase migration CLI (Phase 1), and a published endpoint reference (Phase 1).

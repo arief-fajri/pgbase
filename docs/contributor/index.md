@@ -1,6 +1,6 @@
 # Development
 
-<DocMeta audience="Contributor" status="stable" verified="v0.5.4" />
+<DocMeta audience="Contributor" status="stable" verified="v0.6.0" />
 
 Welcome to the PG-BASE development section. This area is for contributors, maintainers, and developers who want to understand or extend the platform itself.
 
@@ -36,3 +36,4 @@ If a test fails, use [Failure Analysis](./methodology/failure-modes.md) to class
 ## Project resources
 
 - [Roadmap](./roadmap.md) — product and development roadmap
+- [Production Readiness Matrix](./production-readiness.md) — per-capability production status (the evidence base for phase exits)

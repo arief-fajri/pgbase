@@ -1,6 +1,6 @@
 # API Overview
 
-<DocMeta audience="Developer" status="stable" verified="v0.5.4" />
+<DocMeta audience="Developer" status="stable" verified="v0.6.0" />
 
 PG-BASE exposes a REST and realtime API in front of your PostgreSQL database. This page is the map. Behavior that callers must rely on is the [API contract](./api-contract.md). A complete per-endpoint reference is not published yet — that is [Phase 1](../contributor/roadmap.md).
 
@@ -47,7 +47,7 @@ DELETE /api/collections/{collection}/records/{id}      # Delete
 | `filter` | `filter=status="active"` | SQL-like filter syntax |
 | `sort` | `sort=-created` | Sort field (prefix `-` for descending) |
 | `page` | `page=2` | Page number |
-| `perPage` | `perPage=50` | Items per page (max 300) |
+| `perPage` | `perPage=50` | Items per page (default 30, max 1000) |
 | `expand` | `expand=author` | Expand relations |
 | `fields` | `fields=id,name,email` | Select specific fields |
 
@@ -56,9 +56,8 @@ DELETE /api/collections/{collection}/records/{id}      # Delete
 ```http
 POST /api/collections/{collection}/auth-with-password   # Password login
 POST /api/collections/{collection}/auth-refresh         # Refresh token
-POST /api/collections/{collection}/auth-logout          # Logout
 POST /api/collections/{collection}/request-otp          # Request OTP code
-POST /api/collections/{collection}/auth-mfa             # MFA verification
+POST /api/collections/{collection}/auth-with-otp       # OTP login (MFA-aware)
 ```
 
 See [Authentication Flows](../flows/auth.md) for details.
@@ -75,9 +74,11 @@ See [Realtime Flows](../flows/realtime.md) for details.
 ### File storage
 
 ```http
-GET /api/files/{collection}/{recordId}/{filename}      # Download
-POST /api/files/{collection}/{recordId}                # Upload (multipart)
+GET    /api/files/{collection}/{recordId}/{filename}     # Download
+POST   /api/files/token                                   # Protected-file access token
 ```
+
+Uploads happen through the record endpoints (`POST`/`PATCH` `/api/collections/{collection}/records...`) with multipart file fields — there is no standalone upload route.
 
 ### Batch operations
 
