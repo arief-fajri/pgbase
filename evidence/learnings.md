@@ -250,9 +250,16 @@
   `x/net v0.60.0` (which raised the `go` directive to 1.26.0 as its
   precondition) + `source-map-js` 1.2.2. Docs prereqs moved `Go 1.25+` →
   `Go 1.26+` in the same commit.
-- **Lesson 1 (pin is the analysis target):** a `toolchain` pin selects not
-  only what builds but what the scanner *sees*. A runner newer than the pin
-  does not save you — audit the pin, not the runner.
+- **Lesson 1 (the runner is the analysis target — corrected):** the original
+  version of this lesson ("audit the pin, not the runner") was half-wrong and
+  CI proved it: PR #13 carried the go1.26.9 pin yet failed on
+  `net/http@go1.26.8`, because the step environment pins `GOTOOLCHAIN=local`
+  (from the CI environment, not from any repo file) and setup-go resolved
+  `>=1.26.5` to cached 1.26.8. Under `GOTOOLCHAIN=local` the go.mod pin
+  neither switches nor errors — the RUNNER version is what gets scanned.
+  Fix was one line: the govulncheck job pin → `>=1.26.9`, with the reason
+  recorded inline. Assert the installed version, not the range (W-14's
+  "print ≠ assert" again).
 - **Lesson 2 (keep what the toolchain generates):** `npm audit fix`
   normalized one lockfile indent; reverting it for "minimal diff" would only
   churn again on the next npm run. Canonical output of the tool wins over
@@ -262,6 +269,10 @@
   from the runner's Go). Rebuilt locally via `go install @v2.6.2` — no
   workflow change needed. A toolchain bump implies a lint-binary rebuild on
   every dev machine.
+- **Lesson 4 (prove a version fix both ways):** `GOTOOLCHAIN=go1.26.8
+  govulncheck` reproduces CI exactly (exit 3, 12 vulns); go1.26.9 is exit 0.
+  A version bump verified only on the new version is half-proven — the old
+  version must still fail, or you haven't shown the pin is the cause.
 - **Evidence:** `govulncheck` 0 reachable; `npm audit` 0 (ui+docs); full
   suite + `apis -race` green; lint 0; `ui/dist` byte-identical post-rebuild.
 

@@ -59,7 +59,11 @@ jobs:
         # pinned by full SHA (CFG-07); was actions/setup-go@v6
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
         with:
-          go-version: '>=1.26.5'
+          # >=1.26.9 on purpose: the analyzed stdlib is the RUNNER's (the
+          # environment pins GOTOOLCHAIN=local, so go.mod's toolchain line
+          # never switches) — 1.26.8 still carries GO-2026-6599…6617, fixed
+          # in 1.26.9. The range auto-adopts future 1.26 patches.
+          go-version: '>=1.26.9'
 
       # @latest on purpose: the scanner and its detection rules evolve
       # together; the Go module proxy serves checksum-verified zips, so the
