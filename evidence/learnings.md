@@ -239,6 +239,32 @@
   changed in response (classify-before-fix cuts both ways: no classification, no
   patch). Always persist full `-v` logs for package runs so a transient can be named.
 
+## 2026-10-12 — DRR-0007: security-scan red fixed by toolchain bump, not code
+
+- **Event:** CI `security-scan` went red on govulncheck (12 reachable stdlib
+  vulns + x/net) and npm-audit ui (source-map-js high). Root cause of the Go
+  side was one line: `toolchain go1.25.14` in `go.mod` forced
+  toolchain-switching back to the vulnerable toolchain while every workflow
+  already ran Go `>=1.26.5` — govulncheck analyzes the pinned toolchain's
+  stdlib, so CI failed deterministically. Fix: `toolchain go1.26.9` +
+  `x/net v0.60.0` (which raised the `go` directive to 1.26.0 as its
+  precondition) + `source-map-js` 1.2.2. Docs prereqs moved `Go 1.25+` →
+  `Go 1.26+` in the same commit.
+- **Lesson 1 (pin is the analysis target):** a `toolchain` pin selects not
+  only what builds but what the scanner *sees*. A runner newer than the pin
+  does not save you — audit the pin, not the runner.
+- **Lesson 2 (keep what the toolchain generates):** `npm audit fix`
+  normalized one lockfile indent; reverting it for "minimal diff" would only
+  churn again on the next npm run. Canonical output of the tool wins over
+  diff minimalism (same principle as gofmt).
+- **Lesson 3 (local lint binary ages):** the local golangci-lint (built with
+  go1.25) refused the 1.26 target while CI was unaffected (it `go install`s
+  from the runner's Go). Rebuilt locally via `go install @v2.6.2` — no
+  workflow change needed. A toolchain bump implies a lint-binary rebuild on
+  every dev machine.
+- **Evidence:** `govulncheck` 0 reachable; `npm audit` 0 (ui+docs); full
+  suite + `apis -race` green; lint 0; `ui/dist` byte-identical post-rebuild.
+
 <!-- New entries go above this line. -->
 
 ## 2026-09-16 — Documentation restructure: public/internal separation

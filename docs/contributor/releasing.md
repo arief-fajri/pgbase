@@ -6,7 +6,7 @@ Pointer page. `developing.md` is the single source of truth for commands; `contr
 
 ## 1. Prereqs
 
-Go 1.25+ (CI `>=1.26.5`), Node 22+ (CI `>=25.2.1`; 18 is EOL), PostgreSQL 16+, Docker 24+ optional. Check: `go version`, `node --version`, `psql --version`. (`developing.md` #prereqs. Note: `contributing.md` says Node 24+ — treat `developing.md` as truth.)
+Go 1.26+ (CI `>=1.26.5`), Node 22+ (CI `>=25.2.1`; 18 is EOL), PostgreSQL 16+, Docker 24+ optional. Check: `go version`, `node --version`, `psql --version`. (`developing.md` #prereqs. Note: `contributing.md` says Node 24+ — treat `developing.md` as truth.)
 
 ## 2. Day-to-day loop
 

@@ -13,7 +13,7 @@ This document describes how to prepare a PR for a change in the main repository.
 
 ## Prerequisites
 
-- Go 1.25+ (for making changes in the Go code)
+- Go 1.26+ (for making changes in the Go code)
 - Node 22+ (for making changes in the Superuser UI; CI runs `>=25.2.1`)
 - PostgreSQL (for running the tests, see [Development Setup](./developing.md))
 
