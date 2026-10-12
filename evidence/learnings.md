@@ -212,6 +212,33 @@
   (pull → tag → push) is simpler and more deterministic than rebuilding on
   the publish event.
 
+## 2026-10-12 — W-01 closed: delete publishes after commit (DRR-0006)
+
+- **Event:** The Phase 1 ordering item from DRR-0005 is done in one PR: `OnModelDelete`
+  no longer publishes the outbox delete pre-commit. It stashes `record.Fresh()` in a
+  package-level `sync.Map` (`realtimeDeleteSnapshotStash`, keyed by the delete
+  dry-cache key); `OnModelAfterDeleteSuccess` publishes the stash after the local
+  dry-cache broadcast succeeds; `OnModelAfterDeleteError` drops it. Contract §5 now
+  states after-commit delete + at-most-once (W-02 replay stays Phase 3).
+- **Lesson 1 (stash, not re-fetch):** after commit the record is gone and custom
+  models are unresolvable (`realtimeResolveRecord` does a DB lookup for them), so the
+  post-commit publisher cannot reconstruct the snapshot — it must be captured
+  pre-commit and carried across hooks. The existing dry-cache key is the natural
+  stash key (same table+pk both sides, already relied upon by the broadcast path).
+- **Lesson 2 (guard the default path):** the stash is stored only when
+  `RealtimeOutboxEnabled()` — the single-instance default (outbox off) keeps zero
+  outbox reads/writes/allocation, matching the flows-doc promise. `Fresh()` freezes
+  field state so later in-tx mutation cannot leak into the snapshot.
+- **Lesson 3 (prove the negative both ways):** the regression test was run against
+  the stashed (pre-fix) `apis/realtime.go` → FAIL with exactly 1 phantom row, then
+  against the fix → PASS with 0 rows. A test that never saw red is a claim, not a
+  regression test (L2 rule, cf. W-06 lesson).
+- **Lesson 4 (unclassified transient):** one full `go test ./apis/ -count=1` run went
+  FAIL with only `tail` output kept, so the failing test name was lost; 4 consecutive
+  full-package re-runs were green with an empty recovered-panic gate. No code was
+  changed in response (classify-before-fix cuts both ways: no classification, no
+  patch). Always persist full `-v` logs for package runs so a transient can be named.
+
 <!-- New entries go above this line. -->
 
 ## 2026-09-16 — Documentation restructure: public/internal separation

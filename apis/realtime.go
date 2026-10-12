@@ -27,6 +27,16 @@ import (
 // note: the chunk size is arbitrary chosen and may change in the future
 const clientsChunkSize = 150
 
+// realtimeDeleteSnapshotStash holds pre-commit delete snapshots keyed by the
+// delete dry-cache key (see getDryCacheKey). A delete snapshot must be
+// captured BEFORE the delete commits (after commit the record is gone and
+// custom models are no longer resolvable), but the outbox row must only be
+// published AFTER the commit — publishing pre-commit (W-01) notifies peers
+// of state that never happened when the delete later fails. Entries are
+// removed on both AfterDeleteSuccess and AfterDeleteError, mirroring the
+// dry-cache message lifecycle.
+var realtimeDeleteSnapshotStash sync.Map // string -> *core.Record
+
 // RealtimeClientAuthKey is the name of the realtime client store key that holds its auth state.
 const RealtimeClientAuthKey = "auth"
 
@@ -479,10 +489,12 @@ func bindRealtimeEvents(app core.App) {
 						slog.String("collectionName", record.Collection().Name),
 						slog.String("error", err.Error()),
 					)
-				} else {
-					// snapshot the record BEFORE it is deleted so other instances can
-					// re-evaluate their local subscribers after the delete commits
-					publishRealtimeEvent(app, "delete", record, record)
+				} else if e.App.RealtimeOutboxEnabled() {
+					// stash a frozen copy BEFORE the delete commits so the
+					// AfterDeleteSuccess hook can publish it after commit.
+					// The outbox write itself must not happen here (W-01).
+					key := getDryCacheKey("delete", record)
+					realtimeDeleteSnapshotStash.Store(key, record.Fresh())
 				}
 			}
 
@@ -507,6 +519,14 @@ func bindRealtimeEvents(app core.App) {
 						slog.String("collectionName", collection.Name),
 						slog.String("error", err.Error()),
 					)
+				} else if snapshot, ok := realtimeDeleteSnapshotStash.LoadAndDelete(getDryCacheKey("delete", e.Model)); ok {
+					// publish the stashed pre-commit snapshot only after the
+					// delete committed (W-01). Kept consistent with the
+					// create/update path: outbox follows a successful local
+					// broadcast.
+					if rec, ok := snapshot.(*core.Record); ok {
+						publishRealtimeEvent(app, "delete", rec, rec)
+					}
 				}
 			}
 
@@ -530,6 +550,8 @@ func bindRealtimeEvents(app core.App) {
 					)
 				}
 			}
+			// drop any stashed snapshot: a failed delete must not publish (W-01)
+			realtimeDeleteSnapshotStash.Delete(getDryCacheKey("delete", e.Model))
 
 			return e.Next()
 		},
