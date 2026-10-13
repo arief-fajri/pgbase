@@ -156,7 +156,7 @@ Highest priority. This is the acquisition engine, not the product identity.
 | Migration CLI | Partial | `pgbase migrate --from pocketbase` with dry-run, progress, and safe failure. Engine today: `core/backup_sqlite_import.go` |
 | Verification report | Not started | Pre/post counts, relations, auth, files |
 | Compatibility suite | Not started | Auth, CRUD, filter, sort, expand, relations, realtime, files, rules, JS/Dart SDKs — tested against our contract |
-| Realtime correctness contract | Not started | Close W-01 (delete published pre-commit) and write the realtime delivery semantics — at-most-once vs at-least-once, replay — into the contract **before** the compatibility suite freezes: a suite built against current behavior would codify the bugs |
+| Realtime correctness contract | Partial — W-01 closed 2026-10-12 (delete publishes after commit; delivery semantics in `api-contract.md` §5; DRR-0006) | Close W-01 (delete published pre-commit) and write the realtime delivery semantics — at-most-once vs at-least-once, replay — into the contract **before** the compatibility suite freezes: a suite built against current behavior would codify the bugs |
 | Playbook | Not started | What application code must change, and how to recover a failed import |
 | Endpoint reference | Not started | A published route map. Until then the in-dashboard API preview is the syntax reference |
 

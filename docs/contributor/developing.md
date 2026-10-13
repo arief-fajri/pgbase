@@ -56,7 +56,7 @@ Then open `http://127.0.0.1:8090/_/` and log in.
 
 | Tool | Minimal | Why / Notes | Check |
 |------|---------|-------------|-------|
-| Go | 1.25+ | Matches `go 1.25.0` in `go.mod`; CI pins `>=1.26.5` | `go version` |
+| Go | 1.26+ | Matches `go 1.26.0` in `go.mod`; CI pins `>=1.26.5` | `go version` |
 | Node.js | 22+ (see note) | `ui/` is a Vite app; CI pins `>=25.2.1` | `node --version` |
 | npm | 10+ | Bundled with Node.js | `npm --version` |
 | PostgreSQL | 16+ | Both dev and CI use `postgres:16-alpine` | `psql --version` |

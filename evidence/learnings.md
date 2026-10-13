@@ -212,6 +212,77 @@
   (pull → tag → push) is simpler and more deterministic than rebuilding on
   the publish event.
 
+## 2026-10-12 — W-01 closed: delete publishes after commit (DRR-0006)
+
+- **Event:** The Phase 1 ordering item from DRR-0005 is done in one PR: `OnModelDelete`
+  no longer publishes the outbox delete pre-commit. It stashes `record.Fresh()` in a
+  package-level `sync.Map` (`realtimeDeleteSnapshotStash`, keyed by the delete
+  dry-cache key); `OnModelAfterDeleteSuccess` publishes the stash after the local
+  dry-cache broadcast succeeds; `OnModelAfterDeleteError` drops it. Contract §5 now
+  states after-commit delete + at-most-once (W-02 replay stays Phase 3).
+- **Lesson 1 (stash, not re-fetch):** after commit the record is gone and custom
+  models are unresolvable (`realtimeResolveRecord` does a DB lookup for them), so the
+  post-commit publisher cannot reconstruct the snapshot — it must be captured
+  pre-commit and carried across hooks. The existing dry-cache key is the natural
+  stash key (same table+pk both sides, already relied upon by the broadcast path).
+- **Lesson 2 (guard the default path):** the stash is stored only when
+  `RealtimeOutboxEnabled()` — the single-instance default (outbox off) keeps zero
+  outbox reads/writes/allocation, matching the flows-doc promise. `Fresh()` freezes
+  field state so later in-tx mutation cannot leak into the snapshot.
+- **Lesson 3 (prove the negative both ways):** the regression test was run against
+  the stashed (pre-fix) `apis/realtime.go` → FAIL with exactly 1 phantom row, then
+  against the fix → PASS with 0 rows. A test that never saw red is a claim, not a
+  regression test (L2 rule, cf. W-06 lesson).
+- **Lesson 4 (unclassified transient):** one full `go test ./apis/ -count=1` run went
+  FAIL with only `tail` output kept, so the failing test name was lost; 4 consecutive
+  full-package re-runs were green with an empty recovered-panic gate. No code was
+  changed in response (classify-before-fix cuts both ways: no classification, no
+  patch). Always persist full `-v` logs for package runs so a transient can be named.
+
+## 2026-10-12 — DRR-0007: security-scan red fixed by toolchain bump, not code
+
+- **Event:** CI `security-scan` went red on govulncheck (12 reachable stdlib
+  vulns + x/net) and npm-audit ui (source-map-js high). Root cause of the Go
+  side was one line: `toolchain go1.25.14` in `go.mod` forced
+  toolchain-switching back to the vulnerable toolchain while every workflow
+  already ran Go `>=1.26.5` — govulncheck analyzes the pinned toolchain's
+  stdlib, so CI failed deterministically. Fix: `toolchain go1.26.9` +
+  `x/net v0.60.0` (which raised the `go` directive to 1.26.0 as its
+  precondition) + `source-map-js` 1.2.2. Docs prereqs moved `Go 1.25+` →
+  `Go 1.26+` in the same commit.
+- **Lesson 1 (the runner is the analysis target — corrected):** the original
+  version of this lesson ("audit the pin, not the runner") was half-wrong and
+  CI proved it: PR #13 carried the go1.26.9 pin yet failed on
+  `net/http@go1.26.8`, because the step environment pins `GOTOOLCHAIN=local`
+  (from the CI environment, not from any repo file) and setup-go resolved
+  `>=1.26.5` to cached 1.26.8. Under `GOTOOLCHAIN=local` the go.mod pin
+  neither switches nor errors — the RUNNER version is what gets scanned.
+  Fix was one line: the govulncheck job pin → `>=1.26.9`, with the reason
+  recorded inline. Assert the installed version, not the range (W-14's
+  "print ≠ assert" again).
+- **Lesson 2 (keep what the toolchain generates):** `npm audit fix`
+  normalized one lockfile indent; reverting it for "minimal diff" would only
+  churn again on the next npm run. Canonical output of the tool wins over
+  diff minimalism (same principle as gofmt).
+- **Lesson 3 (local lint binary ages):** the local golangci-lint (built with
+  go1.25) refused the 1.26 target while CI was unaffected (it `go install`s
+  from the runner's Go). Rebuilt locally via `go install @v2.6.2` — no
+  workflow change needed. A toolchain bump implies a lint-binary rebuild on
+  every dev machine.
+- **Lesson 4 (prove a version fix both ways):** `GOTOOLCHAIN=go1.26.8
+  govulncheck` reproduces CI exactly (exit 3, 12 vulns); go1.26.9 is exit 0.
+  A version bump verified only on the new version is half-proven — the old
+  version must still fail, or you haven't shown the pin is the cause.
+- **Lesson 5 (a language bump is a sweep, not a line):** raising go.mod's
+  `go` directive broke the Dockerfile builder too (`golang:1.25-alpine` vs
+  new minimum 1.26.0, same `GOTOOLCHAIN=local` hard-fail at
+  `go mod download`). Every Go consumer — scanner runner, CI builders,
+  Dockerfile base, docs prereqs — must move in the SAME change. The miss was
+  class A (omission), caught by CI's `docker build .` validation step doing
+  exactly its job.
+- **Evidence:** `govulncheck` 0 reachable; `npm audit` 0 (ui+docs); full
+  suite + `apis -race` green; lint 0; `ui/dist` byte-identical post-rebuild.
+
 <!-- New entries go above this line. -->
 
 ## 2026-09-16 — Documentation restructure: public/internal separation

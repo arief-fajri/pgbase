@@ -40,6 +40,11 @@ Primary keys are random, non-monotonic TEXT (`gen_random_bytes` fallback). Inser
 
 `GET /api/realtime` fans out only to subscribers on the instance that performed the write. Cross-instance fanout needs the opt-in outbox (`PB_REALTIME_OUTBOX=1`, table `_realtime_outbox`, channel `pb_realtime_outbox`). Details: [Realtime](../flows/realtime.md). The LISTEN connection is a dedicated `pgx` connection, not pooled — connect directly or via session pooling, not PgBouncer transaction mode.
 
+Delivery semantics (both local fanout and the outbox):
+
+- Delete events are emitted **only after the delete commits**. The snapshot is captured pre-commit and replayed verbatim (sanitized — no `password`/`tokenKey`), but a delete that fails publishes nothing (W-01 closed 2026-10-12).
+- Delivery is **at-most-once**: no replay across instance restarts (W-02, Phase 3), slow consumers are dropped not backpressured.
+
 ## 6. Batch is one database transaction
 
 `POST /api/batch` (`apis/batch.go:26`) must be enabled in app settings. Requests share auth state. File uploads use `FormData` `@jsonPayload` plus `requests.N.<field>` (see in-dashboard `docsBatch.js`). Large batches hold one transaction — keep them small. See [Collections and API rules](../collections-and-api-rules.md).
