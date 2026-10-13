@@ -1,5 +1,5 @@
 # base images are pinned by digest (CFG-06); bump deliberately by re-pinning
-FROM golang:1.25-alpine@sha256:78c9e40f10516d7070156948a1747347cc5093022f06deeff3c9decd5faa3af7 AS builder
+FROM golang:1.26-alpine@sha256:3082400e369fa24d5fc60bca20edab3f6d604e0c5a690ec66b295eff4dd87ade AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 COPY third_party ./third_party

@@ -273,6 +273,13 @@
   govulncheck` reproduces CI exactly (exit 3, 12 vulns); go1.26.9 is exit 0.
   A version bump verified only on the new version is half-proven — the old
   version must still fail, or you haven't shown the pin is the cause.
+- **Lesson 5 (a language bump is a sweep, not a line):** raising go.mod's
+  `go` directive broke the Dockerfile builder too (`golang:1.25-alpine` vs
+  new minimum 1.26.0, same `GOTOOLCHAIN=local` hard-fail at
+  `go mod download`). Every Go consumer — scanner runner, CI builders,
+  Dockerfile base, docs prereqs — must move in the SAME change. The miss was
+  class A (omission), caught by CI's `docker build .` validation step doing
+  exactly its job.
 - **Evidence:** `govulncheck` 0 reachable; `npm audit` 0 (ui+docs); full
   suite + `apis -race` green; lint 0; `ui/dist` byte-identical post-rebuild.
 
